@@ -5032,7 +5032,7 @@ server <- function(input, output, session) {
     updatePickerInput(session, "numVars", selected = character(0))
     showNotification("Toutes les variables désélectionnées", type = "message", duration = 2)
   })
-  
+   
   # UI pour sélection des facteurs
   output$descFactorUI <- renderUI({
     req(values$filteredData)
@@ -5088,22 +5088,22 @@ server <- function(input, output, session) {
       
       # Fonction pour calculer les statistiques groupées
       make_summ_grouped <- function(df_in, group_vars, num_vars, stats_sel) {
-        results_list <- lapply(num_vars, function(var) {
+        results_list <- lapply(num_vars, function(var_name) {
           var_results <- df_in %>%
             group_by(!!!syms(group_vars)) %>%
             summarise(
-              mean = if("mean" %in% stats_sel) mean(.data[[var]], na.rm = TRUE) else NA_real_,
-              median = if("median" %in% stats_sel) median(.data[[var]], na.rm = TRUE) else NA_real_,
-              sd = if("sd" %in% stats_sel) sd(.data[[var]], na.rm = TRUE) else NA_real_,
-              var = if("var" %in% stats_sel) var(.data[[var]], na.rm = TRUE) else NA_real_,
-              cv = if("cv" %in% stats_sel) calc_cv(.data[[var]]) else NA_real_,
-              min = if("min" %in% stats_sel) min(.data[[var]], na.rm = TRUE) else NA_real_,
-              max = if("max" %in% stats_sel) max(.data[[var]], na.rm = TRUE) else NA_real_,
-              q1 = if("q1" %in% stats_sel) quantile(.data[[var]], 0.25, na.rm = TRUE) else NA_real_,
-              q3 = if("q3" %in% stats_sel) quantile(.data[[var]], 0.75, na.rm = TRUE) else NA_real_,
+              mean = if("mean" %in% stats_sel) mean(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              median = if("median" %in% stats_sel) median(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              sd = if("sd" %in% stats_sel) sd(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              var = if("var" %in% stats_sel) var(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              cv = if("cv" %in% stats_sel) calc_cv(.data[[var_name]]) else NA_real_,
+              min = if("min" %in% stats_sel) min(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              max = if("max" %in% stats_sel) max(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              q1 = if("q1" %in% stats_sel) quantile(.data[[var_name]], 0.25, na.rm = TRUE) else NA_real_,
+              q3 = if("q3" %in% stats_sel) quantile(.data[[var_name]], 0.75, na.rm = TRUE) else NA_real_,
               .groups = "drop"
             ) %>%
-            mutate(Variable = var)
+            mutate(Variable = var_name)
           
           return(var_results)
         })
@@ -5112,7 +5112,7 @@ server <- function(input, output, session) {
         
         # Réorganiser les colonnes
         selected_cols <- c(group_vars, "Variable", stats_sel)
-        final_cols <- intersect(selected_cols, names(df_combined))
+        final_cols <- selected_cols[selected_cols %in% names(df_combined)]
         df_combined <- df_combined[, final_cols, drop = FALSE]
         
         return(df_combined)
