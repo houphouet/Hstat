@@ -36,7 +36,7 @@ required_packages <- c(
   "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "rmarkdown", "haven",
   "dplyr", "knitr", "stringr", "scales", "ggplot2", "ggdendro", "reshape2", "sortable",
   "tibble", "plotrix", "plotly",  "qqplotr", "tidyr",  "report", "see", "corrplot",
-  "car", "agricolae","forcats", "bslib", "factoextra",  "FactoMineR","questionr",
+  "car", "agricolae","forcats", "bslib", "factoextra",  "FactoMineR","questionr",  "digest",
   "MASS", "cluster", "GGally", "psych", "nortest", "lmtest", "multcomp","FSA", "treemapify",
   "stats",  "emmeans", "performance","purrr", "PMCMRplus","multcompView", "rcompanion"
 )
@@ -223,7 +223,7 @@ ui <- dashboardPage(
         .small-box { border-radius: 5px; }
         .main-header .logo { font-weight: bold; }
         .interpretation-box { background-color: #f9f9f9; border-left: 4px solid #3c8dbc; padding: 10px; margin-top: 10px; }
-      "))
+      ")),
     ),
     tabItems(
       # ---- Chargement ----
@@ -663,7 +663,6 @@ ui <- dashboardPage(
                 )
               )
       ),
-      
       # ---- Nettoyage ----
       
       tabItem(tabName = "clean",
@@ -980,6 +979,7 @@ ui <- dashboardPage(
                 )
               )
       ),
+      
       # ---- Filtrage ----
       tabItem(tabName = "filter",
               fluidRow(
@@ -1011,7 +1011,6 @@ ui <- dashboardPage(
                     DTOutput("filteredData"))
               )
       ),
-      
       # ---- Analyse descriptives ----
       tabItem(tabName = "descriptive",
               fluidRow(
@@ -1358,6 +1357,7 @@ ui <- dashboardPage(
                 )
               )
       ),
+      
       # ---- Tableaux croisés dynamiques  ----
       tabItem(tabName = "crosstab",
               
@@ -1938,895 +1938,1022 @@ ui <- dashboardPage(
       ),
       # ---- Visualisation des données ----
       tabItem(tabName = "visualization",
+              # En-tête avec instructions
               fluidRow(
-                box(title = "Sélection des variables", status = "primary", width = 4, solidHeader = TRUE,
-                    # Variables de base
+                box(
+                  title = tagList(icon("chart-line"), " Visualisation Interactive des Données"),
+                  status = "info",
+                  solidHeader = TRUE,
+                  width = 12,
+                  collapsible = TRUE,
+                  collapsed = TRUE,
+                  p("Cette interface se met à jour automatiquement à chaque modification. ", 
+                    "Sélectionnez vos variables et ajustez les paramètres pour voir les changements en temps réel.",
+                    style = "font-size: 14px;"),
+                  tags$ul(
+                    tags$li(icon("check-circle", style = "color: #28a745;"), " Sélection automatique des variables"),
+                    tags$li(icon("check-circle", style = "color: #28a745;"), " Mise à jour instantanée du graphique"),
+                    tags$li(icon("check-circle", style = "color: #28a745;"), " Détection automatique des types de données"),
+                    tags$li(icon("check-circle", style = "color: #28a745;"), " Personnalisation en temps réel")
+                  )
+                )
+              ),
+              
+              # Ligne principale avec panneau de contrôle et graphique
+              fluidRow(
+                
+                # === PANNEAU DE CONTRÔLE (Gauche) ===
+                box(
+                  title = tagList(icon("sliders-h"), " Paramètres de Visualisation"),
+                  status = "primary",
+                  width = 4,
+                  solidHeader = TRUE,
+                  
+                  # Section: Variables de base
+                  div(
+                    class = "well",
+                    style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                    h4(icon("database"), " Sélection des Variables", 
+                       style = "color: #007bff; margin-top: 0; font-size: 16px;"),
+                    
+                    # Variable X avec actualisation auto
                     uiOutput("vizXVarSelect"),
                     
-                    # Type de variable X
-                    selectInput("xVarType", "Type de la variable X:",
-                                choices = c("Auto (détection)" = "auto",
-                                            "Date" = "date",
-                                            "Catégorielle" = "categorical",
-                                            "Texte" = "text",
-                                            "Facteur" = "factor",
-                                            "Numérique" = "numeric"),
-                                selected = "auto"),
-                    helpText(icon("info-circle"), "Choisissez le type de la variable X. 'Auto' détecte le type automatiquement."),
-                    
-                    # Éditeur de niveaux pour X
-                    conditionalPanel(
-                      condition = "input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text' || (input.xVarType == 'auto' && output.detectedXType)",
-                      div(class = "well", style = "background-color: #f5f5f5; border-left: 4px solid #ff9800; padding: 15px; border-radius: 5px; margin-top: 10px;",
-                          h5("Personnalisation des niveaux de la variable X", style = "color: #ff9800; font-weight: bold; margin-top: 0;"),
-                          uiOutput("xLevelsEditor"),
-                          helpText(icon("lightbulb"), "Modifiez les étiquettes pour améliorer la lisibilité. Chaque étiquette doit être unique et non vide.")
+                    # Type de variable X avec détection automatique
+                    selectInput(
+                      "xVarType",
+                      tagList(icon("magic"), " Type de la variable X:"),
+                      choices = c(
+                        "Auto (détection automatique)" = "auto",
+                        "Date/Temporelle" = "date",
+                        "Catégorielle" = "categorical",
+                        "Texte libre" = "text",
+                        "Facteur" = "factor",
+                        "Numérique continue" = "numeric"
+                      ),
+                      selected = "auto"
+                    ),
+                    helpText(
+                      icon("info-circle", style = "color: #17a2b8;"),
+                      "Le mode 'Auto' détecte automatiquement le type optimal pour votre variable."
+                    )
+                  ),
+                  
+                  # Section: Personnalisation des niveaux X (conditionnelle)
+                  conditionalPanel(
+                    condition = "input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text' || input.xVarType == 'auto'",
+                    div(
+                      class = "well",
+                      style = "background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                      h4(
+                        icon("edit"), " Personnalisation des Étiquettes",
+                        style = "color: #ff9800; font-weight: bold; margin-top: 0; font-size: 15px;"
+                      ),
+                      p("Modifiez les noms des catégories pour améliorer la lisibilité de votre graphique.",
+                        style = "font-size: 13px; color: #666; margin-bottom: 10px;"),
+                      uiOutput("xLevelsEditor"),
+                      helpText(
+                        icon("lightbulb", style = "color: #ffc107;"),
+                        "Les modifications sont conservées jusqu'à la fermeture de l'application."
                       )
-                    ),
-                    
-                    # Éditeur d'ordre pour X catégoriel (seasonal_evolution)
-                    conditionalPanel(
-                      condition = "input.vizType == 'seasonal_evolution' && (input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text' || (input.xVarType == 'auto'))",
-                      div(class = "well", 
-                          style = "background-color: #f0fff0; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; margin-top: 10px;",
-                          h5(icon("sort"), " Ordre de la variable X", 
-                             style = "color: #28a745; font-weight: bold; margin-top: 0;"),
-                          uiOutput("xOrderEditor"),
-                          helpText(icon("lightbulb"), 
-                                   "Définissez l'ordre d'apparition des catégories sur l'axe X pour refléter votre logique d'analyse (ex: T1+3, T1+7, T1+13, T2+3...)")
+                    )
+                  ),
+                  
+                  # Section: Ordre des catégories X (pour seasonal_evolution)
+                  conditionalPanel(
+                    condition = "input.vizType == 'seasonal_evolution' && (input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text' || input.xVarType == 'auto')",
+                    div(
+                      class = "well",
+                      style = "background-color: #e8f5e9; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                      h4(
+                        icon("sort"), " Ordre des Catégories",
+                        style = "color: #28a745; font-weight: bold; margin-top: 0; font-size: 15px;"
+                      ),
+                      p("Définissez l'ordre d'apparition des catégories sur l'axe X.",
+                        style = "font-size: 13px; color: #666; margin-bottom: 10px;"),
+                      uiOutput("xOrderEditor"),
+                      helpText(
+                        icon("hand-point-up", style = "color: #28a745;"),
+                        "Glissez-déposez pour réorganiser. Le graphique se met à jour automatiquement."
                       )
-                    ),
-                    
-                    # Options pour les dates
-                    conditionalPanel(
-                      condition = "input.xVarType == 'date'",
-                      div(style = "margin-top: 10px;",
-                          selectInput("xDateFormat", "Format de conversion des dates:",
-                                      choices = c("AAAA-MM-JJ" = "%Y-%m-%d",
-                                                  "JJ/MM/AAAA" = "%d/%m/%Y",
-                                                  "MM/JJ/AAAA" = "%m/%d/%Y",
-                                                  "AAAA/MM/JJ" = "%Y/%m/%d",
-                                                  "JJ-Mois-AAAA" = "%d-%b-%Y"),
-                                      selected = "%Y-%m-%d"),
-                          helpText(icon("calendar"), "Spécifiez le format si la variable X est une chaîne à convertir en date.")
+                    )
+                  ),
+                  
+                  # Section: Options pour les dates
+                  conditionalPanel(
+                    condition = "input.xVarType == 'date'",
+                    div(
+                      class = "well",
+                      style = "background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                      h4(
+                        icon("calendar-alt"), " Paramètres de Date",
+                        style = "color: #2196F3; font-weight: bold; margin-top: 0; font-size: 15px;"
+                      ),
+                      selectInput(
+                        "xDateFormat",
+                        "Format de conversion:",
+                        choices = c(
+                          "AAAA-MM-JJ (ISO 8601)" = "%Y-%m-%d",
+                          "JJ/MM/AAAA (France)" = "%d/%m/%Y",
+                          "MM/JJ/AAAA (US)" = "%m/%d/%Y",
+                          "AAAA/MM/JJ" = "%Y/%m/%d",
+                          "JJ-Mois-AAAA" = "%d-%b-%Y",
+                          "Mois JJ, AAAA" = "%B %d, %Y"
+                        ),
+                        selected = "%Y-%m-%d"
+                      ),
+                      helpText(
+                        icon("exclamation-triangle", style = "color: #ffc107;"),
+                        "Assurez-vous que le format correspond à vos données pour une conversion correcte."
                       )
+                    )
+                  ),
+                  
+                  # Section: Variable(s) Y avec support multi-sélection
+                  div(
+                    class = "well",
+                    style = "background-color: #f1f8e9; border-left: 4px solid #8bc34a; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                    h4(
+                      icon("chart-bar"), " Variable(s) à Visualiser",
+                      style = "color: #689f38; font-weight: bold; margin-top: 0; font-size: 15px;"
+                    ),
+                    uiOutput("vizYVarSelect"),
+                    # Indicateur de mode multi-Y
+                    conditionalPanel(
+                      condition = "output.multiYIndicator === true",
+                      div(
+                        style = "margin-top: 10px; padding: 8px; background-color: #c8e6c9; border-radius: 4px; border: 1px solid #81c784;",
+                        icon("layer-group", style = "color: #388e3c;"),
+                        span(
+                          id = "multiYBadge",
+                          style = "font-weight: bold; color: #1b5e20; margin-left: 5px;",
+                          "Mode multi-variables activé"
+                        )
+                      )
+                    )
+                  ),
+                  
+                  # Section: Variables supplémentaires (Couleur et Facette)
+                  div(
+                    class = "well",
+                    style = "background-color: #fce4ec; border-left: 4px solid #e91e63; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                    h4(
+                      icon("palette"), " Variables Supplémentaires",
+                      style = "color: #c2185b; font-weight: bold; margin-top: 0; font-size: 15px;"
                     ),
                     
-                    # Sélection Y améliorée
-                    div(style = "margin-top: 15px; margin-bottom: 15px;",
-                        uiOutput("vizYVarSelect")
-                    ),
-                    
-                    # Variables Couleur et Facette
+                    # Variable de couleur
                     uiOutput("vizColorVarSelect"),
+                    
+                    # Variable de facetting
                     uiOutput("vizFacetVarSelect"),
                     
                     # Avertissement pour facetting
                     conditionalPanel(
                       condition = "input.vizFacetVar != 'Aucun' && input.vizFacetVar != null",
-                      div(style = "margin: 10px 0; padding: 8px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px; font-size: 12px;",
-                          icon("exclamation-triangle", style = "color: #ffc107;"),
-                          " Assurez-vous que la variable de facetting a peu de catégories (2-10) et pas de valeurs manquantes."
+                      div(
+                        style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;",
+                        icon("exclamation-triangle", style = "color: #ff9800;"),
+                        span(
+                          style = "font-size: 12px; color: #856404; margin-left: 5px;",
+                          "Utilisez une variable avec 2-10 catégories maximum et sans valeurs manquantes."
+                        )
                       )
                     ),
                     
-                    # Type de visualisation avec badges informatifs
-                    div(style = "margin-top: 15px;",
-                        selectInput("vizType", "Type de visualisation:",
-                                    choices = c("Nuage de points" = "scatter",
-                                                "Courbe saisonnière avec lissage" = "seasonal_smooth",
-                                                "Courbe évolution saison" = "seasonal_evolution",
-                                                "Boxplot" = "box",
-                                                "Violon" = "violin",
-                                                "Barres" = "bar",
-                                                "Lignes" = "line",
-                                                "Densité" = "density",
-                                                "Histogramme" = "histogram",
-                                                "Heatmap" = "heatmap",
-                                                "Aires empilées" = "area",
-                                                "Camembert" = "pie",
-                                                "Donut" = "donut",
-                                                "Treemap" = "treemap"),
-                                    selected = "scatter"),
-                        
-                        # Badge de compatibilité multi-Y
-                        conditionalPanel(
-                          condition = "input.vizType == 'scatter' || input.vizType == 'line' || input.vizType == 'area' || input.vizType == 'bar' || input.vizType == 'seasonal_smooth' || input.vizType == 'seasonal_evolution'",
-                          div(style = "margin-top: 5px; padding: 4px 8px; background-color: #d4edda; border-radius: 4px; font-size: 11px; display: inline-block;",
-                              icon("layer-group", style = "color: #28a745;"),
-                              span(style = "color: #155724; font-weight: bold;", " Multi-séries compatible")
-                          )
+                    # Options de facetting
+                    conditionalPanel(
+                      condition = "input.vizFacetVar != 'Aucun' && input.vizFacetVar != null",
+                      div(
+                        style = "margin-top: 10px;",
+                        checkboxInput(
+                          "facetScalesFree",
+                          tagList(icon("expand"), " Échelles libres pour chaque facette"),
+                          value = FALSE
                         ),
-                        conditionalPanel(
-                          condition = "input.vizType == 'box' || input.vizType == 'violin' || input.vizType == 'density' || input.vizType == 'histogram' || input.vizType == 'heatmap'",
-                          div(style = "margin-top: 5px; padding: 4px 8px; background-color: #fff3cd; border-radius: 4px; font-size: 11px; display: inline-block;",
-                              icon("exclamation-circle", style = "color: #856404;"),
-                              span(style = "color: #856404; font-weight: bold;", " Une seule variable Y")
-                          )
-                        )
-                    ),
-                    
-                    # Mode d'agrégation
-                    div(style = "margin-top: 20px;",
-                        checkboxInput("useAggregation", "Activer l'agrégation", value = FALSE),
-                        conditionalPanel(
-                          condition = "input.useAggregation",
-                          div(style = "margin-left: 15px; padding: 12px; border-left: 3px solid #007bff; background-color: #f8f9fa; border-radius: 4px;",
-                              selectInput("aggFunction", "Fonction d'agrégation:",
-                                          choices = c("Moyenne" = "mean",
-                                                      "Médiane" = "median",
-                                                      "Somme" = "sum",
-                                                      "Comptage" = "count",
-                                                      "Minimum" = "min",
-                                                      "Maximum" = "max",
-                                                      "Écart-type" = "sd"),
-                                          selected = "mean"),
-                              uiOutput("groupVarsSelect"),
-                              checkboxInput("showAggInfo", "Afficher les détails de l'agrégation", value = TRUE),
-                              helpText(icon("calculator"), "Résumez vos données par groupes. Le comptage est idéal pour les analyses catégoriques.")
-                          )
-                        )
-                    ),
-                    
-                    # Options pour seasonal_evolution
-                    conditionalPanel(
-                      condition = "input.vizType == 'seasonal_evolution'",
-                      div(class = "well", 
-                          style = "background-color: #f0fff0; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; margin-top: 15px;",
-                          h5("Options d'évolution temporelle", 
-                             style = "color: #28a745; font-weight: bold; margin-top: 0;"),
-                          
-                          # Infos sur le type de variable X
-                          conditionalPanel(
-                            condition = "input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text'",
-                            div(style = "margin-bottom: 15px; padding: 10px; background-color: #d4edda; border-radius: 4px;",
-                                icon("check-circle", style = "color: #28a745;"),
-                                strong(" Mode catégoriel détecté"),
-                                p(style = "margin: 5px 0 0 0; font-size: 12px;",
-                                  "L'axe X utilisera vos catégories dans l'ordre défini ci-dessus.")
-                            )
-                          ),
-                          
-                          conditionalPanel(
-                            condition = "input.xVarType == 'date'",
-                            div(style = "margin-bottom: 15px; padding: 10px; background-color: #d1ecf1; border-radius: 4px;",
-                                icon("calendar-alt", style = "color: #0c5460;"),
-                                strong(" Mode temporel"),
-                                p(style = "margin: 5px 0 0 0; font-size: 12px;",
-                                  "L'axe X utilisera les dates dans l'ordre chronologique.")
-                            )
-                          ),
-                          
-                          # Style des éléments
-                          h6(icon("paint-brush"), " Style", 
-                             style = "font-weight: bold; margin-top: 15px; margin-bottom: 10px;"),
-                          
-                          div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
-                              numericInput("evolutionLineWidth", "Épaisseur lignes:", 
-                                           value = 1.2, min = 0.25, max = 5, step = 0.25),
-                              numericInput("evolutionPointSize", "Taille points:", 
-                                           value = 2, min = 0.5, max = 6, step = 0.5)
-                          ),
-                          
-                          selectInput("evolutionLineType", "Type de ligne:",
-                                      choices = c("Solide" = "solid", 
-                                                  "Pointillé" = "dashed", 
-                                                  "Tirets" = "dotted", 
-                                                  "Mixte" = "dotdash"),
-                                      selected = "solid"),
-                          
-                          # Format et affichage
-                          h6(icon("eye"), " Affichage", 
-                             style = "font-weight: bold; margin-top: 15px; margin-bottom: 10px;"),
-                          
-                          conditionalPanel(
-                            condition = "input.xVarType == 'date'",
-                            selectInput("evolutionDateFormat", "Format des dates:",
-                                        choices = c("Jour-Mois (01-Jan)" = "%d-%b",
-                                                    "Mois-Année (Jan-2024)" = "%b-%Y",
-                                                    "Date complète (01/01/2024)" = "%d/%m/%Y",
-                                                    "Mois abrégé (Jan)" = "%b",
-                                                    "Date courte (01/01)" = "%d/%m"),
-                                        selected = "%d-%b")
-                          ),
-                          
-                          div(style = "display: flex; gap: 15px; margin: 10px 0;",
-                              checkboxInput("evolutionShowGrid", "Grille", value = FALSE),
-                              checkboxInput("evolutionShowDataLabels", "Valeurs", value = FALSE)
-                          ),
-                          
-                          conditionalPanel(
-                            condition = "input.evolutionShowDataLabels",
-                            div(style = "margin-left: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;",
-                                h6("Paramètres des étiquettes:", style = "font-size: 12px; font-weight: bold;"),
-                                div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
-                                    numericInput("evolutionLabelSize", "Taille:", 
-                                                 value = 3, min = 1, max = 6, step = 0.5),
-                                    numericInput("evolutionLabelVjust", "Décalage:", 
-                                                 value = -0.5, min = -2, max = 2, step = 0.1)
-                                )
-                            )
-                          ),
-                          
-                          # Expansion des axes
-                          h6(icon("expand-arrows-alt"), " Marges des axes", 
-                             style = "font-weight: bold; margin-top: 15px; margin-bottom: 10px;"),
-                          
-                          div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
-                              sliderInput("evolutionXExpansion", "Axe X (%):", 
-                                          min = 0, max = 20, value = 5, step = 1),
-                              sliderInput("evolutionYExpansion", "Axe Y (%):", 
-                                          min = 0, max = 20, value = 10, step = 1)
-                          ),
-                          
-                          # Conseil d'agrégation
-                          conditionalPanel(
-                            condition = "!input.useAggregation",
-                            div(style = "margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;",
-                                icon("info-circle", style = "color: #856404;"),
-                                strong(" Conseil:", style = "color: #856404;"),
-                                p(style = "margin: 5px 0 0 0; font-size: 12px; color: #856404;",
-                                  "Activez l'agrégation pour calculer les moyennes par groupe (ex: par traitement et période).")
-                            )
-                          ),
-                          
-                          helpText(icon("chart-line"), 
-                                   "Visualisez l'évolution de vos données dans l'ordre que vous définissez. Parfait pour les comparaisons temporelles ou séquentielles.")
+                        helpText("Permet à chaque sous-graphique d'avoir ses propres limites d'axes.")
                       )
-                    ),
-                    
-                    # Options pour seasonal_smooth
-                    conditionalPanel(
-                      condition = "input.vizType == 'seasonal_smooth'",
-                      div(class = "well", style = "background-color: #f0f8ff; border-left: 4px solid #1f77b4; padding: 15px; border-radius: 5px; margin-top: 15px;",
-                          h5("Options de courbe saisonnière lissée", style = "color: #1f77b4; font-weight: bold; margin-top: 0;"),
-                          div(style = "display: flex; gap: 15px; margin-bottom: 10px;",
-                              checkboxInput("showPoints", "Points", value = TRUE),
-                              checkboxInput("showLines", "Lignes", value = TRUE)
-                          ),
-                          conditionalPanel(
-                            condition = "input.showLines",
-                            numericInput("seasonalLineWidth", "Épaisseur des lignes:", value = 1.2, min = 0.25, max = 5, step = 0.25),
-                            selectInput("lineType", "Type de ligne:",
-                                        choices = c("Solide" = "solid", "Pointillé" = "dashed", "Tirets" = "dotted", "Mixte" = "dotdash"),
-                                        selected = "solid")
-                          ),
-                          conditionalPanel(
-                            condition = "input.showPoints",
-                            numericInput("seasonalPointSize", "Taille des points:", value = 2, min = 0.5, max = 6, step = 0.5)
-                          ),
-                          selectInput("dateFormat", "Format des dates (axe X):",
-                                      choices = c("Jour-Mois (01-Jan)" = "%d-%b",
-                                                  "Mois-Année (Jan-2024)" = "%b-%Y",
-                                                  "Date complète (01/01/2024)" = "%d/%m/%Y",
-                                                  "Mois abrégé (Jan)" = "%b",
-                                                  "Date courte (01/01)" = "%d/%m"),
-                                      selected = "%d-%b"),
-                          checkboxInput("showGrid", "Afficher la grille", value = TRUE),
-                          checkboxInput("showSmoothLine", "Ajouter une ligne de tendance", value = FALSE),
-                          conditionalPanel(
-                            condition = "input.showSmoothLine",
-                            selectInput("smoothMethod", "Méthode de lissage:",
-                                        choices = c("LOESS (local)" = "loess", "Linéaire" = "lm", "GAM (spline)" = "gam"),
-                                        selected = "loess"),
-                            conditionalPanel(
-                              condition = "input.smoothMethod == 'loess'",
-                              sliderInput("smoothSpan", "Degré de lissage:", min = 0.1, max = 2, value = 0.75, step = 0.05)
-                            ),
-                            checkboxInput("showConfidenceInterval", "Intervalle de confiance", value = TRUE)
-                          ),
-                          checkboxInput("showDataLabels", "Afficher les valeurs sur les points", value = FALSE),
-                          helpText(icon("chart-area"), "Analysez les tendances cycliques avec lissage.")
-                      )
-                    ),
-                    
-                    # Options pour scatter
-                    conditionalPanel(
-                      condition = "input.vizType == 'scatter'",
-                      div(class = "well", style = "background-color: #f8fff8; border-left: 4px solid #28a745; padding: 10px; border-radius: 5px; margin-top: 15px;",
-                          checkboxInput("jitterPoints", "Décalage aléatoire (jitter)", value = FALSE),
-                          helpText(icon("circle"), "Activez pour mieux visualiser les points superposés.")
-                      )
-                    ),
-                    
-                    # Options pour histogrammes
-                    conditionalPanel(
-                      condition = "input.vizType == 'histogram'",
-                      div(class = "well", style = "background-color: #fff8f0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 5px; margin-top: 15px;",
-                          h5(icon("chart-bar"), " Paramètres de l'histogramme", style = "color: #ff9800; font-weight: bold; margin-top: 0;"),
-                          
-                          # Information sur le mode adaptatif
-                          div(style = "margin-bottom: 15px; padding: 10px; background-color: #e3f2fd; border-radius: 4px;",
-                              icon("info-circle", style = "color: #1976d2;"),
-                              strong(" Modes disponibles:", style = "color: #1976d2;"),
-                              tags$ul(style = "margin: 5px 0 0 0; font-size: 12px; color: #0d47a1;",
-                                      tags$li("X numérique : Distribution avec bins"),
-                                      tags$li("X catégoriel + Y numérique : Moyennes ou comptage"),
-                                      tags$li("X catégoriel sans Y numérique : Comptage")
-                              )
-                          ),
-                          
-                          # Options pour X numérique
-                          conditionalPanel(
-                            condition = "input.xVarType == 'numeric' || (input.xVarType == 'auto' && typeof(output.detectedXType) == 'undefined')",
-                            sliderInput("histBins", "Nombre de barres (bins):", 
-                                        min = 5, max = 100, value = 30, step = 5),
-                            helpText(icon("info-circle"), "Ajustez le nombre de barres pour la distribution.")
-                          ),
-                          
-                          # Options pour X catégoriel
-                          conditionalPanel(
-                            condition = "input.xVarType == 'factor' || input.xVarType == 'categorical' || input.xVarType == 'text' || input.xVarType == 'date'",
-                            
-                            # Nouvelle option : afficher moyennes
-                            div(style = "margin-bottom: 15px; padding: 10px; background-color: #e8f5e9; border-radius: 4px;",
-                                checkboxInput("histShowMean", "Afficher les moyennes de Y par catégorie", value = FALSE),
-                                conditionalPanel(
-                                  condition = "input.histShowMean",
-                                  div(style = "margin-top: 8px; padding: 8px; background-color: #c8e6c9; border-radius: 3px; font-size: 11px;",
-                                      icon("check-circle", style = "color: #2e7d32;"),
-                                      span(style = "color: #1b5e20; margin-left: 5px;",
-                                           "Mode activé : moyennes de Y par catégorie X")
-                                  )
-                                ),
-                                conditionalPanel(
-                                  condition = "!input.histShowMean",
-                                  div(style = "margin-top: 8px; padding: 8px; background-color: #fff3e0; border-radius: 3px; font-size: 11px;",
-                                      icon("hashtag", style = "color: #e65100;"),
-                                      span(style = "color: #e65100; margin-left: 5px;",
-                                           "Mode actuel : comptage des occurrences")
-                                  )
-                                )
-                            ),
-                            
-                            sliderInput("barWidth", "Largeur des barres:", 
-                                        min = 0.3, max = 1.5, value = 0.9, step = 0.1),
-                            
-                            # Position des barres (seulement si variable de couleur définie)
-                            conditionalPanel(
-                              condition = "input.vizColorVar != 'Aucun' && input.vizColorVar != null",
-                              selectInput("barPosition", "Position des barres:",
-                                          choices = c("Côte à côte" = "dodge",
-                                                      "Empilées" = "stack",
-                                                      "Empilées 100%" = "fill"),
-                                          selected = "dodge")
-                            )
-                          ),
-                          
-                          helpText(icon("lightbulb"), 
-                                   "L'histogramme s'adapte automatiquement au type de variable X et à la présence de Y numérique.")
-                      )
-                    ),
-                    
-                    # Options pour barres (section séparée)
-                    conditionalPanel(
-                      condition = "input.vizType == 'bar'",
-                      div(class = "well", style = "background-color: #fff8f0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 5px; margin-top: 15px;",
-                          h5(icon("chart-bar"), " Paramètres des barres", style = "color: #ff9800; font-weight: bold; margin-top: 0;"),
-                          
-                          div(style = "margin-bottom: 15px; padding: 10px; background-color: #e8f5e9; border-radius: 4px;",
-                              icon("check-circle", style = "color: #388e3c;"),
-                              strong(" Types supportés:", style = "color: #388e3c;"),
-                              p(style = "margin: 5px 0 0 0; font-size: 12px; color: #1b5e20;",
-                                "X : facteurs, dates, textes, catégories", br(),
-                                "Y : numériques (continus ou discrets)")
-                          ),
-                          
-                          selectInput("barPosition", "Position des barres:",
-                                      choices = c("Côte à côte" = "dodge",
-                                                  "Empilées" = "stack",
-                                                  "Empilées 100%" = "fill"),
-                                      selected = "dodge"),
-                          
-                          sliderInput("barWidth", "Largeur des barres:", 
-                                      min = 0.3, max = 1.5, value = 0.9, step = 0.1),
-                          
-                          helpText(icon("lightbulb"), "Ajustez la largeur pour une meilleure lisibilité selon le nombre de catégories.")
-                      )
-                    ),
-                    
-                    # Bouton de génération
-                    div(style = "margin-top: 25px;",
-                        actionButton("generateViz", "Générer la visualisation",
-                                     class = "btn-primary btn-lg btn-block",
-                                     icon = icon("chart-line"),
-                                     style = "height: 55px; font-size: 17px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,123,255,0.3);")
                     )
+                  ),
+                  
+                  # Section: Type de visualisation
+                  div(
+                    class = "well",
+                    style = "background-color: #e1f5fe; border-left: 4px solid #03a9f4; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                    h4(
+                      icon("chart-pie"), " Type de Graphique",
+                      style = "color: #0288d1; font-weight: bold; margin-top: 0; font-size: 15px;"
+                    ),
+                    selectInput(
+                      "vizType",
+                      "Sélectionnez le type:",
+                      choices = c(
+                        "Nuage de points (Scatter)" = "scatter",
+                        "Courbe avec lissage (Seasonal Smooth)" = "seasonal_smooth",
+                        "Courbe d'évolution (Seasonal Evolution)" = "seasonal_evolution",
+                        "Boîte à moustaches (Boxplot)" = "box",
+                        "Graphique en violon (Violin)" = "violin",
+                        "Diagramme en barres (Bar)" = "bar",
+                        "Graphique en lignes (Line)" = "line",
+                        "Densité de distribution (Density)" = "density",
+                        "Histogramme" = "histogram",
+                        "Carte de chaleur (Heatmap)" = "heatmap",
+                        "Aires empilées (Area)" = "area",
+                        "Diagramme circulaire (Pie)" = "pie",
+                        "Graphique en anneau (Donut)" = "donut",
+                        "Carte proportionnelle (Treemap)" = "treemap"
+                      ),
+                      selected = "scatter"
+                    ),
+                    
+                    # Badge de compatibilité multi-Y
+                    conditionalPanel(
+                      condition = "input.vizType == 'scatter' || input.vizType == 'line' || input.vizType == 'area' || input.vizType == 'bar' || input.vizType == 'seasonal_smooth' || input.vizType == 'seasonal_evolution'",
+                      div(
+                        style = "margin-top: 8px; padding: 6px 10px; background-color: #d4edda; border-radius: 4px; font-size: 12px; display: inline-block; border: 1px solid #c3e6cb;",
+                        icon("layer-group", style = "color: #28a745;"),
+                        span(
+                          style = "color: #155724; margin-left: 5px; font-weight: 600;",
+                          "Compatible multi-variables Y"
+                        )
+                      )
+                    )
+                  ),
+                  
+                  # Section: Options d'agrégation
+                  div(
+                    class = "well",
+                    style = "background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
+                    h4(
+                      icon("calculator"), " Agrégation des Données",
+                      style = "color: #f57c00; font-weight: bold; margin-top: 0; font-size: 15px;"
+                    ),
+                    checkboxInput(
+                      "useAggregation",
+                      tagList(icon("check-square"), " Activer l'agrégation"),
+                      value = FALSE
+                    ),
+                    
+                    conditionalPanel(
+                      condition = "input.useAggregation == true",
+                      selectInput(
+                        "aggFunction",
+                        "Fonction d'agrégation:",
+                        choices = c(
+                          "Moyenne" = "mean",
+                          "Médiane" = "median",
+                          "Somme" = "sum",
+                          "Comptage" = "count",
+                          "Minimum" = "min",
+                          "Maximum" = "max",
+                          "Écart-type" = "sd"
+                        ),
+                        selected = "mean"
+                      ),
+                      # CORRECTION: Ajout du uiOutput pour les variables de regroupement
+                      uiOutput("groupVarsSelect"),
+                      div(
+                        style = "margin-top: 10px; padding: 8px; background-color: #d1ecf1; border-radius: 4px;",
+                        icon("info-circle", style = "color: #0c5460;"),
+                        span(
+                          style = "font-size: 12px; color: #0c5460; margin-left: 5px;",
+                          "L'agrégation résume vos données selon la fonction choisie."
+                        )
+                      ),
+                      verbatimTextOutput("aggregationInfo")
+                    )
+                  ),
+                  
+                  # Section: Bouton de mise à jour (optionnel, car auto)
+                  div(
+                    style = "text-align: center; margin-top: 20px;",
+                    actionButton(
+                      "refreshPlot",
+                      tagList(icon("sync-alt"), " Actualiser le Graphique"),
+                      class = "btn-success btn-lg",
+                      style = "width: 100%; font-weight: bold;"
+                    ),
+                    helpText(
+                      icon("magic", style = "color: #28a745;"),
+                      "Le graphique se met à jour automatiquement, mais vous pouvez forcer un rafraîchissement.",
+                      style = "margin-top: 10px; color: #666;"
+                    )
+                  )
                 ),
                 
-                box(title = "Visualisation", status = "primary", width = 8, solidHeader = TRUE,
-                    # Badge indicateur du mode multi-Y
-                    conditionalPanel(
-                      condition = "output.multiYIndicator",
-                      div(style = "margin-bottom: 15px; padding: 12px; background-color: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;",
-                          div(style = "display: flex; align-items: center; justify-content: space-between;",
-                              div(
-                                icon("layer-group", style = "color: #28a745; font-size: 18px; margin-right: 8px;"),
-                                strong("Mode Multi-Séries Actif", style = "color: #155724; font-size: 14px;")
-                              ),
-                              span(id = "multiYBadge", 
-                                   style = "padding: 4px 12px; background-color: #28a745; color: white; border-radius: 12px; font-size: 12px; font-weight: bold;")
-                          ),
-                          div(style = "margin-top: 8px; font-size: 12px; color: #155724;",
-                              icon("info-circle"),
-                              " Les couleurs distinguent automatiquement chaque variable Y sélectionnée."
-                          )
-                      )
+                # === PANNEAU D'AFFICHAGE DU GRAPHIQUE (Droite) 
+                box(
+                  title = tagList(icon("chart-area"), " Graphique Interactif"),
+                  status = "success",
+                  width = 8,
+                  solidHeader = TRUE,
+                  
+                  # Zone du graphique avec loader
+                  div(
+                    style = "position: relative; min-height: 500px;",
+                    
+                    # Loader animé (visible pendant le chargement)
+                    div(
+                      id = "plotLoader",
+                      style = "display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 1000;",
+                      div(
+                        style = "font-size: 48px; color: #007bff;",
+                        icon("spinner", class = "fa-spin")
+                      ),
+                      p("Chargement du graphique...", 
+                        style = "margin-top: 10px; font-size: 16px; color: #666;")
                     ),
                     
-                    # Informations d'agrégation
-                    conditionalPanel(
-                      condition = "input.useAggregation && input.showAggInfo",
-                      div(style = "margin-bottom: 15px; padding: 10px; background-color: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px;",
-                          h5(icon("calculator"), " Détails de l'agrégation", style = "margin-top: 0; color: #1976d2;"),
-                          verbatimTextOutput("aggregationInfo", placeholder = TRUE)
-                      )
-                    ),
-                    
-                    # Informations saisonnières
-                    conditionalPanel(
-                      condition = "input.vizType == 'seasonal_smooth' || input.vizType == 'seasonal_evolution'",
-                      div(style = "margin-bottom: 15px; padding: 10px; background-color: #f0f8ff; border-left: 4px solid #1f77b4; border-radius: 4px;",
-                          h5(icon("calendar-alt"), " Analyse saisonnière", style = "margin-top: 0; color: #1f77b4;"),
-                          verbatimTextOutput("seasonalInfo", placeholder = TRUE)
-                      )
-                    ),
-                    
-                    # Zone de visualisation
-                    div(id = "plotContainer", style = "position: relative; min-height: 650px;",
-                        conditionalPanel(
-                          condition = "$('html').hasClass('shiny-busy')",
-                          div(style = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(255,255,255,0.95); padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 6px 12px rgba(0,0,0,0.15);",
-                              icon("spinner", class = "fa-spin", style = "font-size: 36px; color: #007bff;"),
-                              h4("Génération en cours...", style = "margin-top: 15px; color: #007bff; font-weight: 500;")
+                    # Graphique plotly interactif
+                    plotlyOutput("interactivePlot", height = "600px")
+                  ),
+                  
+                  # Barre d'outils sous le graphique
+                  div(
+                    style = "margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;",
+                    div(
+                      style = "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;",
+                      # Indicateurs de statut
+                      div(
+                        style = "display: flex; gap: 15px; align-items: center;",
+                        div(
+                          style = "padding: 5px 10px; background-color: #d4edda; border-radius: 4px; font-size: 12px; border: 1px solid #c3e6cb;",
+                          icon("check-circle", style = "color: #28a745;"),
+                          span(
+                            style = "margin-left: 5px; color: #155724; font-weight: 600;",
+                            "Mise à jour auto"
                           )
                         ),
-                        plotlyOutput("advancedPlot", height = "650px")
+                        div(
+                          id = "lastUpdateTime",
+                          style = "font-size: 12px; color: #666;",
+                          paste("Dernière mise à jour:", format(Sys.time(), "%H:%M:%S"))
+                        )
+                      )
+                    )
+                  )
+                ),
+              ),
+              
+              # === SECTION EXPORT DU GRAPHIQUE ===
+              fluidRow(
+                # NOUVELLE SECTION: EXPORT AVANCÉ
+                box(
+                  title = tagList(icon("download"), " Exporter le graphique"),
+                  status = "primary",
+                  width = 12,
+                  solidHeader = TRUE,
+                  collapsible = TRUE,
+                  collapsed = FALSE,
+                  
+                  # DPI recommandés
+                  div(
+                    style = "margin: 10px 0; padding: 10px; background-color: #e7f3ff; border-left: 3px solid #007bff; border-radius: 4px;",
+                    icon("info-circle", style = "color: #007bff;"),
+                    span(style = "margin-left: 5px; font-weight: 600; color: #004085;",
+                         "DPI recommandés: 72-150 (écran), 300 (impression standard), 600+ (haute qualité)")
+                  ),
+                  
+                  # Largeur et hauteur
+                  fluidRow(
+                    column(6,
+                           numericInput("exportWidth", 
+                                        label = "Largeur (pouces):",
+                                        value = 10,
+                                        min = 1,
+                                        max = 100,
+                                        step = 0.5)
+                    ),
+                    column(6,
+                           numericInput("exportHeight", 
+                                        label = "Hauteur (pouces):",
+                                        value = 6,
+                                        min = 1,
+                                        max = 100,
+                                        step = 0.5)
+                    )
+                  ),
+                  
+                  # Format et DPI
+                  fluidRow(
+                    column(6,
+                           selectInput("exportFormat", 
+                                       label = "Format d'export:",
+                                       choices = c(
+                                         "PNG (Recommandé)" = "png",
+                                         "JPEG/JPG" = "jpg",
+                                         "TIFF" = "tiff",
+                                         "BMP" = "bmp",
+                                         "PDF (Vectoriel)" = "pdf",
+                                         "SVG (Vectoriel)" = "svg",
+                                         "EPS (Vectoriel)" = "eps"
+                                       ),
+                                       selected = "png")
+                    ),
+                    column(6,
+                           numericInput("exportDPI", 
+                                        label = "DPI (résolution):",
+                                        value = 300,
+                                        min = 72,
+                                        max = 20000,
+                                        step = 50)
+                    )
+                  ),
+                  
+                  # Dimensions finales
+                  uiOutput("exportDimensionsInfo"),
+                  
+                  # Presets rapides
+                  div(
+                    style = "margin: 15px 0; padding: 15px; background-color: #d4edda; border-left: 3px solid #28a745; border-radius: 4px;",
+                    h5(icon("magic"), " Presets rapides:", 
+                       style = "color: #155724; margin-top: 0; font-size: 14px; font-weight: bold;"),
+                    fluidRow(
+                      column(4,
+                             actionButton("presetScreen", 
+                                          "Écran",
+                                          class = "btn-sm btn-info",
+                                          style = "width: 100%;")
+                      ),
+                      column(4,
+                             actionButton("presetPrint", 
+                                          "Impression",
+                                          class = "btn-sm btn-success",
+                                          style = "width: 100%;")
+                      ),
+                      column(4,
+                             actionButton("presetHighQuality", 
+                                          "Haute qualité",
+                                          class = "btn-sm btn-warning",
+                                          style = "width: 100%;")
+                      )
+                    )
+                  ),
+                  
+                  # Options JPEG
+                  conditionalPanel(
+                    condition = "input.exportFormat == 'jpg'",
+                    div(
+                      style = "margin: 10px 0;",
+                      sliderInput("jpegQuality",
+                                  "Qualité JPEG:",
+                                  min = 50,
+                                  max = 100,
+                                  value = 95,
+                                  step = 5)
+                    )
+                  ),
+                  
+                  # Compression TIFF
+                  conditionalPanel(
+                    condition = "input.exportFormat == 'tiff'",
+                    div(
+                      style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;",
+                      h5(icon("compress"), " Compression TIFF:", 
+                         style = "color: #856404; margin-top: 0; font-size: 14px; font-weight: bold;"),
+                      selectInput("tiffCompression",
+                                  label = NULL,
+                                  choices = c("Aucune" = "none",
+                                              "LZW" = "lzw",
+                                              "ZIP" = "zip"),
+                                  selected = "lzw")
+                    )
+                  ),
+                  
+                  # Bouton de téléchargement - AMÉLIORÉ ET FONCTIONNEL
+                  div(
+                    style = "margin-top: 20px; text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
+                    downloadButton(
+                      "downloadPlot", 
+                      label = tagList(icon("download"), " Télécharger le graphique"),
+                      class = "btn-primary btn-lg",
+                      style = "width: 90%; padding: 15px 30px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"
+                    ),
+                    br(),
+                    helpText(
+                      icon("info-circle", style = "color: #007bff;"),
+                      "Cliquez pour télécharger le graphique avec les paramètres sélectionnés ci-dessus.",
+                      style = "margin-top: 10px; font-size: 13px; color: #666;"
+                    )
+                  )
+                )
+              ),
+              # === PANNEAU D'OPTIONS AVANCÉES (Extensible) 
+              fluidRow(
+                box(
+                  title = tagList(icon("cog"), " Options Avancées de Personnalisation"),
+                  status = "warning",
+                  width = 12,
+                  solidHeader = TRUE,
+                  collapsible = TRUE,
+                  collapsed = TRUE,
+                  
+                  # En-tête avec bouton de personnalisation rapide
+                  div(
+                    style = "margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; text-align: center;",
+                    actionButton(
+                      "customizePlot",
+                      tagList(icon("paint-brush"), " PERSONNALISATION RAPIDE"),
+                      class = "btn-light btn-lg",
+                      style = "font-weight: bold; padding: 12px 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+                    ),
+                    p("Accès rapide aux paramètres les plus utilisés", 
+                      style = "color: white; margin-top: 10px; margin-bottom: 0; font-size: 13px;")
+                  ),
+                  
+                  fluidRow(
+                    # ========== COLONNE 1: TEXTES ET LABELS =
+                    column(
+                      width = 4,
+                      div(
+                        class = "well",
+                        style = "background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%); border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px;",
+                        
+                        h4(icon("font"), " Textes et Labels", 
+                           style = "color: #9c27b0; font-weight: bold; border-bottom: 3px solid #9c27b0; padding-bottom: 10px; margin-top: 0;"),
+                        
+                        # Titres
+                        div(
+                          style = "margin-bottom: 20px;",
+                          h5(icon("heading"), " Titres", style = "color: #666; font-size: 14px; font-weight: bold;"),
+                          textInput(
+                            "plotTitle",
+                            "Titre principal:",
+                            value = "",
+                            placeholder = "Titre du graphique..."
+                          ),
+                        ),
+                        
+                        # Labels des axes
+                        div(
+                          style = "margin-bottom: 20px;",
+                          h5(icon("arrows-alt-h"), " Labels des axes", style = "color: #666; font-size: 14px; font-weight: bold;"),
+                          textInput(
+                            "xAxisLabel",
+                            "Label axe X:",
+                            value = "",
+                            placeholder = "Auto"
+                          ),
+                          textInput(
+                            "yAxisLabel",
+                            "Label axe Y:",
+                            value = "",
+                            placeholder = "Auto"
+                          )
+                        ),
+                        
+                        # Légende
+                        div(
+                          style = "margin-bottom: 20px;",
+                          h5(icon("list"), " Légende", style = "color: #666; font-size: 14px; font-weight: bold;"),
+                          textInput(
+                            "legendTitle",
+                            "Titre de la légende:",
+                            value = "",
+                            placeholder = "Auto"
+                          ),
+                          conditionalPanel(
+                            condition = "input.vizColorVar != 'Aucun' || output.multiYIndicator === true",
+                            actionButton(
+                              "customizeLegendLabels",
+                              tagList(icon("edit"), " Personnaliser les niveaux"),
+                              class = "btn-sm btn-info",
+                              style = "width: 100%; margin-top: 5px;"
+                            )
+                          ),
+                          selectInput(
+                            "legendPosition",
+                            "Position:",
+                            choices = c(
+                              "Droite" = "right",
+                              "Gauche" = "left",
+                              "Haut" = "top",
+                              "Bas" = "bottom",
+                              "Aucune" = "none"
+                            ),
+                            selected = "right"
+                          )
+                        )
+                      )
                     ),
                     
-                    # Boutons d'action - SIMPLIFIÉS avec modal universel
-                    div(style = "margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
-                        div(style = "display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;",
-                            actionButton("openExportModal", "Exporter le graphique",
-                                         class = "btn-success btn-lg", 
-                                         icon = icon("download"), 
-                                         style = "min-width: 200px; height: 50px; font-size: 16px; font-weight: bold;"),
-                            actionButton("resetZoom", "Réinitialiser zoom",
-                                         class = "btn-warning", icon = icon("search-minus"), style = "min-width: 120px;")
+                    # ========== COLONNE 2: FORMATAGE DES TEXTES 
+                    column(
+                      width = 4,
+                      div(
+                        class = "well",
+                        style = "background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%); border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px;",
+                        
+                        h4(icon("text-height"), " Formatage des Textes", 
+                           style = "color: #ff5722; font-weight: bold; border-bottom: 3px solid #ff5722; padding-bottom: 10px; margin-top: 0;"),
+                        
+                        # Tailles
+                        div(
+                          style = "margin-bottom: 20px;",
+                          h5(icon("text-width"), " Tailles", style = "color: #666; font-size: 14px; font-weight: bold;"),
+                          sliderInput(
+                            "baseFontSize",
+                            "Police de base:",
+                            min = 8,
+                            max = 20,
+                            value = 12,
+                            step = 1
+                          ),
+                          sliderInput(
+                            "titleSize",
+                            "Titre:",
+                            min = 10,
+                            max = 24,
+                            value = 14,
+                            step = 1
+                          ),
+                          sliderInput(
+                            "axisLabelSize",
+                            "Labels d'axes:",
+                            min = 8,
+                            max = 18,
+                            value = 11,
+                            step = 1
+                          )
+                        ),
+                        
+                        # Formatage Label X
+                        div(
+                          style = "margin-bottom: 15px; padding: 12px; background-color: #e3f2fd; border-radius: 6px;",
+                          h5(icon("long-arrow-alt-right"), " Label axe X", 
+                             style = "color: #1976d2; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
+                          div(
+                            style = "display: flex; gap: 10px;",
+                            checkboxInput(
+                              "xAxisBold",
+                              tagList(icon("bold"), " Gras"),
+                              value = FALSE
+                            ),
+                            checkboxInput(
+                              "xAxisItalic",
+                              tagList(icon("italic"), " Italique"),
+                              value = FALSE
+                            )
+                          )
+                        ),
+                        
+                        # Formatage Label Y
+                        div(
+                          style = "margin-bottom: 15px; padding: 12px; background-color: #f3e5f5; border-radius: 6px;",
+                          h5(icon("long-arrow-alt-up"), " Label axe Y", 
+                             style = "color: #7b1fa2; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
+                          div(
+                            style = "display: flex; gap: 10px;",
+                            checkboxInput(
+                              "yAxisBold",
+                              tagList(icon("bold"), " Gras"),
+                              value = FALSE
+                            ),
+                            checkboxInput(
+                              "yAxisItalic",
+                              tagList(icon("italic"), " Italique"),
+                              value = FALSE
+                            )
+                          )
+                        ),
+                        
+                        # Formatage Niveaux X
+                        div(
+                          style = "margin-bottom: 15px; padding: 12px; background-color: #fff3e0; border-radius: 6px;",
+                          h5(icon("tag"), " Niveaux axe X", 
+                             style = "color: #f57c00; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
+                          div(
+                            style = "display: flex; gap: 10px;",
+                            checkboxInput(
+                              "xTickBold",
+                              tagList(icon("bold"), " Gras"),
+                              value = FALSE
+                            ),
+                            checkboxInput(
+                              "xTickItalic",
+                              tagList(icon("italic"), " Italique"),
+                              value = FALSE
+                            )
+                          ),
+                          sliderInput(
+                            "xAxisAngle",
+                            "Angle d'inclinaison (°):",
+                            min = 0,
+                            max = 90,
+                            value = 0,
+                            step = 15
+                          )
                         )
+                      )
+                    ),
+                    
+                    # ========== COLONNE 3: APPARENCE ET ÉLÉMENTS 
+                    column(
+                      width = 4,
+                      # Apparence visuelle
+                      div(
+                        class = "well",
+                        style = "background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%); border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 15px;",
+                        
+                        h4(icon("palette"), " Apparence Visuelle", 
+                           style = "color: #ff9800; font-weight: bold; border-bottom: 3px solid #ff9800; padding-bottom: 10px; margin-top: 0;"),
+                        
+                        sliderInput(
+                          "pointSize",
+                          tagList(icon("circle"), " Taille des points:"),
+                          min = 1,
+                          max = 10,
+                          value = 3,
+                          step = 0.5
+                        ),
+                        
+                        sliderInput(
+                          "pointAlpha",
+                          tagList(icon("adjust"), " Transparence des points:"),
+                          min = 0,
+                          max = 1,
+                          value = 0.7,
+                          step = 0.1
+                        ),
+                        
+                        sliderInput(
+                          "lineWidth",
+                          tagList(icon("minus"), " Épaisseur des lignes:"),
+                          min = 0.5,
+                          max = 5,
+                          value = 1,
+                          step = 0.5
+                        ),
+                        
+                        # Options spécifiques aux barres
+                        conditionalPanel(
+                          condition = "input.vizType == 'bar'",
+                          div(
+                            style = "margin-top: 15px; padding: 10px; background-color: #e8f5e9; border-radius: 6px;",
+                            h5(icon("chart-bar"), " Options Barres", 
+                               style = "color: #388e3c; font-size: 13px; font-weight: bold; margin-top: 0;"),
+                            sliderInput(
+                              "barWidth",
+                              "Largeur:",
+                              min = 0.3,
+                              max = 1,
+                              value = 0.8,
+                              step = 0.1
+                            ),
+                            selectInput(
+                              "barPosition",
+                              "Position:",
+                              choices = c(
+                                "Côte à côte" = "dodge",
+                                "Empilées" = "stack",
+                                "Remplissage" = "fill"
+                              ),
+                              selected = "dodge"
+                            )
+                          )
+                        ),
+                        
+                        # Options spécifiques à l'histogramme
+                        conditionalPanel(
+                          condition = "input.vizType == 'histogram'",
+                          div(
+                            style = "margin-top: 15px; padding: 10px; background-color: #e1f5fe; border-radius: 6px;",
+                            h5(icon("chart-area"), " Options Histogramme", 
+                               style = "color: #0277bd; font-size: 13px; font-weight: bold; margin-top: 0;"),
+                            sliderInput(
+                              "histBins",
+                              "Nombre de bins:",
+                              min = 10,
+                              max = 100,
+                              value = 30,
+                              step = 5
+                            ),
+                            colourInput(
+                              "histColor",
+                              "Couleur:",
+                              value = "steelblue"
+                            )
+                          )
+                        )
+                      ),
+                      
+                      # Éléments du graphique
+                      div(
+                        class = "well",
+                        style = "background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%); border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px;",
+                        
+                        h4(icon("layer-group"), " Éléments du Graphique", 
+                           style = "color: #2196F3; font-weight: bold; border-bottom: 3px solid #2196F3; padding-bottom: 10px; margin-top: 0;"),
+                        
+                        checkboxInput(
+                          "showPoints",
+                          tagList(icon("circle"), " Afficher les points"),
+                          value = TRUE
+                        ),
+                        
+                        checkboxInput(
+                          "showValues",
+                          tagList(icon("hashtag"), " Afficher les valeurs"),
+                          value = FALSE
+                        ),
+                        
+                        # Options pour scatter et line
+                        conditionalPanel(
+                          condition = "input.vizType == 'scatter' || input.vizType == 'line'",
+                          checkboxInput(
+                            "showTrendLine",
+                            tagList(icon("chart-line"), " Ligne de tendance"),
+                            value = FALSE
+                          ),
+                          conditionalPanel(
+                            condition = "input.showTrendLine == true",
+                            selectInput(
+                              "trendMethod",
+                              "Méthode:",
+                              choices = c(
+                                "Linéaire" = "lm",
+                                "LOESS" = "loess",
+                                "GAM" = "gam"
+                              ),
+                              selected = "lm"
+                            )
+                          )
+                        ),
+                        
+                        # Options pour seasonal_smooth
+                        conditionalPanel(
+                          condition = "input.vizType == 'seasonal_smooth'",
+                          checkboxInput(
+                            "showSmoothLine",
+                            tagList(icon("bezier-curve"), " Ligne de lissage"),
+                            value = TRUE
+                          ),
+                          conditionalPanel(
+                            condition = "input.showSmoothLine == true",
+                            selectInput(
+                              "smoothMethod",
+                              "Méthode:",
+                              choices = c(
+                                "LOESS" = "loess",
+                                "Linéaire" = "lm",
+                                "GAM" = "gam"
+                              ),
+                              selected = "loess"
+                            ),
+                            sliderInput(
+                              "smoothSpan",
+                              "Degré de lissage:",
+                              min = 0.1,
+                              max = 2,
+                              value = 0.75,
+                              step = 0.05
+                            )
+                          )
+                        ),
+                        
+                        checkboxInput(
+                          "showConfidenceInterval",
+                          tagList(icon("area-chart"), " Intervalle de confiance"),
+                          value = TRUE
+                        ),
+                        
+                        # Options pour boxplot
+                        conditionalPanel(
+                          condition = "input.vizType == 'box'",
+                          checkboxInput(
+                            "showOutliers",
+                            tagList(icon("circle-notch"), " Afficher les outliers"),
+                            value = TRUE
+                          )
+                        ),
+                        
+                        # Options pour violin
+                        conditionalPanel(
+                          condition = "input.vizType == 'violin'",
+                          checkboxInput(
+                            "showBoxInsideViolin",
+                            tagList(icon("box"), " Boîte à l'intérieur"),
+                            value = FALSE
+                          )
+                        )
+                      )
                     )
+                  )
                 )
               ),
               
+              # === PANNEAU DES STATISTIQUES ET INFORMATIONS
               fluidRow(
-                box(title = "Personnalisation avancée", status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
-                    tabsetPanel(id = "customizationTabs",
-                                
-                                # Onglet Apparence
-                                tabPanel("Apparence", icon = icon("palette"),
-                                         br(),
-                                         fluidRow(
-                                           column(3,
-                                                  div(class = "well",
-                                                      h5(icon("heading"), " Titres et labels", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      textInput("plotTitle", "Titre du graphique:", value = "", placeholder = "Titre principal"),
-                                                      textInput("plotSubtitle", "Sous-titre:", value = "", placeholder = "Sous-titre optionnel"),
-                                                      textInput("plotXLab", "Label axe X:", value = "", placeholder = "Auto si vide"),
-                                                      textInput("plotYLab", "Label axe Y:", value = "", placeholder = "Auto si vide"),
-                                                      textInput("plotCaption", "Légende:", value = "", placeholder = "Source, notes...")
-                                                  )
-                                           ),
-                                           column(3,
-                                                  div(class = "well",
-                                                      h5(icon("sliders-h"), " Style des éléments", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      sliderInput("plotAlpha", "Transparence:", min = 0.1, max = 1, value = 0.7, step = 0.05),
-                                                      sliderInput("plotSize", "Taille des points:", min = 0.5, max = 8, value = 2, step = 0.5),
-                                                      sliderInput("lineWidth", "Épaisseur des lignes:", min = 0.25, max = 5, value = 1, step = 0.25),
-                                                      helpText(icon("info-circle"), "Ajustez pour optimiser la lisibilité.")
-                                                  )
-                                           ),
-                                           column(3,
-                                                  div(class = "well",
-                                                      h5(icon("paint-brush"), " Thème et couleurs", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      selectInput("plotTheme", "Thème graphique:",
-                                                                  choices = c("Minimal" = "minimal",
-                                                                              "Classique" = "classic",
-                                                                              "Gris" = "gray",
-                                                                              "Sombre" = "dark",
-                                                                              "Ligne" = "linedraw",
-                                                                              "Vide" = "void"),
-                                                                  selected = "minimal"),
-                                                      
-                                                      # Option de palette (désactivée par défaut pour utiliser ggplot2)
-                                                      checkboxInput("useCustomPalette", "Personnaliser la palette de couleurs", value = FALSE),
-                                                      
-                                                      conditionalPanel(
-                                                        condition = "input.useCustomPalette",
-                                                        selectInput("plotPalette", "Palette de couleurs:",
-                                                                    choices = c("Défaut" = "default",
-                                                                                "Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
-                                                                                "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
-                                                                                "Paired" = "Paired", "Dark2" = "Dark2",
-                                                                                "Viridis" = "viridis", "Plasma" = "plasma", "Inferno" = "inferno"),
-                                                                    selected = "default"),
-                                                        checkboxInput("customColors", "Couleurs personnalisées", value = FALSE),
-                                                        conditionalPanel(
-                                                          condition = "input.customColors",
-                                                          div(style = "display: flex; gap: 10px; margin-top: 10px;",
-                                                              colourInput("color1", "Couleur 1:", value = "#3498db", showColour = "background", width = "100px"),
-                                                              colourInput("color2", "Couleur 2:", value = "#e74c3c", showColour = "background", width = "100px")
-                                                          )
-                                                        )
-                                                      ),
-                                                      
-                                                      conditionalPanel(
-                                                        condition = "!input.useCustomPalette",
-                                                        div(style = "margin-top: 10px; padding: 8px; background-color: #e8f5e9; border-radius: 4px;",
-                                                            icon("palette", style = "color: #28a745;"),
-                                                            span(style = "color: #155724; font-size: 12px; margin-left: 5px;",
-                                                                 "Palette ggplot2 par défaut appliquée automatiquement")
-                                                        )
-                                                      )
-                                                  )
-                                           ),
-                                           column(3,
-                                                  div(class = "well",
-                                                      h5(icon("expand-arrows-alt"), " Dimensions et axes", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      numericInput("plotWidthInteractive", "Largeur (px):", value = 1000, min = 300, max = 3000, step = 50),
-                                                      numericInput("plotHeightInteractive", "Hauteur (px):", value = 650, min = 300, max = 2000, step = 50),
-                                                      h6("Transformations:", style = "font-weight: bold; margin-top: 15px; margin-bottom: 10px;"),
-                                                      div(style = "display: grid; grid-template-columns: 1fr 1fr; gap: 5px;",
-                                                          checkboxInput("fixedAspectRatio", "Ratio fixe", value = FALSE),
-                                                          checkboxInput("logScaleX", "Log X", value = FALSE),
-                                                          checkboxInput("logScaleY", "Log Y", value = FALSE),
-                                                          checkboxInput("reverseY", "Inverser Y", value = FALSE)
-                                                      ),
-                                                      h6("Labels axe X:", style = "font-weight: bold; margin-top: 15px;"),
-                                                      sliderInput("xLabelAngle", "Angle (°):", min = 0, max = 90, value = 0, step = 5),
-                                                      helpText(icon("info-circle"), "Inclinez pour éviter les chevauchements.")
-                                                  )
-                                           )
-                                         ),
-                                         
-                                         # NOUVELLE SECTION : Personnalisation de la légende
-                                         fluidRow(
-                                           column(12,
-                                                  div(class = "well", style = "background-color: #fff8e1; border-left: 4px solid #ff9800; margin-top: 20px;",
-                                                      h5(icon("list"), " Personnalisation de la légende", style = "color: #ff9800; font-weight: bold; margin-top: 0;"),
-                                                      
-                                                      checkboxInput("customizeLegend", "Personnaliser les labels de la légende", value = FALSE),
-                                                      
-                                                      conditionalPanel(
-                                                        condition = "input.customizeLegend",
-                                                        div(style = "margin-top: 15px;",
-                                                            helpText(icon("info-circle"), "Modifiez les étiquettes de la légende. Les niveaux disponibles dépendent de votre variable de couleur ou des variables Y multiples."),
-                                                            
-                                                            uiOutput("legendLabelsEditor"),
-                                                            
-                                                            div(style = "margin-top: 15px;",
-                                                                actionButton("resetLegendLabels", "Réinitialiser les labels", 
-                                                                             class = "btn-warning btn-sm", icon = icon("undo")),
-                                                                actionButton("applyLegendLabels", "Appliquer les modifications", 
-                                                                             class = "btn-primary btn-sm", icon = icon("check"))
-                                                            )
-                                                        )
-                                                      ),
-                                                      
-                                                      h6("Position et style de la légende:", style = "font-weight: bold; margin-top: 20px;"),
-                                                      div(style = "display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;",
-                                                          selectInput("legendPosition", "Position:",
-                                                                      choices = c("Bas" = "bottom", "Haut" = "top", 
-                                                                                  "Droite" = "right", "Gauche" = "left",
-                                                                                  "Aucune" = "none"),
-                                                                      selected = "bottom"),
-                                                          selectInput("legendDirection", "Direction:",
-                                                                      choices = c("Horizontale" = "horizontal", 
-                                                                                  "Verticale" = "vertical"),
-                                                                      selected = "horizontal"),
-                                                          numericInput("legendTextSize", "Taille texte:", 
-                                                                       value = 10, min = 6, max = 20, step = 1)
-                                                      ),
-                                                      helpText(icon("lightbulb"), "Personnalisez l'apparence et la position de la légende pour une meilleure présentation.")
-                                                  )
-                                           )
-                                         )
-                                ),
-                                
-                                # Onglet Statistiques
-                                tabPanel("Statistiques", icon = icon("chart-bar"),
-                                         br(),
-                                         fluidRow(
-                                           column(6,
-                                                  div(class = "well",
-                                                      h5(icon("database"), " Résumé des données", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      verbatimTextOutput("dataStatsSummary", placeholder = TRUE),
-                                                      conditionalPanel(
-                                                        condition = "input.useAggregation",
-                                                        hr(),
-                                                        div(class = "alert alert-info", style = "margin-bottom: 0; font-size: 13px;",
-                                                            icon("info-circle"),
-                                                            strong(" Impact de l'agrégation:"), br(),
-                                                            "Les statistiques reflètent les données agrégées."
-                                                        )
-                                                      )
-                                                  )
-                                           ),
-                                           column(6,
-                                                  div(class = "well",
-                                                      h5(icon("chart-line"), " Configuration du graphique", style = "color: #495057; font-weight: bold; margin-top: 0;"),
-                                                      verbatimTextOutput("plotStatsSummary", placeholder = TRUE),
-                                                      conditionalPanel(
-                                                        condition = "input.vizType == 'seasonal_smooth' || input.vizType == 'seasonal_evolution'",
-                                                        hr(),
-                                                        h6(icon("calendar-check"), " Analyse saisonnière", style = "color: #17a2b8; font-weight: bold;"),
-                                                        verbatimTextOutput("seasonalAnalysisSummary", placeholder = TRUE)
-                                                      )
-                                                  )
-                                           )
-                                         )
-                                ),
-                                
-                                # Onglet Aide
-                                tabPanel("Aide", icon = icon("question-circle"),
-                                         br(),
-                                         div(class = "well", style = "max-width: 1200px; margin: 0 auto;",
-                                             h4(icon("book"), " Guide de visualisation", style = "color: #007bff; margin-top: 0;"),
-                                             
-                                             div(class = "alert alert-primary", style = "border-left: 4px solid #007bff;",
-                                                 h5(icon("chart-line"), " Types de visualisations"),
-                                                 tags$ul(style = "margin-bottom: 0;",
-                                                         tags$li(strong("Nuage de points:"), "Relations entre variables numériques"),
-                                                         tags$li(strong("Courbe saisonnière avec lissage:"), "Tendances avec lissage LOESS/GAM"),
-                                                         tags$li(strong("Courbe évolution saison:"), "Évolution temporelle brute (dates ou catégories)"),
-                                                         tags$li(strong("Boxplot/Violon:"), "Distribution et quartiles"),
-                                                         tags$li(strong("Barres:"), "Comparaisons catégoriques"),
-                                                         tags$li(strong("Histogramme:"), "Distribution de fréquences"),
-                                                         tags$li(strong("Heatmap:"), "Matrice de fréquences/corrélations")
-                                                 )
-                                             ),
-                                             
-                                             div(class = "alert alert-success", style = "border-left: 4px solid #28a745;",
-                                                 h5(icon("star"), " Nouvelles fonctionnalités"),
-                                                 tags$ul(
-                                                   tags$li(strong("Export universel:"), 
-                                                           "Téléchargez vos graphiques dans tous les formats (PNG, JPEG, TIFF, SVG, PDF, EPS) avec un seul bouton"),
-                                                   tags$li(strong("Histogrammes adaptatifs:"), 
-                                                           "geom_histogram pour X numérique (avec bins), geom_bar pour X catégoriel/date (comptage)"),
-                                                   tags$li(strong("Graphiques en barres intelligents:"), 
-                                                           "geom_col pour données Y numériques, geom_bar pour comptage. Support de X: facteurs, dates, textes, catégories"),
-                                                   tags$li(strong("Palette ggplot2 par défaut:"), 
-                                                           "Coloration automatique cohérente sans configuration. Option de personnalisation disponible"),
-                                                   tags$li(strong("Application automatique:"), 
-                                                           "Les modifications de niveaux X et labels de légende sont appliquées automatiquement dès leur saisie"),
-                                                   tags$li(strong("Personnalisation de la légende:"), 
-                                                           "Renommez les labels de la légende pour plus de clarté dans vos présentations"),
-                                                   tags$li(strong("Contrôle des barres et histogrammes:"), 
-                                                           "Ajustez la largeur, l'espacement et le nombre de bins pour une visualisation optimale"),
-                                                   tags$li(strong("Contrôles de légende avancés:"), 
-                                                           "Position, direction et taille de texte configurables")
-                                                 )
-                                             ),
-                                             
-                                             div(class = "alert alert-warning", style = "border-left: 4px solid #ff9800;",
-                                                 h5(icon("palette"), " Guide des couleurs et légendes"),
-                                                 p(strong("Palette automatique ggplot2:"), "Activez cette option pour appliquer la palette par défaut de ggplot2. Idéal pour une cohérence visuelle sans configuration manuelle."),
-                                                 p(strong("Personnalisation des labels:"), "Renommez les entrées de légende pour :"),
-                                                 tags$ul(
-                                                   tags$li("Clarifier les abréviations (ex: 'Trt A' → 'Traitement A')"),
-                                                   tags$li("Traduire les variables (ex: 'Temperature' → 'Température')"),
-                                                   tags$li("Améliorer la présentation professionnelle")
-                                                 ),
-                                                 helpText(icon("lightbulb"), 
-                                                          "Les modifications de légende sont appliquées uniquement au graphique, pas aux données sources.")
-                                             ),
-                                             
-                                             div(class = "alert alert-info", style = "border-left: 4px solid #17a2b8;",
-                                                 h5(icon("download"), " Guide d'export universel"),
-                                                 p("Le nouveau système d'export centralisé vous permet de télécharger vos visualisations dans tous les formats :"),
-                                                 
-                                                 h6(strong(icon("image"), " Formats Bitmap:"), style = "margin-top: 15px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("PNG:"), "Format universel, idéal pour le web et les présentations PowerPoint"),
-                                                   tags$li(strong("JPEG:"), "Format compressé avec réglage de qualité (10-100%), fichiers plus légers"),
-                                                   tags$li(strong("TIFF:"), "Format d'archivage sans perte, idéal pour les publications")
-                                                 ),
-                                                 
-                                                 h6(strong(icon("vector-square"), " Formats Vectoriels:"), style = "margin-top: 15px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("SVG:"), "Redimensionnable sans perte, parfait pour le web et les éditions graphiques"),
-                                                   tags$li(strong("PDF:"), "Standard pour l'impression professionnelle et les rapports"),
-                                                   tags$li(strong("EPS:"), "Format standard pour les publications scientifiques et l'édition")
-                                                 ),
-                                                 
-                                                 h6(strong(icon("cog"), " Recommandations DPI:"), style = "margin-top: 15px;"),
-                                                 tags$ul(
-                                                   tags$li("72-150 DPI: Affichage écran standard"),
-                                                   tags$li("300 DPI: Impression bureautique et documents"),
-                                                   tags$li("600 DPI: Impression haute qualité professionnelle"),
-                                                   tags$li("1200+ DPI: Publications scientifiques et édition"),
-                                                   tags$li("20000 DPI: Maximum supporté pour besoins ultra-spécialisés")
-                                                 ),
-                                                 
-                                                 div(style = "background-color: white; padding: 12px; border-radius: 4px; margin-top: 15px; border: 1px solid #17a2b8;",
-                                                     icon("lightbulb", style = "color: #17a2b8;"),
-                                                     strong(" Astuce:", style = "color: #17a2b8;"),
-                                                     p(style = "margin: 5px 0 0 0; font-size: 13px;",
-                                                       "Utilisez les presets A4, Letter ou Carré pour les formats vectoriels. L'aperçu en temps réel vous aide à choisir les bonnes dimensions.")
-                                                 )
-                                             ),
-                                             
-                                             div(class = "alert alert-success", style = "border-left: 4px solid #28a745;",
-                                                 h5(icon("sort-amount-down"), " Courbe d'évolution avec variables catégorielles"),
-                                                 p("La courbe d'évolution supporte maintenant les variables catégorielles, facteurs et texte :"),
-                                                 tags$ul(
-                                                   tags$li(strong("Ordre personnalisé:"), 
-                                                           "Glissez-déposez les catégories pour définir leur ordre d'apparition sur l'axe X"),
-                                                   tags$li(strong("Agrégation recommandée:"), 
-                                                           "Utilisez l'agrégation par moyenne pour calculer des statistiques par groupe (ex: traitement + période)"),
-                                                   tags$li(strong("Variable de couleur:"), 
-                                                           "Ajoutez une variable de couleur pour comparer plusieurs séries (ex: traitements)"),
-                                                   tags$li(strong("Cas d'usage typiques:"), 
-                                                           "Périodes d'observation (T1+3, T1+7...), phases expérimentales, catégories ordonnées")
-                                                 ),
-                                                 div(style = "background-color: white; padding: 10px; border-radius: 4px; margin-top: 10px;",
-                                                     strong(icon("lightbulb"), " Exemple:"), br(),
-                                                     tags$code(style = "font-size: 11px;",
-                                                               "Variable X: 'Observation period treatment' (catégorielle)\n",
-                                                               "Variable Y: 'Bemisia'\n",
-                                                               "Variable couleur: 'Treatment'\n",
-                                                               "Agrégation: Moyenne par [Locality, Treatment, Observation period treatment]"
-                                                     )
-                                                 ),
-                                                 helpText(icon("lightbulb"), 
-                                                          "Cette approche est idéale pour visualiser l'évolution de mesures répétées dans le temps ou selon une séquence logique.")
-                                             ),
-                                             
-                                             div(class = "alert alert-warning", style = "border-left: 4px solid #ffc107;",
-                                                 h5(icon("chart-bar"), " Histogrammes intelligents"),
-                                                 p("Les histogrammes s'adaptent automatiquement selon vos données :"),
-                                                 
-                                                 h6(strong("X numérique:"), style = "margin-top: 10px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("Distribution classique:"), "Affiche la fréquence des valeurs avec bins réglables (5-100)"),
-                                                   tags$li(strong("Utilisation:"), "Visualiser la distribution d'une variable continue")
-                                                 ),
-                                                 
-                                                 h6(strong("X catégoriel + Y numérique:"), style = "margin-top: 10px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("Mode moyennes:"), "Affiche la moyenne de Y pour chaque catégorie de X"),
-                                                   tags$li(strong("Mode comptage:"), "Compte le nombre d'occurrences par catégorie (désactivez 'Afficher moyennes')"),
-                                                   tags$li(strong("Cas d'usage:"), "Comparer des mesures moyennes entre groupes")
-                                                 ),
-                                                 
-                                                 h6(strong("X catégoriel sans Y numérique:"), style = "margin-top: 10px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("Comptage automatique:"), "Affiche le nombre d'observations par catégorie"),
-                                                   tags$li(strong("Options:"), "Largeur des barres, position (côte à côte/empilées)")
-                                                 ),
-                                                 
-                                                 div(style = "background-color: white; padding: 10px; border-radius: 4px; margin-top: 10px;",
-                                                     strong(icon("lightbulb"), " Exemple d'usage:"), br(),
-                                                     tags$code(style = "font-size: 11px;",
-                                                               "Variable X: 'Treatment' (catégorielle)\n",
-                                                               "Variable Y: 'Yield' (numérique)\n",
-                                                               "Option: Cocher 'Afficher les moyennes de Y'\n",
-                                                               "→ Affiche le rendement moyen par traitement"
-                                                     )
-                                                 ),
-                                                 
-                                                 helpText(icon("info-circle"), 
-                                                          "L'option 'Afficher moyennes' n'apparaît que si X est catégoriel et Y est numérique.")
-                                             ),
-                                             
-                                             div(class = "alert alert-info", style = "border-left: 4px solid #17a2b8;",
-                                                 h5(icon("chart-bar"), " Contrôle des graphiques en barres"),
-                                                 p("Options pour optimiser vos visualisations :"),
-                                                 
-                                                 h6(strong("Graphiques en barres (type 'bar'):"), style = "margin-top: 10px;"),
-                                                 tags$ul(
-                                                   tags$li(strong("Largeur:"), "0.3 à 1.5 - adaptez selon le nombre de catégories"),
-                                                   tags$li(strong("Position:"), "Côte à côte, empilées ou empilées 100%"),
-                                                   tags$li(strong("Support:"), "X catégoriel avec Y numérique")
-                                                 ),
-                                                 
-                                                 helpText(icon("lightbulb"), 
-                                                          "Un espacement plus grand améliore la lisibilité avec de nombreuses catégories.")
-                                             ),
-                                             
-                                             div(class = "alert alert-info", style = "border-left: 4px solid #17a2b8;",
-                                                 h5(icon("calendar-alt"), " Analyses saisonnières et temporelles"),
-                                                 p("Deux approches pour l'analyse temporelle :"),
-                                                 tags$ul(style = "margin-bottom: 0;",
-                                                         tags$li(strong("Avec lissage:"), "Utilise LOESS/GAM avec intervalles de confiance pour détecter les tendances générales et les cycles"),
-                                                         tags$li(strong("Évolution saison:"), "Affiche les données brutes avec lignes et points pour voir les variations exactes")
-                                                 ),
-                                                 p(style = "margin-top: 10px; margin-bottom: 0;", icon("exclamation-circle"), 
-                                                   " Important: Pour les dates, utilisez toujours une variable de type Date pour l'axe X.")
-                                             ),
-                                             
-                                             div(class = "alert alert-success", style = "border-left: 4px solid #28a745;",
-                                                 h5(icon("layer-group"), " Agrégation des données"),
-                                                 p("Résumez vos données par groupes pour simplifier l'analyse :"),
-                                                 tags$ul(style = "margin-bottom: 0;",
-                                                         tags$li(strong("Comptage:"), "Nombre d'observations par groupe"),
-                                                         tags$li(strong("Moyenne/Médiane:"), "Tendances centrales"),
-                                                         tags$li(strong("Min/Max:"), "Valeurs extrêmes"),
-                                                         tags$li(strong("Écart-type:"), "Mesure de dispersion")
-                                                 ),
-                                                 helpText(icon("lightbulb"), "Le comptage est idéal pour les analyses de fréquence et les variables catégoriques.")
-                                             ),
-                                             
-                                             div(class = "alert alert-warning", style = "border-left: 4px solid #ffc107;",
-                                                 h5(icon("th"), " Facetting (sous-graphiques)"),
-                                                 p("Divisez votre graphique en plusieurs panneaux selon une variable catégorique :"),
-                                                 tags$ul(
-                                                   tags$li(strong("Variable adaptée:"), "Choisissez une colonne avec 2-10 catégories maximum"),
-                                                   tags$li(strong("Attention aux NA:"), "Les valeurs manquantes peuvent empêcher la séparation correcte"),
-                                                   tags$li(strong("Lecture:"), "Facilite la comparaison entre groupes")
-                                                 ),
-                                                 p(style = "margin-bottom: 0;", icon("check-circle"), 
-                                                   " Exemple: Séparer les données par région, année, ou catégorie de produit.")
-                                             ),
-                                             
-                                             div(class = "alert alert-secondary", style = "border-left: 4px solid #6c757d;",
-                                                 h5(icon("exchange-alt"), " Types de variables X"),
-                                                 p("Convertissez la variable X selon vos besoins :"),
-                                                 tags$ul(
-                                                   tags$li(strong("Auto:"), "Détection automatique du type"),
-                                                   tags$li(strong("Date:"), "Pour analyses temporelles (format: AAAA-MM-JJ, JJ/MM/AAAA, etc.)"),
-                                                   tags$li(strong("Catégorielle/Facteur:"), "Pour regroupements et facetting"),
-                                                   tags$li(strong("Numérique:"), "Pour échelles continues et calculs"),
-                                                   tags$li(strong("Texte:"), "Pour labels et annotations")
-                                                 ),
-                                                 helpText(icon("info-circle"), "Vérifiez toujours que le format correspond au type choisi.")
-                                             ),
-                                             
-                                             div(class = "alert alert-light", style = "border-left: 4px solid #ff9800; background-color: #fff8e1;",
-                                                 h5(icon("edit"), " Personnalisation des niveaux"),
-                                                 p("Renommez les catégories de la variable X pour plus de clarté :"),
-                                                 tags$ul(
-                                                   tags$li(strong("Quand l'utiliser:"), "Variables catégoriques avec noms peu clairs (ex: 'A', 'B' vers 'Groupe A', 'Groupe B')"),
-                                                   tags$li(strong("Règles:"), "Étiquettes uniques, non vides, et descriptives"),
-                                                   tags$li(strong("Actions rapides:"), "Ajout de préfixes/suffixes, numérotation, nettoyage d'espaces")
-                                                 ),
-                                                 div(style = "background-color: white; padding: 8px; border-radius: 4px; margin-top: 10px;",
-                                                     icon("exclamation-triangle", style = "color: #ff9800;"),
-                                                     " Les modifications sont appliquées uniquement au graphique, pas aux données sources."
-                                                 )
-                                             ),
-                                             
-                                             div(class = "alert alert-primary", style = "border-left: 4px solid #007bff;",
-                                                 h5(icon("lightbulb"), " Conseils pratiques"),
-                                                 tags$ol(
-                                                   tags$li(strong("Préparation:"), "Nettoyez vos données (pas de NA dans variables clés)"),
-                                                   tags$li(strong("Type de variable:"), "Vérifiez que le type X correspond au graphique souhaité"),
-                                                   tags$li(strong("Export:"), "Utilisez le nouveau modal d'export pour tous vos formats en un seul endroit"),
-                                                   tags$li(strong("Palettes:"), "Activez les palettes automatiques pour X pour une cohérence visuelle"),
-                                                   tags$li(strong("Légendes:"), "Personnalisez les labels pour des présentations professionnelles"),
-                                                   tags$li(strong("Barres:"), "Ajustez largeur et espacement selon la densité de vos données"),
-                                                   tags$li(strong("DPI:"), "300 pour impression standard, 600+ pour haute qualité"),
-                                                   tags$li(strong("Formats:"), "Bitmap pour écran/web, Vectoriel pour impression/édition")
-                                                 )
-                                             ),
-                                             
-                                             div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;",
-                                                 h5(icon("keyboard"), " Raccourcis et astuces"),
-                                                 tags$ul(style = "margin-bottom: 0; font-size: 13px;",
-                                                         tags$li("Utilisez le zoom interactif (cliquer-glisser) pour explorer les détails"),
-                                                         tags$li("Double-cliquez pour réinitialiser le zoom rapidement"),
-                                                         tags$li("Survolez les points pour voir les valeurs exactes"),
-                                                         tags$li("Le modal d'export offre un aperçu en temps réel avant téléchargement"),
-                                                         tags$li("Testez différents types de lissage pour trouver le meilleur ajustement"),
-                                                         tags$li("Glissez-déposez les catégories pour définir un ordre personnalisé"),
-                                                         tags$li("Exportez en SVG/PDF pour éditer dans Illustrator/Inkscape si nécessaire"),
-                                                         tags$li("Utilisez les presets A4/Letter pour des dimensions standard")
-                                                 )
-                                             )
-                                         )
-                                )
+                # Statistiques des données
+                box(
+                  title = tagList(icon("table"), " Statistiques des Données"),
+                  status = "info",
+                  width = 4,
+                  solidHeader = TRUE,
+                  collapsible = TRUE,
+                  div(
+                    style = "padding: 15px;",
+                    verbatimTextOutput("dataStatsSummary")
+                  )
+                ),
+                
+                # Statistiques du graphique
+                box(
+                  title = tagList(icon("chart-line"), " Informations sur le Graphique"),
+                  status = "primary",
+                  width = 4,
+                  solidHeader = TRUE,
+                  collapsible = TRUE,
+                  div(
+                    style = "padding: 15px;",
+                    verbatimTextOutput("plotStatsSummary")
+                  )
+                ),
+                
+                # Informations saisonnières (conditionnelles)
+                conditionalPanel(
+                  condition = "input.vizType == 'seasonal_smooth' || input.vizType == 'seasonal_evolution'",
+                  box(
+                    title = tagList(icon("calendar-alt"), " Analyse Saisonnière"),
+                    status = "success",
+                    width = 4,
+                    solidHeader = TRUE,
+                    collapsible = TRUE,
+                    div(
+                      style = "padding: 15px;",
+                      verbatimTextOutput("seasonalAnalysisSummary")
                     )
+                  )
                 )
+              ),
+              # CORRECTION: Ajout du script SortableJS pour le drag-and-drop
+              tags$head(
+                tags$script(src = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
+                tags$script(HTML("
+            $(document).ready(function() {
+              // Fonction pour initialiser Sortable
+              function initSortable() {
+                var el = document.getElementById('xOrderSortable');
+                if (el && !el.sortableInstance) {
+                  el.sortableInstance = Sortable.create(el, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    handle: '.sortable-item',
+                    onEnd: function(evt) {
+                      // Récupérer l'ordre des éléments
+                      var items = el.querySelectorAll('.sortable-item');
+                      var order = [];
+                      items.forEach(function(item) {
+                        order.push(item.getAttribute('data-value'));
+                      });
+                      // Envoyer l'ordre à Shiny
+                      Shiny.setInputValue('xLevelOrder', order, {priority: 'event'});
+                    }
+                  });
+                }
+              }
+              
+              // Initialiser au chargement
+              setTimeout(initSortable, 500);
+              
+              // Réinitialiser quand le contenu change
+              $(document).on('shiny:value', function(event) {
+                if (event.target.id === 'xOrderEditor') {
+                  setTimeout(initSortable, 100);
+                }
+              });
+            });
+          ")),
+                tags$style(HTML("
+            .sortable-ghost {
+              opacity: 0.4;
+              background-color: #e3f2fd;
+            }
+            .sortable-item:hover {
+              box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+              border-color: #28a745 !important;
+            
+            /* CORRECTION: Styles pour rendre le bouton download cliquable */
+            #downloadPlot {
+              cursor: pointer !important;
+              pointer-events: auto !important;
+              opacity: 1 !important;
+              z-index: 1000;
+            }
+            
+            #downloadPlot:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 12px rgba(0,0,0,0.3) !important;
+              background-color: #0056b3 !important;
+              transition: all 0.3s ease;
+            }
+            
+            #downloadPlot:active {
+              transform: translateY(0);
+            }
+          "))
               )
+              
       ),
       # ---- Tests statistiques ----
       tabItem(tabName = "tests",
@@ -2916,7 +3043,6 @@ ui <- dashboardPage(
                 )
               )
       ),
-      
       # ---- Comparaisons multiples PostHoc ----
       tabItem(tabName = "multiple",
               fluidRow(
@@ -3299,13 +3425,15 @@ ui <- dashboardPage(
                 )
               )
       ),
-      # ---- Analyses multivariées ----
+      
+      # ---- Analyses multivariees ----
       tabItem(tabName = "multivariate",
+              # SECTION ACP
               fluidRow(
                 box(title = "Analyse en Composantes Principales (ACP)", status = "info", width = 6, solidHeader = TRUE,
+                    
                     uiOutput("pcaVarSelect"),
                     checkboxInput("pcaScale", "Standardiser les variables", TRUE),
-                    # Option pour analyses avec moyennes
                     checkboxInput("pcaUseMeans", "Utiliser les moyennes par groupe", FALSE),
                     conditionalPanel(
                       condition = "input.pcaUseMeans == true",
@@ -3318,57 +3446,122 @@ ui <- dashboardPage(
                     radioButtons("pcaPlotType", "Type de visualisation:",
                                  choices = c("Variables" = "var", "Individus" = "ind", "Biplot" = "biplot"),
                                  selected = "var", inline = TRUE),
-                    numericInput("pcaComponents", "Nombre de composantes:", value = 2, min = 2, max = 10),
-                    # Options de personnalisation graphique
-                    conditionalPanel(
-                      condition = "input.runPCA > 0",
-                      hr(),
-                      h5("Personnalisation graphique:", style = "font-weight: bold; color: #337ab7;"),
-                      textInput("pcaPlotTitle", "Titre du graphique:", 
-                                value = "ACP - Analyse en Composantes Principales"),
-                      textInput("pcaXLabel", "Label axe X:", value = ""),
-                      textInput("pcaYLabel", "Label axe Y:", value = ""),
-                      checkboxInput("pcaCenterAxes", "Centrer sur (0,0)", TRUE)
-                    ),
+                    numericInput("pcaComponents", "Nombre de composantes:", value = 5, min = 2, max = 10),
                     hr(),
-                    actionButton("runPCA", "Exécuter ACP", class = "btn-info", icon = icon("project-diagram"), width = "48%"),
-                    downloadButton("downloadPCA", "Télécharger", class = "btn-outline-info", width = "48%")
+                    h5("Personnalisation graphique:", style = "font-weight: bold; color: #337ab7;"),
+                    textInput("pcaPlotTitle", "Titre du graphique:", 
+                              value = "ACP - Analyse en Composantes Principales"),
+                    textInput("pcaXLabel", "Label axe X:", value = ""),
+                    textInput("pcaYLabel", "Label axe Y:", value = ""),
+                    checkboxInput("pcaCenterAxes", "Centrer sur (0,0)", TRUE),
+                    hr(),
+                    h5("Options de telechargement graphique:", style = "font-weight: bold; color: #337ab7;"),
+                    fluidRow(
+                      column(4,
+                             selectInput("pcaPlot_format", "Format:",
+                                         choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
+                                         selected = "png")
+                      ),
+                      column(4,
+                             numericInput("pcaPlot_width", "Largeur (cm):", value = 25, min = 5, max = 100)
+                      ),
+                      column(4,
+                             numericInput("pcaPlot_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                      )
+                    ),
+                    numericInput("pcaPlot_dpi", "Resolution (DPI):", value = 300, min = 72, max = 1200),
+                    hr(),
+                    div(style = "text-align: center;",
+                        downloadButton("downloadPcaPlot", "Telecharger graphique", class = "btn-info", style = "margin: 5px;"),
+                        br(), br(),
+                        downloadButton("downloadPcaDataXlsx", "Telecharger donnees (Excel)", class = "btn-success", style = "margin: 5px;"),
+                        downloadButton("downloadPcaDataCsv", "Telecharger donnees (CSV)", class = "btn-success", style = "margin: 5px;")
+                    )
                 ),
                 box(title = "Visualisation ACP", status = "info", width = 6, solidHeader = TRUE,
                     plotlyOutput("pcaPlot", height = "550px"),
-                    downloadButton("downloadPcaPlot", "Télécharger graphique ACP"),
                     hr(),
                     div(style = "max-height: 300px; overflow-y: auto; font-size: 12px;",
                         verbatimTextOutput("pcaSummary"))
                 )
               ),
+              
+              # SECTION HCPC
               fluidRow(
-                box(title = "Classification Hiérarchique sur Composantes Principales (HCPC)", status = "success", width = 12, solidHeader = TRUE,
-                    p("Cette analyse combine l'ACP avec une classification hiérarchique automatique."),
-                    numericInput("hcpcClusters", "Nombre de clusters:", value = 3, min = 2, max = 10),
-                    # Options de personnalisation pour HCPC
-                    conditionalPanel(
-                      condition = "input.runHCPC > 0",
-                      hr(),
-                      h5("Personnalisation graphique:", style = "font-weight: bold; color: #5cb85c;"),
-                      fluidRow(
-                        column(6,
-                               textInput("hcpcClusterTitle", "Titre carte des clusters:", 
-                                         value = "Carte des clusters HCPC"),
-                               textInput("hcpcClusterXLabel", "Label axe X:", value = ""),
-                               textInput("hcpcClusterYLabel", "Label axe Y:", value = ""),
-                               checkboxInput("hcpcCenterAxes", "Centrer sur (0,0)", TRUE)
-                        ),
-                        column(6,
-                               textInput("hcpcDendTitle", "Titre dendrogramme:", 
-                                         value = "Dendrogramme HCPC"),
-                               # Note: pas de centrage pour le dendrogramme
-                               p(style = "font-style: italic; color: #666;", 
-                                 "Le dendrogramme n'est pas centré sur (0,0)")
-                        )
+                box(title = "Classification Hierarchique sur Composantes Principales (HCPC)", 
+                    status = "success", width = 12, solidHeader = TRUE,
+                    p("Cette analyse combine l'ACP avec une classification hierarchique automatique."),
+                    
+                    fluidRow(
+                      column(4,
+                             numericInput("hcpcClusters", "Nombre de clusters:", value = 3, min = 2, max = 10)
+                      ),
+                      column(8,
+                             div(style = "text-align: center; margin-top: 25px;",
+                                 downloadButton("downloadHcpcDataXlsx", "Telecharger donnees (Excel)", 
+                                                class = "btn-success", style = "margin: 5px;"),
+                                 downloadButton("downloadHcpcDataCsv", "Telecharger donnees (CSV)", 
+                                                class = "btn-success", style = "margin: 5px;")
+                             )
                       )
                     ),
-                    actionButton("runHCPC", "Exécuter HCPC", class = "btn-success", icon = icon("sitemap"), width = "100%"),
+                    hr(),
+                    h5("Personnalisation graphique:", style = "font-weight: bold; color: #5cb85c;"),
+                    fluidRow(
+                      column(6,
+                             textInput("hcpcClusterTitle", "Titre carte des clusters:", 
+                                       value = "Carte des clusters HCPC"),
+                             textInput("hcpcClusterXLabel", "Label axe X:", value = ""),
+                             textInput("hcpcClusterYLabel", "Label axe Y:", value = ""),
+                             checkboxInput("hcpcCenterAxes", "Centrer sur (0,0)", TRUE),
+                             hr(),
+                             h5("Options telechargement carte clusters:"),
+                             fluidRow(
+                               column(6,
+                                      selectInput("hcpcCluster_format", "Format:",
+                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
+                                                  selected = "png")
+                               ),
+                               column(6,
+                                      numericInput("hcpcCluster_dpi", "DPI:", value = 300, min = 72, max = 2000)
+                               )
+                             ),
+                             fluidRow(
+                               column(6,
+                                      numericInput("hcpcCluster_width", "Largeur (cm):", value = 25, min = 5, max = 100)
+                               ),
+                               column(6,
+                                      numericInput("hcpcCluster_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                               )
+                             )
+                      ),
+                      column(6,
+                             textInput("hcpcDendTitle", "Titre dendrogramme:", 
+                                       value = "Dendrogramme HCPC"),
+                             p(style = "font-style: italic; color: #666;", 
+                               "Le dendrogramme n'est pas centre sur (0,0)"),
+                             hr(),
+                             h5("Options telechargement dendrogramme:"),
+                             fluidRow(
+                               column(6,
+                                      selectInput("hcpcDend_format", "Format:",
+                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
+                                                  selected = "png")
+                               ),
+                               column(6,
+                                      numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = 20000)
+                               )
+                             ),
+                             fluidRow(
+                               column(6,
+                                      numericInput("hcpcDend_width", "Largeur (cm):", value = 30, min = 5, max = 100)
+                               ),
+                               column(6,
+                                      numericInput("hcpcDend_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                               )
+                             )
+                      )
+                    ),
                     hr(),
                     fluidRow(
                       column(6,
@@ -3378,7 +3571,7 @@ ui <- dashboardPage(
                                  ),
                                  div(class = "box-body",
                                      plotlyOutput("hcpcClusterPlot", height = "500px"),
-                                     downloadButton("downloadHcpcClusterPlot", "Télécharger carte des clusters")
+                                     downloadButton("downloadHcpcClusterPlot", "Telecharger carte")
                                  )
                              )
                       ),
@@ -3389,7 +3582,7 @@ ui <- dashboardPage(
                                  ),
                                  div(class = "box-body",
                                      plotlyOutput("hcpcDendPlot", height = "500px"),
-                                     downloadButton("downloadHcpcDendPlot", "Télécharger dendrogramme")
+                                     downloadButton("downloadHcpcDendPlot", "Telecharger dendrogramme")
                                  )
                              )
                       )
@@ -3397,7 +3590,7 @@ ui <- dashboardPage(
                     br(),
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #5cb85c; color: white;",
-                            h4(class = "box-title", "Résultats détaillés HCPC", style = "color: white; font-weight: bold;")
+                            h4(class = "box-title", "Resultats detailles HCPC", style = "color: white; font-weight: bold;")
                         ),
                         div(class = "box-body", style = "background-color: #f9f9f9;",
                             div(style = "max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
@@ -3406,44 +3599,96 @@ ui <- dashboardPage(
                     )
                 )
               ),
+              
+              # SECTION AFD
               fluidRow(
-                box(title = "Analyse Factorielle Discriminante (AFD)", status = "primary", width = 12, solidHeader = TRUE,
+                box(title = "Analyse Factorielle Discriminante (AFD)", 
+                    status = "primary", width = 12, solidHeader = TRUE,
+                    
                     fluidRow(
                       column(4,
                              uiOutput("afdFactorSelect")),
                       column(8,
                              uiOutput("afdVarSelect"))
                     ),
-                    # Option pour analyses avec moyennes
                     checkboxInput("afdUseMeans", "Utiliser les moyennes par groupe", FALSE),
                     conditionalPanel(
                       condition = "input.afdUseMeans == true",
                       uiOutput("afdMeansGroupSelect")
                     ),
-                    # Options de personnalisation pour AFD
-                    conditionalPanel(
-                      condition = "input.runAFD > 0",
-                      hr(),
-                      h5("Personnalisation graphique:", style = "font-weight: bold; color: #337ab7;"),
-                      fluidRow(
-                        column(6,
-                               textInput("afdIndTitle", "Titre projection individus:", 
-                                         value = "AFD - Projection des individus"),
-                               textInput("afdIndXLabel", "Label axe X:", value = ""),
-                               textInput("afdIndYLabel", "Label axe Y:", value = ""),
-                               checkboxInput("afdIndCenterAxes", "Centrer sur (0,0)", TRUE)
-                        ),
-                        column(6,
-                               textInput("afdVarTitle", "Titre contribution variables:", 
-                                         value = "AFD - Contribution des variables"),
-                               textInput("afdVarXLabel", "Label axe X:", value = ""),
-                               textInput("afdVarYLabel", "Label axe Y:", value = ""),
-                               checkboxInput("afdVarCenterAxes", "Centrer sur (0,0)", TRUE)
-                        )
+                    div(style = "background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0;",
+                        checkboxInput("afdCrossValidation", 
+                                      HTML("<strong>Activer la validation croisee (Leave-One-Out)</strong>"), 
+                                      FALSE),
+                        p(style = "margin: 5px 0 0 25px; font-size: 12px; color: #856404;",
+                          icon("exclamation-triangle"), 
+                          " ATTENTION : La validation croisee peut etre tres longue sur de grands jeux de donnees.")
+                    ),
+                    hr(),
+                    h5("Personnalisation graphique:", style = "font-weight: bold; color: #337ab7;"),
+                    fluidRow(
+                      column(6,
+                             textInput("afdIndTitle", "Titre projection individus:", 
+                                       value = "AFD - Projection des individus"),
+                             textInput("afdIndXLabel", "Label axe X:", value = ""),
+                             textInput("afdIndYLabel", "Label axe Y:", value = ""),
+                             checkboxInput("afdIndCenterAxes", "Centrer sur (0,0)", TRUE),
+                             hr(),
+                             h5("Options telechargement projection individus:"),
+                             fluidRow(
+                               column(6,
+                                      selectInput("afdInd_format", "Format:",
+                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
+                                                  selected = "png")
+                               ),
+                               column(6,
+                                      numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = 20000)
+                               )
+                             ),
+                             fluidRow(
+                               column(6,
+                                      numericInput("afdInd_width", "Largeur (cm):", value = 25, min = 5, max = 100)
+                               ),
+                               column(6,
+                                      numericInput("afdInd_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                               )
+                             )
+                      ),
+                      column(6,
+                             textInput("afdVarTitle", "Titre contribution variables:", 
+                                       value = "AFD - Contribution des variables"),
+                             textInput("afdVarXLabel", "Label axe X:", value = ""),
+                             textInput("afdVarYLabel", "Label axe Y:", value = ""),
+                             checkboxInput("afdVarCenterAxes", "Centrer sur (0,0)", TRUE),
+                             hr(),
+                             h5("Options telechargement contribution variables:"),
+                             fluidRow(
+                               column(6,
+                                      selectInput("afdVar_format", "Format:",
+                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
+                                                  selected = "png")
+                               ),
+                               column(6,
+                                      numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = 20000)
+                               )
+                             ),
+                             fluidRow(
+                               column(6,
+                                      numericInput("afdVar_width", "Largeur (cm):", value = 25, min = 5, max = 100)
+                               ),
+                               column(6,
+                                      numericInput("afdVar_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                               )
+                             )
                       )
                     ),
                     hr(),
-                    actionButton("runAFD", "Exécuter AFD", class = "btn-primary", icon = icon("project-diagram"), width = "100%"),
+                    div(style = "text-align: center;",
+                        downloadButton("downloadAfdDataXlsx", "Telecharger donnees (Excel)", 
+                                       class = "btn-success", style = "margin: 5px;"),
+                        downloadButton("downloadAfdDataCsv", "Telecharger donnees (CSV)", 
+                                       class = "btn-success", style = "margin: 5px;")
+                    ),
                     hr(),
                     fluidRow(
                       column(6,
@@ -3453,7 +3698,7 @@ ui <- dashboardPage(
                                  ),
                                  div(class = "box-body",
                                      plotlyOutput("afdIndPlot", height = "500px"),
-                                     downloadButton("downloadAfdIndPlot", "Télécharger projection individus")
+                                     downloadButton("downloadAfdIndPlot", "Telecharger projection")
                                  )
                              )
                       ),
@@ -3464,7 +3709,7 @@ ui <- dashboardPage(
                                  ),
                                  div(class = "box-body",
                                      plotlyOutput("afdVarPlot", height = "500px"),
-                                     downloadButton("downloadAfdVarPlot", "Télécharger contribution variables")
+                                     downloadButton("downloadAfdVarPlot", "Telecharger contribution")
                                  )
                              )
                       )
@@ -3472,7 +3717,7 @@ ui <- dashboardPage(
                     br(),
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #d9534f; color: white;",
-                            h4(class = "box-title", "Résultats détaillés de l'AFD", style = "color: white; font-weight: bold;")
+                            h4(class = "box-title", "Resultats detailles de l'AFD", style = "color: white; font-weight: bold;")
                         ),
                         div(class = "box-body", style = "background-color: #f9f9f9;",
                             div(style = "max-height: 700px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
@@ -3974,6 +4219,7 @@ ui <- dashboardPage(
                 )
               )
       ),
+      
       # ---- Rapport ----
       tabItem(tabName = "report",
               fluidRow(
@@ -5560,7 +5806,7 @@ server <- function(input, output, session) {
       showNotification("Graphique EPS téléchargé!", type = "message", duration = 3)
     }
   )
-  # ---- Tableaux croisés dynamiques  ----
+  # ---- Tableaux croisés dynamiques ----
   
   # Variables reactives
   crosstab_values <- reactiveValues(
@@ -6405,7 +6651,11 @@ server <- function(input, output, session) {
   )
   # ---- Visualisation des données ----
   
-  # Sélection des variables X
+  
+  # SECTION 1: SÉLECTION DES VARIABLES
+  
+  
+  # Sélection des variables X 
   output$vizXVarSelect <- renderUI({
     req(values$filteredData)
     all_cols <- names(values$filteredData)
@@ -6415,7 +6665,7 @@ server <- function(input, output, session) {
                 selected = if(length(all_cols) > 0) all_cols[1] else NULL)
   })
   
-  # Sélection des variables Y (MULTIPLE)
+  # Sélection des variables Y (MULTIPLE) 
   output$vizYVarSelect <- renderUI({
     req(values$filteredData)
     all_cols <- names(values$filteredData)
@@ -6435,7 +6685,83 @@ server <- function(input, output, session) {
     )
   })
   
-  # Détection automatique du type de variable
+  # Sélection de la variable de couleur 
+  output$vizColorVarSelect <- renderUI({
+    req(values$filteredData)
+    
+    # Exclure les variables Y multiples si actives
+    all_cols <- names(values$filteredData)
+    if(!is.null(values$multipleY) && values$multipleY) {
+      all_cols <- setdiff(all_cols, input$vizYVar)
+    }
+    
+    selectInput("vizColorVar", "Variable couleur:",
+                choices = c("Aucun" = "Aucun", all_cols),
+                selected = "Aucun")
+  })
+  
+  # Sélection de la variable de facetting 
+  output$vizFacetVarSelect <- renderUI({
+    req(values$filteredData)
+    
+    all_cols <- names(values$filteredData)
+    # Filtrer pour ne garder que les variables catégorielles
+    cat_cols <- names(values$filteredData)[sapply(values$filteredData, function(x) {
+      is.factor(x) || is.character(x) || (is.numeric(x) && length(unique(x)) <= 20)
+    })]
+    
+    selectInput("vizFacetVar", "Variable facetting:",
+                choices = c("Aucun" = "Aucun", cat_cols),
+                selected = "Aucun")
+  })
+  
+  # Sélection des variables de regroupement pour l'agrégation
+  output$groupVarsSelect <- renderUI({
+    req(values$filteredData)
+    req(input$useAggregation == TRUE)
+    
+    all_cols <- names(values$filteredData)
+    
+    # Exclure la variable X et les variables Y
+    excluded_vars <- c(input$vizXVar, input$vizYVar)
+    available_cols <- setdiff(all_cols, excluded_vars)
+    
+    # Priorité aux variables catégorielles mais inclure aussi les numériques
+    cat_cols <- available_cols[sapply(values$filteredData[available_cols], function(x) {
+      is.factor(x) || is.character(x) || (is.numeric(x) && length(unique(x)) <= 20)
+    })]
+    
+    # Si pas de variables catégorielles, utiliser toutes les variables disponibles
+    if(length(cat_cols) == 0) {
+      cat_cols <- available_cols
+    }
+    
+    div(
+      selectizeInput(
+        "groupVars",
+        "Variables de regroupement:",
+        choices = c("Variable X (par défaut)" = input$vizXVar, cat_cols),
+        selected = input$vizXVar,
+        multiple = TRUE,
+        options = list(
+          placeholder = 'Sélectionnez les variables...',
+          maxItems = 5,
+          plugins = list('remove_button')
+        )
+      ),
+      helpText(
+        icon("info-circle", style = "color: #17a2b8;"),
+        "Sélectionnez les variables qui définissent les groupes pour l'agrégation. Par défaut, X est utilisée."
+      )
+    )
+  })
+  
+  
+  
+  # SECTION 2: DÉTECTION AUTOMATIQUE
+  
+  
+  # Détection automatique du type de variable X 
   observe({
     req(values$filteredData, input$vizXVar)
     
@@ -6463,6 +6789,38 @@ server <- function(input, output, session) {
     }
   })
   
+  # Détection du mode multi-Y 
+  observe({
+    req(input$vizYVar)
+    
+    if(length(input$vizYVar) > 1) {
+      values$multipleY <- TRUE
+      values$yVarNames <- input$vizYVar
+      showNotification(
+        paste("Mode multi-Y activé:", length(input$vizYVar), "variables sélectionnées"),
+        type = "message",
+        duration = 3
+      )
+    } else {
+      values$multipleY <- FALSE
+      values$yVarNames <- NULL
+    }
+  })
+  
+  
+  # SECTION 3: GESTION DES NIVEAUX X - AMÉLIORATION POUR PERSISTANCE
+  
+  # NOUVELLE FONCTIONNALITÉ: Initialiser le stockage des labels personnalisés
+  observe({
+    if(is.null(values$storedLevelLabels)) {
+      values$storedLevelLabels <- list()
+    }
+    if(is.null(values$legendLabels)) {
+      values$legendLabels <- list()
+    }
+  }, priority = 1000)
+  
+  
   # Stocker les niveaux actuels pour l'éditeur d'ordre
   observe({
     req(values$filteredData, input$vizXVar)
@@ -6478,10 +6836,15 @@ server <- function(input, output, session) {
         unique(as.character(data[[x_var]]))
       }
       values$currentXLevels <- unique_vals
+      
+      # NOUVELLE: Stocker les labels personnalisés de manière persistante
+      if(!is.null(input$vizXVar) && is.null(values$storedLevelLabels[[input$vizXVar]])) {
+        values$storedLevelLabels[[input$vizXVar]] <- unique_vals
+      }
     }
   })
   
-  # Éditeur de niveaux amélioré pour la variable X
+  # Éditeur de niveaux amélioré pour la variable X 
   output$xLevelsEditor <- renderUI({
     req(values$filteredData, input$vizXVar)
     
@@ -6527,14 +6890,26 @@ server <- function(input, output, session) {
           div(style = "display: flex; justify-content: space-between; align-items: center;",
               span(paste(length(unique_vals), "niveaux/valeurs"), 
                    style = "color: #666; font-size: 12px;"),
-              actionButton("resetLevels", "Réinitialiser", 
-                           class = "btn-default btn-xs", icon = icon("undo"))
+              div(style = "display: flex; gap: 5px;",
+                  actionButton("applyLabels", "Appliquer", 
+                               class = "btn-success btn-xs", icon = icon("check")),
+                  actionButton("resetLevels", "Réinitialiser", 
+                               class = "btn-default btn-xs", icon = icon("undo"))
+              )
           )
       ),
       
       div(style = if(length(unique_vals) > 10) "max-height: 400px; overflow-y: auto; padding-right: 10px;" else "",
           lapply(seq_along(unique_vals), function(i) {
             lvl <- unique_vals[i]
+            # NOUVELLE: Récupérer le label stocké s'il existe
+            stored_label <- values$storedLevelLabels[[x_var]]
+            default_val <- if(!is.null(stored_label) && !is.null(names(stored_label)) && lvl %in% names(stored_label)) {
+              stored_label[[lvl]]
+            } else {
+              lvl
+            }
+            
             div(style = "margin-bottom: 8px; padding: 8px; background-color: #fafafa; border-radius: 4px; border: 1px solid #e0e0e0;",
                 div(style = "display: flex; align-items: center; gap: 10px;",
                     span(paste0(i, "."), style = "color: #999; font-weight: bold; min-width: 25px;"),
@@ -6544,7 +6919,7 @@ server <- function(input, output, session) {
                         textInput(
                           inputId = paste0("xLevel_", make.names(lvl)),
                           label = NULL,
-                          value = lvl,
+                          value = default_val,
                           placeholder = "Nouvelle étiquette...",
                           width = "100%"
                         )
@@ -6571,6 +6946,121 @@ server <- function(input, output, session) {
       }
     )
   })
+  
+  # NOUVELLE: Observateur pour appliquer et stocker les labels
+  observeEvent(input$applyLabels, {
+    req(values$currentXLevels, input$vizXVar)
+    
+    # Créer le mapping des labels
+    level_mapping <- sapply(values$currentXLevels, function(lvl) {
+      new_label <- input[[paste0("xLevel_", make.names(lvl))]]
+      if(is.null(new_label) || new_label == "") lvl else new_label
+    })
+    
+    # Stocker de manière persistante
+    names(level_mapping) <- values$currentXLevels
+    values$storedLevelLabels[[input$vizXVar]] <- level_mapping
+    
+    showNotification("Labels appliqués et enregistrés", type = "message", duration = 2)
+  })
+  
+  # Observateur pour réinitialiser les niveaux avec notification
+  observeEvent(input$resetLevels, {
+    req(values$currentXLevels, input$vizXVar)
+    
+    # Réinitialiser tous les inputs de niveau
+    lapply(values$currentXLevels, function(lvl) {
+      updateTextInput(session, paste0("xLevel_", make.names(lvl)), value = lvl)
+    })
+    
+    # Supprimer le stockage persistant
+    values$storedLevelLabels[[input$vizXVar]] <- NULL
+    
+    showNotification("Niveaux réinitialisés", type = "message", duration = 2)
+  })
+  
+  # Actions rapides pour les niveaux
+  observeEvent(input$addPrefixBtn, {
+    req(values$currentXLevels)
+    
+    showModal(modalDialog(
+      title = "Ajouter un préfixe",
+      textInput("prefixText", "Préfixe à ajouter:", value = ""),
+      footer = tagList(
+        actionButton("applyPrefix", "Appliquer", class = "btn-primary"),
+        modalButton("Annuler")
+      )
+    ))
+  })
+  
+  observeEvent(input$applyPrefix, {
+    req(input$prefixText, values$currentXLevels)
+    
+    lapply(values$currentXLevels, function(lvl) {
+      current_val <- input[[paste0("xLevel_", make.names(lvl))]]
+      updateTextInput(session, paste0("xLevel_", make.names(lvl)), 
+                      value = paste0(input$prefixText, current_val))
+    })
+    
+    removeModal()
+    showNotification("Préfixe ajouté à tous les niveaux", type = "message", duration = 2)
+  })
+  
+  observeEvent(input$addSuffixBtn, {
+    req(values$currentXLevels)
+    
+    showModal(modalDialog(
+      title = "Ajouter un suffixe",
+      textInput("suffixText", "Suffixe à ajouter:", value = ""),
+      footer = tagList(
+        actionButton("applySuffix", "Appliquer", class = "btn-primary"),
+        modalButton("Annuler")
+      )
+    ))
+  })
+  
+  observeEvent(input$applySuffix, {
+    req(input$suffixText, values$currentXLevels)
+    
+    lapply(values$currentXLevels, function(lvl) {
+      current_val <- input[[paste0("xLevel_", make.names(lvl))]]
+      updateTextInput(session, paste0("xLevel_", make.names(lvl)), 
+                      value = paste0(current_val, input$suffixText))
+    })
+    
+    removeModal()
+    showNotification("Suffixe ajouté à tous les niveaux", type = "message", duration = 2)
+  })
+  
+  observeEvent(input$numberLevelsBtn, {
+    req(values$currentXLevels)
+    
+    lapply(seq_along(values$currentXLevels), function(i) {
+      lvl <- values$currentXLevels[i]
+      current_val <- input[[paste0("xLevel_", make.names(lvl))]]
+      updateTextInput(session, paste0("xLevel_", make.names(lvl)), 
+                      value = paste0(i, ". ", current_val))
+    })
+    
+    showNotification("Niveaux numérotés", type = "message", duration = 2)
+  })
+  
+  observeEvent(input$cleanSpacesBtn, {
+    req(values$currentXLevels)
+    
+    lapply(values$currentXLevels, function(lvl) {
+      current_val <- input[[paste0("xLevel_", make.names(lvl))]]
+      cleaned_val <- trimws(gsub("\\s+", " ", current_val))
+      updateTextInput(session, paste0("xLevel_", make.names(lvl)), 
+                      value = cleaned_val)
+    })
+    
+    showNotification("Espaces nettoyés", type = "message", duration = 2)
+  })
+  
+  
+  # SECTION 4: GESTION DE L'ORDRE X
+  
   
   # Éditeur d'ordre pour X catégoriel (seasonal_evolution)
   output$xOrderEditor <- renderUI({
@@ -6606,952 +7096,1005 @@ server <- function(input, output, session) {
               div(style = "display: flex; gap: 5px;",
                   actionButton("autoSortX", "Tri auto", 
                                class = "btn-default btn-xs", icon = icon("sort-alpha-down")),
+                  actionButton("reverseOrderX", "Inverser", 
+                               class = "btn-default btn-xs", icon = icon("exchange-alt")),
                   actionButton("resetOrderX", "Réinitialiser", 
                                class = "btn-default btn-xs", icon = icon("undo"))
               )
           )
       ),
       
-      div(style = "max-height: 400px; overflow-y: auto; padding: 10px; background-color: #f8f9fa; border-radius: 4px;",
-          sortable::rank_list(
-            input_id = "xLevelOrder",
-            labels = unique_vals,
-            text = "Glissez pour réordonner",
-            css_id = "xLevelOrderList"
-          )
+      div(id = "xOrderSortable",
+          style = if(length(unique_vals) > 15) "max-height: 500px; overflow-y: auto; padding: 10px; background-color: #f9f9f9; border-radius: 5px;" else "padding: 10px; background-color: #f9f9f9; border-radius: 5px;",
+          lapply(seq_along(unique_vals), function(i) {
+            val <- unique_vals[i]
+            div(
+              id = paste0("xorder_", i),
+              `data-value` = val,
+              class = "sortable-item",
+              style = "cursor: move; padding: 12px; margin-bottom: 8px; background-color: white; border: 2px solid #ddd; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;",
+              div(style = "display: flex; align-items: center; gap: 10px;",
+                  icon("grip-vertical", style = "color: #999;"),
+                  span(style = "font-weight: bold; color: #28a745; min-width: 30px;", paste0(i, ".")),
+                  span(style = "flex: 1; font-size: 14px;", val)
+              )
+            )
+          })
       ),
-      helpText(icon("hand-rock"), "Glissez-déposez pour définir l'ordre d'apparition sur l'axe X.")
+      
+      helpText(icon("hand-point-up"), 
+               "Glissez-déposez les éléments pour définir l'ordre d'apparition sur le graphique.",
+               style = "margin-top: 10px; color: #666;")
     )
   })
   
-  # Actions pour l'édition des niveaux
-  observeEvent(input$resetLevels, {
-    req(values$filteredData, input$vizXVar)
+  # Tri automatique de l'ordre X
+  observeEvent(input$autoSortX, {
+    req(values$currentXLevels)
+    sorted_levels <- sort(values$currentXLevels)
+    values$customXOrder <- sorted_levels
+    showNotification("Ordre trié alphabétiquement", type = "message", duration = 2)
+  })
+  
+  # Inverser l'ordre X
+  observeEvent(input$reverseOrderX, {
+    req(values$currentXLevels)
+    values$customXOrder <- rev(values$currentXLevels)
+    showNotification("Ordre inversé", type = "message", duration = 2)
+  })
+  
+  # Réinitialiser l'ordre X
+  observeEvent(input$resetOrderX, {
+    values$customXOrder <- NULL
+    showNotification("Ordre réinitialisé", type = "message", duration = 2)
+  })
+  
+  # Capturer l'ordre personnalisé depuis le sortable (drag-and-drop)
+  observeEvent(input$xLevelOrder, {
+    if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
+      values$customXOrder <- input$xLevelOrder
+      showNotification(
+        paste("Ordre modifié:", length(input$xLevelOrder), "catégories"), 
+        type = "message", 
+        duration = 2
+      )
+    }
+  })
+  
+  
+  # SECTION 4.5: AGRÉGATION DES DONNÉES
+  
+  
+  # Expression réactive pour agréger les données si nécessaire
+  aggregatedData <- reactive({
+    req(values$filteredData, input$vizXVar, input$vizYVar)
     
     data <- values$filteredData
     x_var <- input$vizXVar
+    y_vars <- input$vizYVar
+    
+    # Vérifier si l'agrégation est activée
+    if(isTRUE(input$useAggregation) && !is.null(input$aggFunction)) {
+      
+      # Déterminer les variables de regroupement
+      group_vars <- if(!is.null(input$groupVars) && length(input$groupVars) > 0) {
+        input$groupVars
+      } else {
+        x_var
+      }
+      
+      # Ajouter la variable de couleur au groupement si présente et pas en mode multi-Y
+      if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun" && 
+         (is.null(values$multipleY) || !values$multipleY)) {
+        group_vars <- unique(c(group_vars, input$vizColorVar))
+      }
+      
+      # Fonction d'agrégation
+      agg_func <- switch(input$aggFunction,
+                         "mean" = function(x) mean(x, na.rm = TRUE),
+                         "median" = function(x) median(x, na.rm = TRUE),
+                         "sum" = function(x) sum(x, na.rm = TRUE),
+                         "count" = function(x) length(x),
+                         "min" = function(x) min(x, na.rm = TRUE),
+                         "max" = function(x) max(x, na.rm = TRUE),
+                         "sd" = function(x) sd(x, na.rm = TRUE),
+                         function(x) mean(x, na.rm = TRUE))
+      
+      # Agréger pour chaque variable Y
+      if(length(y_vars) == 1) {
+        # Mode Y simple
+        data <- data %>%
+          group_by(across(all_of(group_vars))) %>%
+          summarise(!!y_vars[1] := agg_func(.data[[y_vars[1]]]), .groups = "drop")
+      } else {
+        # Mode multi-Y - agréger chaque variable Y séparément
+        agg_list <- list()
+        for(y_var in y_vars) {
+          temp_data <- data %>%
+            group_by(across(all_of(group_vars))) %>%
+            summarise(value = agg_func(.data[[y_var]]), .groups = "drop") %>%
+            mutate(Variable = y_var)
+          agg_list[[y_var]] <- temp_data
+        }
+        data <- bind_rows(agg_list)
+      }
+      
+      showNotification(
+        paste("Données agrégées:", nrow(data), "observations"),
+        type = "message",
+        duration = 2
+      )
+    }
+    
+    return(data)
+  })
+  
+  
+  # SECTION 5: PRÉPARATION DES DONNÉES
+  
+  
+  # Expression réactive pour préparer les données du graphique
+  plotData <- reactive({
+    req(values$filteredData, input$vizXVar, input$vizYVar)
+    
+    # Utiliser les données agrégées si disponibles
+    data <- if(isTRUE(input$useAggregation)) {
+      aggregatedData()
+    } else {
+      values$filteredData
+    }
+    
+    x_var <- input$vizXVar
+    y_vars <- input$vizYVar
+    
+    # Appliquer les renommages de niveaux X si disponibles
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
     
-    if(x_type == "date") {
-      unique_vals <- as.character(sort(unique(data[[x_var]])))
-    } else {
-      unique_vals <- if(is.factor(data[[x_var]])) {
-        levels(data[[x_var]])
-      } else {
-        sort(unique(as.character(data[[x_var]])))
+    if(x_type %in% c("factor", "categorical", "text")) {
+      # NOUVELLE: Utiliser les labels stockés de manière persistante
+      if(!is.null(values$storedLevelLabels[[x_var]])) {
+        level_mapping <- values$storedLevelLabels[[x_var]]
+        
+        # Obtenir les niveaux actuellement présents dans les données
+        current_levels <- unique(as.character(data[[x_var]]))
+        
+        # Ne garder que les niveaux qui existent dans le mapping ET dans les données
+        valid_levels <- names(level_mapping)[names(level_mapping) %in% current_levels]
+        
+        if(length(valid_levels) > 0) {
+          data[[x_var]] <- factor(
+            data[[x_var]],
+            levels = valid_levels,
+            labels = as.character(level_mapping[valid_levels])
+          )
+        } else {
+          # Si aucun niveau valide, utiliser les données telles quelles
+          data[[x_var]] <- factor(data[[x_var]])
+        }
+      } else if(!is.null(values$currentXLevels)) {
+        # Obtenir les niveaux actuellement présents dans les données
+        current_levels <- unique(as.character(data[[x_var]]))
+        
+        # Ne garder que les niveaux qui existent à la fois dans currentXLevels et dans les données
+        valid_levels <- values$currentXLevels[values$currentXLevels %in% current_levels]
+        
+        if(length(valid_levels) > 0) {
+          level_mapping <- sapply(valid_levels, function(lvl) {
+            new_label <- input[[paste0("xLevel_", make.names(lvl))]]
+            if(is.null(new_label) || new_label == "") lvl else new_label
+          })
+          
+          data[[x_var]] <- factor(
+            data[[x_var]],
+            levels = valid_levels,
+            labels = as.character(level_mapping)
+          )
+        } else {
+          # Si aucun niveau valide, utiliser les données telles quelles
+          data[[x_var]] <- factor(data[[x_var]])
+        }
+      }
+      
+      # Appliquer l'ordre personnalisé si défini
+      if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
+        # Ne garder que les niveaux de customXOrder qui existent dans les données
+        existing_order <- values$customXOrder[values$customXOrder %in% levels(data[[x_var]])]
+        if(length(existing_order) > 0) {
+          data[[x_var]] <- factor(data[[x_var]], levels = existing_order)
+        }
+      } else if(is.null(values$storedLevelLabels[[x_var]]) && is.null(values$currentXLevels)) {
+        # Assurer un ordre cohérent par défaut seulement si aucun label n'a été appliqué
+        data[[x_var]] <- factor(data[[x_var]])
       }
     }
     
-    for(lvl in unique_vals) {
-      updateTextInput(session, paste0("xLevel_", make.names(lvl)), value = lvl)
+    # Conversion de date si nécessaire
+    if(x_type == "date" && !inherits(data[[x_var]], "Date")) {
+      date_format <- input$xDateFormat %||% "%Y-%m-%d"
+      data[[x_var]] <- tryCatch({
+        as.Date(data[[x_var]], format = date_format)
+      }, error = function(e) {
+        showNotification("Erreur de conversion de date. Vérifiez le format.", type = "error")
+        data[[x_var]]
+      })
     }
     
-    showNotification("Niveaux réinitialisés", type = "message", duration = 2)
+    # Gestion du mode multi-Y - CORRECTION ERREUR SELECT
+    if(!is.null(values$multipleY) && values$multipleY) {
+      if(isTRUE(input$useAggregation) && "Variable" %in% names(data)) {
+        # Les données sont déjà en format long après agrégation
+        data_long <- data %>%
+          rename(Value = value)
+      } else {
+        # Transformer en format long pour multi-Y
+        # Vérifier quelles variables Y existent réellement dans les données
+        valid_y_vars <- y_vars[y_vars %in% names(data)]
+        
+        if(length(valid_y_vars) == 0) {
+          showNotification("Erreur: Aucune variable Y disponible dans les données", type = "error")
+          return(data)
+        }
+        
+        # Sélectionner X et toutes les variables Y valides
+        cols_to_keep <- c(x_var, valid_y_vars)
+        
+        # Vérifier que X existe aussi
+        if(!x_var %in% names(data)) {
+          showNotification("Erreur: Variable X non disponible", type = "error")
+          return(data)
+        }
+        
+        # Transformer en format long
+        
+        # CORRECTION: Utiliser dplyr::select et dplyr::any_of explicitement
+        data_long <- data %>%
+          dplyr::select(dplyr::any_of(cols_to_keep)) %>%
+          tidyr::pivot_longer(
+            cols = dplyr::any_of(valid_y_vars),
+            names_to = "Variable",
+            values_to = "Value"
+          )
+      }
+      return(data_long)
+    }
+    
+    # Mode Y simple - garder toutes les colonnes nécessaires
+    cols_needed <- unique(c(x_var, y_vars[1], input$vizColorVar, input$vizFacetVar))
+    cols_needed <- cols_needed[cols_needed != "Aucun"]
+    cols_needed <- cols_needed[cols_needed %in% names(data)]
+    
+    return(data[, cols_needed, drop = FALSE])
   })
   
-  observeEvent(input$numberLevelsBtn, {
-    req(values$filteredData, input$vizXVar)
-    
-    data <- values$filteredData
-    x_var <- input$vizXVar
-    unique_vals <- if(is.factor(data[[x_var]])) {
-      levels(data[[x_var]])
-    } else {
-      sort(unique(as.character(data[[x_var]])))
-    }
-    
-    for(i in seq_along(unique_vals)) {
-      lvl <- unique_vals[i]
-      new_value <- paste0(i, ". ", lvl)
-      updateTextInput(session, paste0("xLevel_", make.names(lvl)), value = new_value)
-    }
-    
-    showNotification("Numérotation appliquée", type = "message", duration = 2)
+  # Stocker les données préparées dans values pour accès global
+  observe({
+    values$plotData <- plotData()
   })
   
-  observeEvent(input$addPrefixBtn, {
+  
+  # SECTION 5.5: GESTION DES LABELS DE LÉGENDE
+  
+  
+  # NOUVELLE: Créer une interface pour personnaliser les labels de légende
+  observeEvent(input$customizeLegendLabels, {
+    req(values$plotData)
+    
+    # Déterminer quels sont les niveaux de la légende
+    legend_levels <- NULL
+    legend_var_name <- NULL
+    
+    if(!is.null(values$multipleY) && values$multipleY) {
+      # En mode multi-Y, les niveaux sont les noms des variables Y
+      legend_levels <- values$yVarNames
+      legend_var_name <- "Variables Y"
+    } else if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
+      # Sinon, utiliser les niveaux de la variable de couleur
+      color_data <- values$plotData[[input$vizColorVar]]
+      if(is.factor(color_data)) {
+        legend_levels <- levels(color_data)
+      } else {
+        legend_levels <- unique(as.character(color_data))
+      }
+      legend_var_name <- input$vizColorVar
+    }
+    
+    if(is.null(legend_levels) || length(legend_levels) == 0) {
+      showNotification("Aucune légende à personnaliser", type = "warning", duration = 3)
+      return()
+    }
+    
+    # Créer l'interface modale pour éditer les labels de légende
     showModal(modalDialog(
-      title = "Ajouter un préfixe",
-      textInput("prefixText", "Préfixe à ajouter:", value = "", placeholder = "Ex: Groupe "),
+      title = tagList(icon("tags"), " Personnaliser les labels de la légende"),
+      size = "m",
+      
+      div(
+        p(paste("Variable:", legend_var_name), style = "font-weight: bold; color: #666; margin-bottom: 15px;"),
+        
+        div(style = if(length(legend_levels) > 10) "max-height: 400px; overflow-y: auto;" else "",
+            lapply(seq_along(legend_levels), function(i) {
+              lvl <- legend_levels[i]
+              div(style = "margin-bottom: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;",
+                  div(style = "font-size: 12px; color: #666; margin-bottom: 3px;",
+                      paste("Original:", lvl)),
+                  textInput(
+                    inputId = paste0("legendLevel_", make.names(lvl)),
+                    label = NULL,
+                    value = lvl,
+                    placeholder = "Nouveau label...",
+                    width = "100%"
+                  )
+              )
+            })
+        )
+      ),
+      
       footer = tagList(
-        modalButton("Annuler"),
-        actionButton("confirmPrefix", "Appliquer", class = "btn-primary")
+        actionButton("applyLegendLabels", "Appliquer", class = "btn-primary"),
+        actionButton("resetLegendLabels", "Réinitialiser", class = "btn-default"),
+        modalButton("Fermer")
       )
     ))
   })
   
-  observeEvent(input$confirmPrefix, {
-    req(input$prefixText, values$filteredData, input$vizXVar)
-    
-    prefix <- input$prefixText
-    data <- values$filteredData
-    x_var <- input$vizXVar
-    unique_vals <- if(is.factor(data[[x_var]])) {
-      levels(data[[x_var]])
-    } else {
-      sort(unique(as.character(data[[x_var]])))
-    }
-    
-    for(lvl in unique_vals) {
-      current_value <- input[[paste0("xLevel_", make.names(lvl))]]
-      if(is.null(current_value)) {
-        current_value <- lvl
-      }
-      new_value <- paste0(prefix, current_value)
-      updateTextInput(session, paste0("xLevel_", make.names(lvl)), value = new_value)
-    }
-    
-    removeModal()
-    showNotification("Préfixe ajouté", type = "message", duration = 2)
-  })
-  
-  # Actions pour l'ordre
-  observeEvent(input$autoSortX, {
-    req(values$currentXLevels)
-    
-    sorted_levels <- sort(values$currentXLevels)
-    sortable::update_rank_list(session, "xLevelOrder", labels = sorted_levels)
-    
-    showNotification("Tri alphabétique appliqué", type = "message", duration = 2)
-  })
-  
-  observeEvent(input$resetOrderX, {
-    req(values$filteredData, input$vizXVar)
-    
-    data <- values$filteredData
-    x_var <- input$vizXVar
-    
-    original_vals <- if(is.factor(data[[x_var]])) {
-      levels(data[[x_var]])
-    } else {
-      unique(as.character(data[[x_var]]))
-    }
-    
-    sortable::update_rank_list(session, "xLevelOrder", labels = original_vals)
-    showNotification("Ordre réinitialisé", type = "message", duration = 2)
-  })
-  
-  # NOUVEAU : Actions pour les labels de légende
-  observeEvent(input$resetLegendLabels, {
-    # Obtenir les niveaux originaux
-    legend_levels <- NULL
-    
-    if(!is.null(values$multipleY) && values$multipleY) {
-      legend_levels <- values$yVarNames
-    } else if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
-      color_data <- values$filteredData[[input$vizColorVar]]
-      if(is.factor(color_data)) {
-        legend_levels <- levels(droplevels(color_data))
-      } else {
-        legend_levels <- sort(unique(as.character(color_data)))
-      }
-    }
-    
-    if(!is.null(legend_levels)) {
-      for(lvl in legend_levels) {
-        updateTextInput(session, paste0("legendLabel_", make.names(lvl)), value = lvl)
-      }
-      showNotification("Labels de légende réinitialisés", type = "message", duration = 2)
-    }
-  })
-  
+  # NOUVELLE: Appliquer les labels de légende personnalisés
   observeEvent(input$applyLegendLabels, {
-    showNotification("Modifications appliquées. Régénérez le graphique pour voir les changements.", 
-                     type = "message", duration = 4)
-  })
-  
-  # Sélection des variables de couleur
-  output$vizColorVarSelect <- renderUI({
-    req(values$filteredData)
-    
-    multiple_y <- !is.null(input$vizYVar) && length(input$vizYVar) > 1
-    
-    if(multiple_y) {
-      div(
-        selectInput("vizColorVar", "Variable de couleur:", 
-                    choices = "Automatique (Variables Y)",
-                    selected = "Automatique (Variables Y)"),
-        helpText(icon("info-circle"), 
-                 style = "color: #ff9800;",
-                 "Les couleurs distinguent automatiquement les variables Y sélectionnées.")
-      )
+    # Déterminer la clé de stockage
+    storage_key <- if(!is.null(values$multipleY) && values$multipleY) {
+      "multiY_legend"
+    } else if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
+      input$vizColorVar
     } else {
-      all_cols <- names(values$filteredData)
-      all_cols <- iconv(all_cols, to = "UTF-8", sub = "")
-      selectInput("vizColorVar", "Variable de couleur (optionnel):", 
-                  choices = c("Aucun", all_cols),
-                  selected = "Aucun")
-    }
-  })
-  
-  # Sélection des variables de facetting
-  output$vizFacetVarSelect <- renderUI({
-    req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, function(x) is.factor(x) || is.character(x))]
-    fac_cols <- iconv(fac_cols, to = "UTF-8", sub = "")
-    selectInput("vizFacetVar", "Variable de facetting (optionnel):", 
-                choices = c("Aucun", fac_cols),
-                selected = "Aucun")
-  })
-  
-  # Sélection des variables de groupement pour l'agrégation
-  output$groupVarsSelect <- renderUI({
-    req(values$filteredData, input$useAggregation)
-    all_cols <- names(values$filteredData)
-    all_cols <- iconv(all_cols, to = "UTF-8", sub = "")
-    selectizeInput("groupVars", "Variables de groupement:", 
-                   choices = all_cols,
-                   multiple = TRUE,
-                   options = list(placeholder = 'Sélectionnez une ou plusieurs variables...'))
-  })
-  
-  # Fonction d'agrégation sécurisée AMÉLIORÉE
-  aggregateData <- function(data, group_vars, agg_function, value_var) {
-    if (is.null(group_vars) || length(group_vars) == 0) {
-      return(data)
-    }
-    
-    tryCatch({
-      valid_functions <- c("mean", "median", "sum", "min", "max", "sd", "count")
-      if (!agg_function %in% valid_functions) {
-        stop("Fonction d'agrégation non valide")
-      }
-      
-      if (agg_function == "count") {
-        result <- data %>%
-          group_by(across(all_of(group_vars))) %>%
-          summarise(!!sym(value_var) := n(), .groups = "drop")
-      } else {
-        agg_func <- switch(agg_function,
-                           "mean" = function(x) mean(x, na.rm = TRUE),
-                           "median" = function(x) median(x, na.rm = TRUE),
-                           "sum" = function(x) sum(x, na.rm = TRUE),
-                           "min" = function(x) min(x, na.rm = TRUE),
-                           "max" = function(x) max(x, na.rm = TRUE),
-                           "sd" = function(x) sd(x, na.rm = TRUE))
-        
-        if (!is.numeric(data[[value_var]]) && agg_function != "count") {
-          result <- data %>%
-            group_by(across(all_of(group_vars))) %>%
-            summarise(!!sym(value_var) := n(), .groups = "drop")
-        } else {
-          result <- data %>%
-            group_by(across(all_of(group_vars))) %>%
-            summarise(!!sym(value_var) := agg_func(!!sym(value_var)), .groups = "drop")
-        }
-      }
-      
-      return(result)
-    }, error = function(e) {
-      showNotification(paste("Erreur dans l'agrégation:", e$message), type = "error", duration = 5)
-      return(data)
-    })
-  }
-  
-  # Génération de la visualisation avec support Y multiple, catégories ET AGRÉGATION UNIVERSELLE
-  observeEvent(input$generateViz, {
-    req(values$filteredData, input$vizXVar, input$vizYVar, input$vizType)
-    
-    if(is.null(input$vizYVar) || length(input$vizYVar) == 0) {
-      showNotification("Veuillez sélectionner au moins une variable Y", type = "warning", duration = 5)
       return()
     }
     
-    single_y_types <- c("box", "violin", "density", "histogram", "heatmap", "pie", "donut", "treemap")
-    if(input$vizType %in% single_y_types && length(input$vizYVar) > 1) {
-      showNotification(
-        paste("Le type", input$vizType, "ne supporte qu'une seule variable Y. Utilisation de:", input$vizYVar[1]), 
-        type = "warning", duration = 5
+    # Récupérer les niveaux actuels
+    legend_levels <- if(storage_key == "multiY_legend") {
+      values$yVarNames
+    } else {
+      color_data <- values$plotData[[input$vizColorVar]]
+      if(is.factor(color_data)) levels(color_data) else unique(as.character(color_data))
+    }
+    
+    # Créer le mapping
+    legend_mapping <- sapply(legend_levels, function(lvl) {
+      new_label <- input[[paste0("legendLevel_", make.names(lvl))]]
+      if(is.null(new_label) || new_label == "") lvl else new_label
+    })
+    names(legend_mapping) <- legend_levels
+    
+    # Stocker
+    values$legendLabels[[storage_key]] <- legend_mapping
+    
+    removeModal()
+    showNotification("Labels de légende appliqués", type = "message", duration = 2)
+  })
+  
+  # NOUVELLE: Réinitialiser les labels de légende
+  observeEvent(input$resetLegendLabels, {
+    storage_key <- if(!is.null(values$multipleY) && values$multipleY) {
+      "multiY_legend"
+    } else if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
+      input$vizColorVar
+    } else {
+      return()
+    }
+    
+    legend_levels <- if(storage_key == "multiY_legend") {
+      values$yVarNames
+    } else {
+      color_data <- values$plotData[[input$vizColorVar]]
+      if(is.factor(color_data)) levels(color_data) else unique(as.character(color_data))
+    }
+    
+    # Réinitialiser les inputs
+    lapply(legend_levels, function(lvl) {
+      updateTextInput(session, paste0("legendLevel_", make.names(lvl)), value = lvl)
+    })
+    
+    # Supprimer le stockage
+    values$legendLabels[[storage_key]] <- NULL
+    
+    showNotification("Labels de légende réinitialisés", type = "message", duration = 2)
+  })
+  
+  
+  # SECTION 6: CRÉATION DU GRAPHIQUE
+  
+  
+  # Expression réactive pour créer le graphique avec mise à jour automatique
+  createPlot <- reactive({
+    req(values$plotData, input$vizXVar, input$vizYVar, input$vizType)
+    
+    data <- values$plotData
+    x_var <- input$vizXVar
+    viz_type <- input$vizType
+    
+    # Déterminer la variable Y selon le mode
+    if(!is.null(values$multipleY) && values$multipleY) {
+      y_var <- "Value"
+      color_var <- "Variable"
+    } else {
+      y_var <- input$vizYVar[1]
+      color_var <- if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
+        input$vizColorVar
+      } else {
+        NULL
+      }
+    }
+    
+    # Créer le graphique de base selon le type
+    p <- tryCatch({
+      switch(viz_type,
+             "scatter" = create_scatter_plot(data, x_var, y_var, color_var),
+             "line" = create_line_plot(data, x_var, y_var, color_var),
+             "bar" = create_bar_plot(data, x_var, y_var, color_var),
+             "box" = create_box_plot(data, x_var, y_var, color_var),
+             "violin" = create_violin_plot(data, x_var, y_var, color_var),
+             "seasonal_smooth" = create_seasonal_smooth_plot(data, x_var, y_var, color_var),
+             "seasonal_evolution" = create_seasonal_evolution_plot(data, x_var, y_var, color_var),
+             "histogram" = create_histogram_plot(data, x_var),
+             "density" = create_density_plot(data, x_var, color_var),
+             "heatmap" = create_heatmap_plot(data, x_var, y_var),
+             "area" = create_area_plot(data, x_var, y_var, color_var),
+             "pie" = create_pie_plot(data, x_var, y_var),
+             "donut" = create_donut_plot(data, x_var, y_var),
+             "treemap" = create_treemap_plot(data, x_var, y_var),
+             {
+               showNotification("Type de visualisation non reconnu", type = "error")
+               return(NULL)
+             }
+      )
+    }, error = function(e) {
+      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+                       type = "error", duration = 5)
+      return(NULL)
+    })
+    
+    if(is.null(p)) return(NULL)
+    
+    # Ajouter le facetting si demandé
+    if(!is.null(input$vizFacetVar) && input$vizFacetVar != "Aucun") {
+      p <- p + facet_wrap(as.formula(paste("~", input$vizFacetVar)), 
+                          scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
+    }
+    
+    # NOUVELLE: Appliquer les labels de légende personnalisés
+    if(!is.null(color_var)) {
+      storage_key <- if(color_var == "Variable") {
+        "multiY_legend"
+      } else {
+        color_var
+      }
+      
+      if(!is.null(values$legendLabels[[storage_key]])) {
+        legend_mapping <- values$legendLabels[[storage_key]]
+        p <- p + scale_color_discrete(labels = legend_mapping) +
+          scale_fill_discrete(labels = legend_mapping)
+      }
+    }
+    
+    # Personnalisation du thème (sauf pour seasonal_evolution qui a son propre style)
+    if(viz_type != "seasonal_evolution") {
+      # NOUVELLE: Créer les paramètres de formatage des axes
+      x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$xAxisBold)) {
+        "bold"
+      } else if(isTRUE(input$xAxisItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      y_axis_face <- if(isTRUE(input$yAxisBold) && isTRUE(input$yAxisItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$yAxisBold)) {
+        "bold"
+      } else if(isTRUE(input$yAxisItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      x_tick_face <- if(isTRUE(input$xTickBold) && isTRUE(input$xTickItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$xTickBold)) {
+        "bold"
+      } else if(isTRUE(input$xTickItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      # NOUVELLE: Obtenir l'angle des labels X
+      x_angle <- input$xAxisAngle %||% 0
+      x_hjust <- if(x_angle > 0) 1 else 0.5
+      x_vjust <- if(x_angle > 0) 1 else 0.5
+      
+      p <- p + 
+        theme_minimal(base_size = input$baseFontSize %||% 12) +
+        theme(
+          plot.title = element_text(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
+          axis.title.x = element_text(face = x_axis_face, size = input$axisLabelSize %||% 11),
+          axis.title.y = element_text(face = y_axis_face, size = input$axisLabelSize %||% 11),
+          axis.text.x = element_text(face = x_tick_face, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
+          legend.position = input$legendPosition %||% "right"
+        )
+    } else {
+      # Pour seasonal_evolution, appliquer TOUS les options de formatage
+      x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$xAxisBold)) {
+        "bold"
+      } else if(isTRUE(input$xAxisItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      y_axis_face <- if(isTRUE(input$yAxisBold) && isTRUE(input$yAxisItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$yAxisBold)) {
+        "bold"
+      } else if(isTRUE(input$yAxisItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      x_tick_face <- if(isTRUE(input$xTickBold) && isTRUE(input$xTickItalic)) {
+        "bold.italic"
+      } else if(isTRUE(input$xTickBold)) {
+        "bold"
+      } else if(isTRUE(input$xTickItalic)) {
+        "italic"
+      } else {
+        "plain"
+      }
+      
+      x_angle <- input$xAxisAngle %||% 45
+      x_hjust <- if(x_angle > 0) 1 else 0.5
+      
+      # Appliquer tous les formatages pour seasonal_evolution
+      p <- p + theme(
+        axis.text.x = element_text(angle = x_angle, hjust = x_hjust, face = x_tick_face, size = 8),
+        axis.title.x = element_text(face = x_axis_face, size = input$axisLabelSize %||% 11),
+        axis.title.y = element_text(face = y_axis_face, size = input$axisLabelSize %||% 11),
+        plot.title = element_text(size = input$titleSize %||% 14, face = "bold", hjust = 0.5)
       )
     }
     
-    tryCatch({
-      plot_data <- values$filteredData
-      
-      # Appliquer les étiquettes personnalisées pour X (automatiquement)
-      x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
-      
-      if (x_type %in% c("factor", "categorical", "text") && !is.null(input$vizXVar)) {
-        x_var <- input$vizXVar
-        
-        unique_vals <- if(is.factor(plot_data[[x_var]])) {
-          levels(droplevels(plot_data[[x_var]]))
-        } else {
-          sort(unique(as.character(plot_data[[x_var]])))
-        }
-        
-        # Vérifier si des modifications existent
-        has_modifications <- FALSE
-        new_labels <- sapply(unique_vals, function(lvl) {
-          custom_label <- input[[paste0("xLevel_", make.names(lvl))]]
-          if(!is.null(custom_label) && custom_label != lvl) {
-            has_modifications <<- TRUE
-          }
-          custom_label %||% lvl
-        })
-        
-        # Appliquer uniquement s'il y a des modifications
-        if(has_modifications) {
-          if (any(duplicated(new_labels)) || any(new_labels == "")) {
-            showNotification("Les étiquettes doivent être uniques et non vides.", type = "error", duration = 5)
-            return()
-          }
-          
-          if(!is.factor(plot_data[[x_var]])) {
-            plot_data[[x_var]] <- factor(plot_data[[x_var]], levels = unique_vals, labels = new_labels)
-          } else {
-            levels(plot_data[[x_var]]) <- new_labels
-          }
-        }
-      }
-      
-      # Conversion en date si nécessaire
-      if (x_type == "date" && !inherits(plot_data[[input$vizXVar]], "Date")) {
-        tryCatch({
-          plot_data[[input$vizXVar]] <- as.Date(plot_data[[input$vizXVar]], 
-                                                format = input$xDateFormat %||% "%Y-%m-%d")
-        }, error = function(e) {
-          showNotification("Erreur de conversion de date", type = "warning", duration = 5)
-        })
-      }
-      
-      # Suppression des NA
-      required_vars <- c(input$vizXVar, input$vizYVar)
-      color_var <- if (!is.null(input$vizColorVar) && input$vizColorVar != "Aucun" && 
-                       input$vizColorVar != "Automatique (Variables Y)" &&
-                       input$vizColorVar %in% names(plot_data)) input$vizColorVar else NULL
-      
-      if (!is.null(color_var)) {
-        required_vars <- c(required_vars, color_var)
-      }
-      
-      facet_var <- if (!is.null(input$vizFacetVar) && input$vizFacetVar != "Aucun" && 
-                       input$vizFacetVar %in% names(plot_data)) input$vizFacetVar else NULL
-      
-      if (!is.null(facet_var)) {
-        required_vars <- c(required_vars, facet_var)
-      }
-      
-      plot_data <- plot_data %>% 
-        filter(if_all(all_of(required_vars), ~ !is.na(.)))
-      
-      if (nrow(plot_data) == 0) {
-        showNotification("Aucune donnée valide après suppression des valeurs manquantes", type = "error", duration = 5)
-        return()
-      }
-      
-      x_var <- input$vizXVar
-      y_vars <- input$vizYVar
-      
-      # Traitement multiple Y
-      if(length(y_vars) > 1 && !(input$vizType %in% single_y_types)) {
-        plot_data_long <- plot_data %>%
-          pivot_longer(
-            cols = all_of(y_vars),
-            names_to = "Variable_Y",
-            values_to = "Valeur_Y"
-          )
-        
-        if(!is.null(color_var)) {
-          showNotification(
-            "Variable de couleur ignorée : les couleurs distinguent les variables Y.", 
-            type = "info", duration = 4
-          )
-        }
-        
-        actual_color_var <- "Variable_Y"
-        plot_data_to_use <- plot_data_long
-        actual_y_var <- "Valeur_Y"
-        
-        values$multipleY <- TRUE
-        values$yVarNames <- y_vars
-        
-      } else {
-        if(length(y_vars) > 1 && input$vizType %in% single_y_types) {
-          y_vars <- y_vars[1]
-        }
-        
-        plot_data_to_use <- plot_data
-        actual_y_var <- y_vars[1]
-        actual_color_var <- color_var
-        
-        values$multipleY <- FALSE
-        values$yVarNames <- y_vars
-      }
-      
-      # ============ AGRÉGATION UNIVERSELLE ============
-      # Appliquer l'agrégation pour TOUS les types de graphiques si activée
-      if(isTRUE(input$useAggregation) && 
-         !is.null(input$groupVars) && 
-         length(input$groupVars) > 0 &&
-         !is.null(input$aggFunction)) {
-        
-        # Déterminer les variables de groupement selon le contexte
-        if(values$multipleY) {
-          # Multi-Y: grouper par X, variables de groupe, et Variable_Y
-          group_vars_agg <- c(x_var, input$groupVars, "Variable_Y")
-          group_vars_agg <- unique(group_vars_agg)
-        } else {
-          # Single-Y: grouper par X et variables de groupe
-          group_vars_agg <- c(x_var, input$groupVars)
-          group_vars_agg <- unique(group_vars_agg)
-        }
-        
-        # Inclure color_var et facet_var si présents
-        if(!is.null(actual_color_var) && actual_color_var != "Variable_Y") {
-          group_vars_agg <- unique(c(group_vars_agg, actual_color_var))
-        }
-        if(!is.null(facet_var)) {
-          group_vars_agg <- unique(c(group_vars_agg, facet_var))
-        }
-        
-        # Appliquer l'agrégation
-        agg_function <- input$aggFunction
-        
-        if (agg_function == "count") {
-          plot_data_to_use <- plot_data_to_use %>%
-            group_by(across(all_of(group_vars_agg))) %>%
-            summarise(!!sym(actual_y_var) := n(), .groups = "drop")
-        } else {
-          agg_func <- switch(agg_function,
-                             "mean" = function(x) mean(x, na.rm = TRUE),
-                             "median" = function(x) median(x, na.rm = TRUE),
-                             "sum" = function(x) sum(x, na.rm = TRUE),
-                             "min" = function(x) min(x, na.rm = TRUE),
-                             "max" = function(x) max(x, na.rm = TRUE),
-                             "sd" = function(x) sd(x, na.rm = TRUE))
-          
-          if (is.numeric(plot_data_to_use[[actual_y_var]])) {
-            plot_data_to_use <- plot_data_to_use %>%
-              group_by(across(all_of(group_vars_agg))) %>%
-              summarise(!!sym(actual_y_var) := agg_func(!!sym(actual_y_var)), .groups = "drop")
-          } else {
-            # Si Y n'est pas numérique, faire un comptage
-            plot_data_to_use <- plot_data_to_use %>%
-              group_by(across(all_of(group_vars_agg))) %>%
-              summarise(!!sym(actual_y_var) := n(), .groups = "drop")
-          }
-        }
-        
-        # Trier par X si nécessaire
-        plot_data_to_use <- plot_data_to_use %>% arrange(!!sym(x_var))
-        
-        # Stocker les données agrégées
-        values$aggregatedData <- plot_data_to_use
-        
-        showNotification(paste("Agrégation appliquée:", agg_function, "par", 
-                               paste(group_vars_agg, collapse = ", ")), 
-                         type = "message", duration = 3)
-      }
-      # ============ FIN AGRÉGATION UNIVERSELLE ============
-      
-      # TRAITEMENT SPÉCIAL SEASONAL_EVOLUTION AVEC CATÉGORIES
-      if (input$vizType == "seasonal_evolution") {
-        
-        # Appliquer l'ordre personnalisé si catégoriel
-        if(x_type %in% c("factor", "categorical", "text")) {
-          if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
-            custom_order <- input$xLevelOrder
-            plot_data_to_use[[x_var]] <- factor(
-              plot_data_to_use[[x_var]], 
-              levels = custom_order, 
-              ordered = TRUE
-            )
-          } else {
-            if(!is.factor(plot_data_to_use[[x_var]])) {
-              plot_data_to_use[[x_var]] <- factor(plot_data_to_use[[x_var]])
-            }
-          }
-          
-          plot_data_to_use <- plot_data_to_use %>%
-            arrange(!!sym(x_var))
-        }
-        
-        # Construction esthétique
-        base_aes <- if (!is.null(actual_color_var)) {
-          aes(x = !!sym(x_var), y = !!sym(actual_y_var), 
-              color = !!sym(actual_color_var), 
-              group = !!sym(actual_color_var))
-        } else {
-          aes(x = !!sym(x_var), y = !!sym(actual_y_var), group = 1)
-        }
-        
-        p <- ggplot(plot_data_to_use, base_aes)
-        
-        evolution_line_width <- input$evolutionLineWidth %||% 1.2
-        evolution_point_size <- input$evolutionPointSize %||% 2
-        evolution_line_type <- input$evolutionLineType %||% "solid"
-        
-        p <- p + 
-          geom_line(linewidth = evolution_line_width, 
-                    linetype = evolution_line_type,
-                    na.rm = TRUE) +
-          geom_point(size = evolution_point_size, na.rm = TRUE)
-        
-        # Étiquettes de données
-        if(isTRUE(input$evolutionShowDataLabels)) {
-          label_size <- input$evolutionLabelSize %||% 3
-          label_vjust <- input$evolutionLabelVjust %||% -0.5
-          
-          p <- p + geom_text(
-            aes(label = round(!!sym(actual_y_var), 1)),
-            size = label_size,
-            vjust = label_vjust,
-            show.legend = FALSE
-          )
-        }
-        
-        # Échelles
-        if(x_type %in% c("factor", "categorical", "text")) {
-          p <- p + scale_x_discrete(drop = FALSE)
-        } else if(x_type == "date") {
-          p <- p + scale_x_date(
-            date_labels = input$evolutionDateFormat %||% "%d-%b",
-            expand = expansion(mult = c(0.01, 0.05))
-          )
-        }
-        
-        y_expansion <- (input$evolutionYExpansion %||% 10) / 100
-        
-        p <- p + scale_y_continuous(
-          expand = expansion(mult = c(0, y_expansion))
-        )
-        
-        # Grille
-        if(isTRUE(input$evolutionShowGrid)) {
-          p <- p + theme(
-            panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
-            panel.grid.minor = element_line(color = "grey95", linewidth = 0.2)
-          )
-        } else {
-          p <- p + theme(
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank()
-          )
-        }
-        
-        # Thème
-        p <- p + theme_minimal(base_size = 14) +
-          theme(
-            panel.background = element_rect(fill = "white", color = NA),
-            plot.background = element_rect(fill = "white", color = NA),
-            axis.line = element_line(color = "black", linewidth = 0.5),
-            axis.ticks = element_line(color = "black", linewidth = 0.5),
-            legend.position = "bottom",
-            legend.margin = margin(t = 20),
-            axis.text.x = element_text(angle = input$xLabelAngle %||% 0, 
-                                       hjust = if((input$xLabelAngle %||% 0) > 0) 1 else 0.5)
-          )
-        
-      } else if (input$vizType == "seasonal_smooth") {
-        # Code pour seasonal_smooth
-        if (inherits(plot_data_to_use[[x_var]], "Date") || inherits(plot_data_to_use[[x_var]], "POSIXt")) {
-          plot_data_to_use[[x_var]] <- as.Date(plot_data_to_use[[x_var]])
-          
-          # Ne pas ré-agréger si déjà fait
-          if(!isTRUE(input$useAggregation) || is.null(values$aggregatedData)) {
-            group_vars <- c(x_var)
-            if (!is.null(actual_color_var)) group_vars <- c(group_vars, actual_color_var)
-            if (!is.null(facet_var)) group_vars <- c(group_vars, facet_var)
-            
-            plot_data_to_use <- plot_data_to_use %>%
-              group_by(across(all_of(group_vars))) %>%
-              summarise(!!sym(actual_y_var) := mean(!!sym(actual_y_var), na.rm = TRUE), .groups = "drop")
-          }
-          
-          plot_data_to_use <- plot_data_to_use[order(plot_data_to_use[[x_var]]), ]
-        }
-        
-        base_aes <- aes(x = !!sym(x_var), y = !!sym(actual_y_var))
-        
-        p <- ggplot(plot_data_to_use, base_aes)
-        
-        if (isTRUE(input$showLines)) {
-          if (!is.null(actual_color_var)) {
-            p <- p + geom_line(aes(color = !!sym(actual_color_var)),
-                               size = input$seasonalLineWidth %||% 1.2,
-                               linetype = input$lineType %||% "solid")
-          } else {
-            p <- p + geom_line(size = input$seasonalLineWidth %||% 1.2,
-                               linetype = input$lineType %||% "solid",
-                               color = "steelblue")
-          }
-        }
-        
-        if (isTRUE(input$showPoints)) {
-          if (!is.null(actual_color_var)) {
-            p <- p + geom_point(aes(color = !!sym(actual_color_var)),
-                                size = input$seasonalPointSize %||% 2)
-          } else {
-            p <- p + geom_point(size = input$seasonalPointSize %||% 2,
-                                color = "steelblue")
-          }
-        }
-        
-        if (isTRUE(input$showSmoothLine)) {
-          smooth_params <- list(
-            se = isTRUE(input$showConfidenceInterval),
-            alpha = 0.3
-          )
-          
-          if (!is.null(actual_color_var)) {
-            smooth_params$mapping <- aes(color = !!sym(actual_color_var))
-          }
-          
-          if (input$smoothMethod == "loess") {
-            p <- p + do.call(geom_smooth, c(list(method = "loess", span = input$smoothSpan %||% 0.75), smooth_params))
-          } else if (input$smoothMethod == "lm") {
-            p <- p + do.call(geom_smooth, c(list(method = "lm", formula = y ~ x), smooth_params))
-          } else if (input$smoothMethod == "gam") {
-            p <- p + do.call(geom_smooth, c(list(method = "gam", formula = y ~ s(x)), smooth_params))
-          }
-        }
-        
-        if (inherits(plot_data_to_use[[x_var]], "Date")) {
-          p <- p + scale_x_date(
-            date_labels = input$dateFormat %||% "%d-%b",
-            expand = expansion(mult = c(0.01, 0.1))
-          )
-        }
-        
-      } else if (input$vizType == "pie" || input$vizType == "donut") {
-        # ============ NOUVEAUX GRAPHIQUES CIRCULAIRES ============
-        
-        # Pour les graphiques circulaires, on a besoin de comptages ou sommes par catégorie X
-        if(is.numeric(plot_data_to_use[[actual_y_var]]) && !all(is.na(plot_data_to_use[[actual_y_var]]))) {
-          # Utiliser les valeurs Y comme tailles
-          pie_data <- plot_data_to_use %>%
-            group_by(!!sym(x_var)) %>%
-            summarise(value = sum(!!sym(actual_y_var), na.rm = TRUE), .groups = "drop")
-        } else {
-          # Compter les occurrences
-          pie_data <- plot_data_to_use %>%
-            group_by(!!sym(x_var)) %>%
-            summarise(value = n(), .groups = "drop")
-        }
-        
-        # Calculer les pourcentages
-        pie_data <- pie_data %>%
-          mutate(
-            percentage = value / sum(value) * 100,
-            label = paste0(!!sym(x_var), "\n", round(percentage, 1), "%")
-          )
-        
-        # Créer le graphique
-        p <- ggplot(pie_data, aes(x = "", y = value, fill = !!sym(x_var))) +
-          geom_bar(stat = "identity", width = 1, color = "white", size = 0.5) +
-          coord_polar(theta = "y") +
-          theme_void() +
-          theme(legend.position = "right",
-                plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))
-        
-        # Ajouter les étiquettes
-        if(isTRUE(input$showPieLabels)) {
-          p <- p + geom_text(aes(label = label), 
-                             position = position_stack(vjust = 0.5),
-                             size = input$pieLabelSize %||% 4,
-                             color = "white",
-                             fontface = "bold")
-        }
-        
-        # Pour donut, ajouter un cercle blanc au centre
-        if(input$vizType == "donut") {
-          p <- p + 
-            xlim(c(-0.5, 1.5)) +
-            theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
-        }
-        
-      } else if (input$vizType == "treemap") {
-        # ============ TREEMAP ============
-        
-        if(is.numeric(plot_data_to_use[[actual_y_var]]) && !all(is.na(plot_data_to_use[[actual_y_var]]))) {
-          tree_data <- plot_data_to_use %>%
-            group_by(!!sym(x_var)) %>%
-            summarise(value = sum(!!sym(actual_y_var), na.rm = TRUE), .groups = "drop")
-        } else {
-          tree_data <- plot_data_to_use %>%
-            group_by(!!sym(x_var)) %>%
-            summarise(value = n(), .groups = "drop")
-        }
-        
-        # Utiliser treemap ou treemapify pour créer le graphique
-        library(treemapify)
-        
-        p <- ggplot(tree_data, aes(area = value, fill = !!sym(x_var), label = !!sym(x_var))) +
-          geom_treemap() +
-          geom_treemap_text(colour = "white", place = "centre", size = 15) +
-          theme(legend.position = "none")
-        
-      } else {
-        # Autres types de visualisation
-        base_aes <- if (!is.null(actual_color_var)) {
-          aes(x = !!sym(x_var), y = !!sym(actual_y_var), color = !!sym(actual_color_var))
-        } else {
-          aes(x = !!sym(x_var), y = !!sym(actual_y_var))
-        }
-        
-        p <- ggplot(plot_data_to_use, base_aes)
-        
-        plot_alpha <- input$plotAlpha %||% 0.7
-        plot_size <- input$plotSize %||% 2
-        line_width <- input$lineWidth %||% 1
-        
-        if (input$vizType == "scatter") {
-          if (isTRUE(input$jitterPoints)) {
-            p <- p + geom_jitter(alpha = plot_alpha, size = plot_size, width = 0.2, height = 0)
-          } else {
-            p <- p + geom_point(alpha = plot_alpha, size = plot_size)
-          }
-        } else if (input$vizType == "box") {
-          p <- p + geom_boxplot(alpha = plot_alpha)
-        } else if (input$vizType == "violin") {
-          p <- p + geom_violin(alpha = plot_alpha)
-        } else if (input$vizType == "bar") {
-          # Paramètres des barres
-          bar_width <- input$barWidth %||% 0.9
-          bar_position <- input$barPosition %||% "dodge"
-          
-          # Détection automatique: geom_col si Y existe, geom_bar sinon
-          if(is.numeric(plot_data_to_use[[actual_y_var]]) && !all(is.na(plot_data_to_use[[actual_y_var]]))) {
-            # geom_col pour données avec Y numérique
-            if(!is.null(actual_color_var)) {
-              p <- p + geom_col(alpha = plot_alpha, 
-                                position = bar_position,
-                                width = bar_width)
-            } else {
-              p <- p + geom_col(alpha = plot_alpha, width = bar_width, fill = "#619CFF")
-            }
-          } else {
-            # geom_bar pour comptage
-            if(!is.null(actual_color_var)) {
-              p <- p + geom_bar(alpha = plot_alpha, 
-                                position = bar_position,
-                                width = bar_width)
-            } else {
-              p <- p + geom_bar(alpha = plot_alpha, width = bar_width, fill = "#619CFF")
-            }
-          }
-        } else if (input$vizType == "line") {
-          p <- p + geom_line(alpha = plot_alpha, linewidth = line_width)
-        } else if (input$vizType == "density") {
-          p <- ggplot(plot_data_to_use, aes(x = !!sym(x_var)))
-          if(!is.null(actual_color_var)) {
-            p <- p + geom_density(aes(color = !!sym(actual_color_var), fill = !!sym(actual_color_var)), alpha = plot_alpha)
-          } else {
-            p <- p + geom_density(alpha = plot_alpha)
-          }
-        } else if (input$vizType == "histogram") {
-          # Paramètres de l'histogramme
-          hist_bins <- input$histBins %||% 30
-          
-          # Conversion en numérique si nécessaire pour l'histogramme
-          x_data <- plot_data_to_use[[x_var]]
-          
-          # Vérifier si X est numérique (continu ou discret)
-          if(is.numeric(x_data)) {
-            # X numérique: histogramme standard de distribution
-            p <- ggplot(plot_data_to_use, aes(x = !!sym(x_var)))
-            if(!is.null(actual_color_var)) {
-              p <- p + geom_histogram(aes(color = !!sym(actual_color_var), fill = !!sym(actual_color_var)), 
-                                      alpha = plot_alpha, bins = hist_bins)
-            } else {
-              p <- p + geom_histogram(alpha = plot_alpha, bins = hist_bins, fill = "#619CFF", color = "white")
-            }
-          } else if(is.factor(x_data) || is.character(x_data) || inherits(x_data, "Date")) {
-            # X catégoriel/date: deux options selon Y
-            
-            # Vérifier si Y est numérique et non vide
-            y_data <- plot_data_to_use[[actual_y_var]]
-            y_is_numeric <- is.numeric(y_data) && !all(is.na(y_data))
-            
-            if(y_is_numeric && isTRUE(input$histShowMean)) {
-              # Option 1: Afficher les moyennes de Y par catégorie de X
-              p <- ggplot(plot_data_to_use, aes(x = !!sym(x_var), y = !!sym(actual_y_var)))
-              
-              if(!is.null(actual_color_var)) {
-                p <- p + geom_col(aes(fill = !!sym(actual_color_var)), 
-                                  alpha = plot_alpha, 
-                                  position = input$barPosition %||% "dodge",
-                                  width = input$barWidth %||% 0.9)
-              } else {
-                p <- p + geom_col(alpha = plot_alpha, 
-                                  width = input$barWidth %||% 0.9, 
-                                  fill = "#619CFF", color = "white")
-              }
-              
-            } else {
-              # Option 2: Comptage des occurrences (histogramme classique)
-              p <- ggplot(plot_data_to_use, aes(x = !!sym(x_var)))
-              if(!is.null(actual_color_var)) {
-                p <- p + geom_bar(aes(color = !!sym(actual_color_var), fill = !!sym(actual_color_var)), 
-                                  alpha = plot_alpha, width = input$barWidth %||% 0.9)
-              } else {
-                p <- p + geom_bar(alpha = plot_alpha, width = input$barWidth %||% 0.9, 
-                                  fill = "#619CFF", color = "white")
-              }
-            }
-          } else {
-            showNotification("Type de variable X non supporté pour l'histogramme", 
-                             type = "warning", duration = 5)
-            return()
-          }
-        } else if (input$vizType == "heatmap") {
-          heatmap_data <- plot_data_to_use %>%
-            group_by(across(c(!!sym(x_var), !!sym(actual_y_var)))) %>%
-            summarise(Count = n(), .groups = "drop")
-          p <- ggplot(heatmap_data, aes(x = !!sym(x_var), y = !!sym(actual_y_var), fill = Count)) +
-            geom_tile(alpha = plot_alpha) +
-            scale_fill_gradient(low = "white", high = "red")
-        } else if (input$vizType == "area") {
-          p <- p + geom_area(alpha = plot_alpha)
-        }
-      }
-      
-      # Facetting (ne pas appliquer aux graphiques circulaires)
-      if (!is.null(facet_var) && !(input$vizType %in% c("pie", "donut", "treemap"))) {
-        p <- p + facet_wrap(vars(!!sym(facet_var)), scales = "free")
-      }
-      
-      # Application des palettes de couleurs (sauf pour circulaires)
-      if(!(input$vizType %in% c("pie", "donut", "treemap"))) {
-        # Par défaut, utiliser la palette ggplot2 pour tous les graphiques
-        if(is.null(actual_color_var) && (is.factor(plot_data_to_use[[x_var]]) || 
-                                         is.character(plot_data_to_use[[x_var]]))) {
-          # Coloration automatique par X (palette ggplot2 par défaut)
-          if(input$vizType %in% c("bar", "histogram")) {
-            # Pour les barres/histogrammes, appliquer fill sur X
-            base_aes_with_fill <- if(input$vizType == "histogram" && !is.numeric(plot_data_to_use[[x_var]])) {
-              aes(x = !!sym(x_var), fill = !!sym(x_var))
-            } else if(input$vizType == "bar") {
-              aes(x = !!sym(x_var), y = !!sym(actual_y_var), fill = !!sym(x_var))
-            }
-            
-            if(!is.null(base_aes_with_fill)) {
-              p <- ggplot(plot_data_to_use, base_aes_with_fill)
-              
-              # Re-générer le geom approprié
-              if(input$vizType == "bar") {
-                bar_width <- input$barWidth %||% 0.9
-                bar_position <- input$barPosition %||% "dodge"
-                
-                if(is.numeric(plot_data_to_use[[actual_y_var]]) && !all(is.na(plot_data_to_use[[actual_y_var]]))) {
-                  p <- p + geom_col(alpha = plot_alpha, position = bar_position, width = bar_width)
-                } else {
-                  p <- p + geom_bar(alpha = plot_alpha, position = bar_position, width = bar_width)
-                }
-              } else if(input$vizType == "histogram") {
-                p <- p + geom_bar(alpha = plot_alpha, width = input$barWidth %||% 0.9)
-              }
-              
-              # Ne pas ajouter de guide si on ne veut pas de légende
-              p <- p + guides(fill = "none")
-            }
-          }
-        } else if(!is.null(actual_color_var)) {
-          # Palette personnalisée uniquement si activée
-          if(isTRUE(input$useCustomPalette)) {
-            if(!is.null(input$plotPalette) && input$plotPalette != "default") {
-              if(input$plotPalette %in% c("viridis", "plasma", "inferno")) {
-                p <- p + scale_color_viridis_d(option = substring(input$plotPalette, 1, 1)) +
-                  scale_fill_viridis_d(option = substring(input$plotPalette, 1, 1))
-              } else {
-                p <- p + scale_color_brewer(palette = input$plotPalette) +
-                  scale_fill_brewer(palette = input$plotPalette)
-              }
-            }
-          }
-        }
-      }
-      
-      # Personnalisation des légendes
-      if(!is.null(actual_color_var) && !(input$vizType %in% c("pie", "donut", "treemap"))) {
-        legend_levels <- if(!is.null(values$multipleY) && values$multipleY) {
-          values$yVarNames
-        } else {
-          color_data <- plot_data_to_use[[actual_color_var]]
-          if(is.factor(color_data)) {
-            levels(droplevels(color_data))
-          } else {
-            sort(unique(as.character(color_data)))
-          }
-        }
-        
-        custom_labels <- sapply(legend_levels, function(lvl) {
-          custom_label <- input[[paste0("legendLabel_", make.names(lvl))]]
-          custom_label %||% lvl
-        })
-        
-        if(any(custom_labels != legend_levels)) {
-          p <- p + 
-            scale_color_discrete(labels = custom_labels) +
-            scale_fill_discrete(labels = custom_labels)
-        }
-      }
-      
-      # Thème et personnalisation finale (sauf circulaires)
-      if(!(input$vizType %in% c("pie", "donut", "treemap"))) {
-        p <- p + 
-          theme_minimal(base_size = 14) +
-          labs(
-            title = input$plotTitle,
-            x = input$xAxisLabel %||% x_var,
-            y = input$yAxisLabel %||% actual_y_var
-          ) +
-          theme(
-            legend.position = "right",  # Toujours "right" pour éviter l'avertissement plotly
-            legend.title = element_text(face = "bold"),
-            axis.text.x = element_text(angle = input$xLabelAngle %||% 0, 
-                                       hjust = if((input$xLabelAngle %||% 0) > 0) 1 else 0.5),
-            plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
-          )
-      } else {
-        # Pour les graphiques circulaires
-        p <- p + labs(title = input$plotTitle)
-      }
-      
-      # Stocker les données et le graphique
-      values$plotData <- plot_data_to_use
-      values$currentPlot <- p
-      
-      # Conversion en plotly
-      tryCatch({
-        plotly_plot <- ggplotly(p, tooltip = "all")
-        
-        # Configuration plotly pour éviter les avertissements
-        plotly_plot <- plotly_plot %>%
-          layout(
-            legend = list(
-              orientation = "v",  # Vertical pour éviter l'avertissement
-              x = 1.02,
-              y = 0.5,
-              xanchor = "left",
-              yanchor = "middle"
-            )
-          )
-        
-        values$currentInteractivePlot <- plotly_plot
-        
-        output$advancedPlot <- renderPlotly({
-          values$currentInteractivePlot
-        })
-        
-        showNotification("Graphique généré avec succès!", type = "message", duration = 3)
-        
-      }, error = function(e) {
-        showNotification(paste("Erreur lors de la création du graphique interactif:", e$message), 
-                         type = "error", duration = 5)
-        return()
-      })
-      
-    }, error = function(e) {
-      showNotification(paste("Erreur:", e$message), type = "error", duration = 5)
-      print(e)
-    })
+    # Ajouter les titres personnalisés
+    if(!is.null(input$plotTitle) && input$plotTitle != "") {
+      p <- p + ggtitle(input$plotTitle)
+    }
+    
+    
+    if(!is.null(input$xAxisLabel) && input$xAxisLabel != "") {
+      p <- p + xlab(input$xAxisLabel)
+    } else {
+      p <- p + xlab(x_var)
+    }
+    
+    if(!is.null(input$yAxisLabel) && input$yAxisLabel != "") {
+      p <- p + ylab(input$yAxisLabel)
+    } else {
+      p <- p + ylab(y_var)
+    }
+    
+    # NOUVELLE: Ajouter le titre de légende personnalisé
+    if(!is.null(input$legendTitle) && input$legendTitle != "" && !is.null(color_var)) {
+      p <- p + labs(color = input$legendTitle, fill = input$legendTitle)
+    }
+    
+    return(p)
   })
   
-  # Informations sur l'agrégation
+  # Rendu du graphique interactif 
+  output$interactivePlot <- renderPlotly({
+    req(createPlot())
+    
+    p <- createPlot()
+    
+    # Convertir en plotly avec interactivité
+    plotly_obj <- tryCatch({
+      ggplotly(p, tooltip = "all") %>%
+        layout(
+          hovermode = "closest",
+          dragmode = "zoom"
+        ) %>%
+        config(
+          displayModeBar = TRUE,
+          modeBarButtonsToRemove = c("lasso2d", "select2d"),
+          displaylogo = FALSE
+        )
+    }, error = function(e) {
+      showNotification("Erreur lors de la conversion en graphique interactif", 
+                       type = "error", duration = 3)
+      return(NULL)
+    })
+    
+    # Stocker le graphique actuel
+    values$currentInteractivePlot <- plotly_obj
+    
+    return(plotly_obj)
+  })
+  
+  # NOUVELLE: Rendre fonctionnel le bouton Personnaliser
+  observeEvent(input$customizePlot, {
+    showModal(modalDialog(
+      title = tagList(icon("paint-brush"), " Personnalisation Rapide"),
+      size = "l",
+      
+      fluidRow(
+        column(6,
+               h5("Titres", style = "color: #007bff; font-weight: bold;"),
+               textInput("quickPlotTitle", "Titre:", value = input$plotTitle %||% "", placeholder = "Titre du graphique"),
+               textInput("quickXLabel", "Label X:", value = input$xAxisLabel %||% "", placeholder = "Auto"),
+               textInput("quickYLabel", "Label Y:", value = input$yAxisLabel %||% "", placeholder = "Auto")
+        ),
+        column(6,
+               h5("Apparence", style = "color: #007bff; font-weight: bold;"),
+               sliderInput("quickPointSize", "Taille des points:", min = 1, max = 10, value = input$pointSize %||% 3, step = 0.5),
+               sliderInput("quickLineWidth", "Épaisseur des lignes:", min = 0.5, max = 5, value = input$lineWidth %||% 1, step = 0.5),
+               selectInput("quickLegendPos", "Position légende:", 
+                           choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top", "Bas" = "bottom", "Aucune" = "none"),
+                           selected = input$legendPosition %||% "right")
+        )
+      ),
+      
+      footer = tagList(
+        actionButton("applyQuickCustom", "Appliquer", class = "btn-primary"),
+        modalButton("Fermer")
+      )
+    ))
+  })
+  
+  # NOUVELLE: Appliquer la personnalisation rapide
+  observeEvent(input$applyQuickCustom, {
+    updateTextInput(session, "plotTitle", value = input$quickPlotTitle)
+    updateTextInput(session, "xAxisLabel", value = input$quickXLabel)
+    updateTextInput(session, "yAxisLabel", value = input$quickYLabel)
+    updateSliderInput(session, "pointSize", value = input$quickPointSize)
+    updateSliderInput(session, "lineWidth", value = input$quickLineWidth)
+    updateSelectInput(session, "legendPosition", selected = input$quickLegendPos)
+    
+    removeModal()
+    showNotification("Personnalisation appliquée", type = "message", duration = 2)
+  })
+  
+  
+  # SECTION 7: FONCTIONS DE CRÉATION
+  
+  
+  # Fonction pour créer un scatter plot
+  create_scatter_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_point(aes(color = .data[[color_var]]), 
+                          size = input$pointSize %||% 3, 
+                          alpha = input$pointAlpha %||% 0.7)
+    } else {
+      p <- p + geom_point(size = input$pointSize %||% 3, 
+                          alpha = input$pointAlpha %||% 0.7)
+    }
+    
+    # Ajouter ligne de tendance si demandé
+    if(isTRUE(input$showTrendLine)) {
+      p <- p + geom_smooth(method = input$trendMethod %||% "lm", 
+                           se = isTRUE(input$showConfidenceInterval))
+    }
+    
+    # NOUVELLE: Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un line plot
+  create_line_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
+                         size = input$lineWidth %||% 1)
+      if(isTRUE(input$showPoints)) {
+        p <- p + geom_point(aes(color = .data[[color_var]]), 
+                            size = input$pointSize %||% 2)
+      }
+    } else {
+      p <- p + geom_line(size = input$lineWidth %||% 1)
+      if(isTRUE(input$showPoints)) {
+        p <- p + geom_point(size = input$pointSize %||% 2)
+      }
+    }
+    
+    # NOUVELLE: Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un bar plot
+  create_bar_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_col(aes(fill = .data[[color_var]]), 
+                        position = input$barPosition %||% "dodge",
+                        width = input$barWidth %||% 0.8)
+    } else {
+      p <- p + geom_col(width = input$barWidth %||% 0.8)
+    }
+    
+    # NOUVELLE: Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, 
+                         position = position_dodge(width = input$barWidth %||% 0.8))
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un box plot
+  create_box_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_boxplot(aes(fill = .data[[color_var]]), alpha = 0.7)
+    } else {
+      p <- p + geom_boxplot(alpha = 0.7)
+    }
+    
+    if(isTRUE(input$showOutliers)) {
+      p <- p + geom_jitter(width = 0.2, alpha = 0.3, size = 1)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un violin plot
+  create_violin_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_violin(aes(fill = .data[[color_var]]), alpha = 0.7)
+    } else {
+      p <- p + geom_violin(alpha = 0.7)
+    }
+    
+    if(isTRUE(input$showBoxInsideViolin)) {
+      p <- p + geom_boxplot(width = 0.1)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un seasonal smooth plot
+  create_seasonal_smooth_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), alpha = 0.5)
+      p <- p + geom_smooth(aes(color = .data[[color_var]], group = .data[[color_var]]),
+                           method = input$smoothMethod %||% "loess",
+                           span = input$smoothSpan %||% 0.75,
+                           se = isTRUE(input$showConfidenceInterval))
+    } else {
+      p <- p + geom_line(alpha = 0.5)
+      p <- p + geom_smooth(method = input$smoothMethod %||% "loess",
+                           span = input$smoothSpan %||% 0.75,
+                           se = isTRUE(input$showConfidenceInterval))
+    }
+    
+    # NOUVELLE: Ajouter les valeurs si demandé (pour les points)
+    if(isTRUE(input$showValues) && isTRUE(input$showPoints)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 2.5, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un seasonal evolution plot (style graphique de référence)
+  create_seasonal_evolution_plot <- function(data, x_var, y_var, color_var = NULL) {
+    
+    # Créer le graphique de base
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + 
+        geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
+                  linewidth = input$lineWidth %||% 1.2,
+                  na.rm = TRUE) +
+        geom_point(aes(color = .data[[color_var]]), 
+                   size = input$pointSize %||% 3,
+                   na.rm = TRUE)
+    } else {
+      p <- p + 
+        geom_line(linewidth = input$lineWidth %||% 1.2,
+                  na.rm = TRUE) +
+        geom_point(size = input$pointSize %||% 3,
+                   na.rm = TRUE)
+    }
+    
+    # NOUVELLE: Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    # Appliquer le thème clean (comme la figure de référence)
+    p <- p +
+      scale_x_discrete(drop = FALSE) +
+      theme_minimal() +
+      theme(
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "white", color = NA),
+        plot.background = element_rect(fill = "white", color = NA),
+        axis.text = element_text(size = 10, color = "black"),
+        axis.title = element_text(size = 12, color = "black"),
+        axis.line = element_line(color = "black", linewidth = 0.5),
+        axis.ticks = element_line(color = "black", linewidth = 0.5),
+        plot.title = element_text(size = 14, color = "black", hjust = 0.5),
+        legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        legend.margin = margin(t = 20),
+        axis.text.x = element_text(angle = input$xAxisAngle %||% 45, hjust = 1, size = 8)
+      )
+    
+    # Ajuster l'échelle Y pour commencer à 0 - CORRECTION pour éviter l'avis min()
+    y_vals <- data[[y_var]][!is.na(data[[y_var]]) & is.finite(data[[y_var]])]
+    if(length(y_vals) > 0) {
+      y_max <- max(y_vals, na.rm = TRUE)
+      if(!is.infinite(y_max) && !is.na(y_max)) {
+        p <- p + scale_y_continuous(
+          limits = c(0, y_max + y_max * 0.1),  # Ajouter 10% de marge
+          breaks = pretty(c(0, y_max))
+        )
+      }
+    }
+    
+    # Guide pour la légende
+    if(!is.null(color_var)) {
+      p <- p + guides(color = guide_legend(override.aes = list(size = 2), ncol = 2))
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un histogram
+  create_histogram_plot <- function(data, x_var) {
+    p <- ggplot(data, aes(x = .data[[x_var]])) +
+      geom_histogram(bins = input$histBins %||% 30, 
+                     fill = input$histColor %||% "steelblue",
+                     alpha = 0.7,
+                     color = "white")
+    return(p)
+  }
+  
+  # Fonction pour créer un density plot
+  create_density_plot <- function(data, x_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_density(aes(fill = .data[[color_var]], color = .data[[color_var]]), alpha = 0.5)
+    } else {
+      p <- p + geom_density(fill = "steelblue", alpha = 0.5)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un heatmap
+  create_heatmap_plot <- function(data, x_var, y_var) {
+    # Agrégation pour heatmap
+    agg_data <- data %>%
+      group_by(across(all_of(c(x_var, y_var)))) %>%
+      summarise(count = n(), .groups = "drop")
+    
+    p <- ggplot(agg_data, aes(x = .data[[x_var]], y = .data[[y_var]], fill = count)) +
+      geom_tile() +
+      scale_fill_gradient(low = "white", high = "steelblue") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    # NOUVELLE: Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = count), color = "black", size = 3)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un area plot
+  create_area_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_area(aes(fill = .data[[color_var]]), 
+                         position = input$areaPosition %||% "stack",
+                         alpha = 0.7)
+    } else {
+      p <- p + geom_area(fill = "steelblue", alpha = 0.7)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un pie chart
+  create_pie_plot <- function(data, x_var, y_var) {
+    # Agrégation
+    pie_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      mutate(percentage = total / sum(total) * 100)
+    
+    p <- ggplot(pie_data, aes(x = "", y = total, fill = .data[[x_var]])) +
+      geom_col() +
+      coord_polar(theta = "y") +
+      theme_void()
+    
+    # NOUVELLE: Toujours afficher les valeurs/pourcentages pour les pie charts
+    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+                       position = position_stack(vjust = 0.5))
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un donut chart
+  create_donut_plot <- function(data, x_var, y_var) {
+    # Similaire au pie mais avec un trou au centre
+    donut_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      mutate(percentage = total / sum(total) * 100)
+    
+    p <- ggplot(donut_data, aes(x = 2, y = total, fill = .data[[x_var]])) +
+      geom_col() +
+      coord_polar(theta = "y") +
+      xlim(c(0.5, 2.5)) +
+      theme_void()
+    
+    # NOUVELLE: Toujours afficher les valeurs/pourcentages pour les donut charts
+    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+                       position = position_stack(vjust = 0.5))
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un treemap
+  create_treemap_plot <- function(data, x_var, y_var) {
+    # Note: Nécessite le package treemapify
+    treemap_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop")
+    
+    p <- ggplot(treemap_data, aes(area = total, fill = .data[[x_var]], label = .data[[x_var]])) +
+      treemapify::geom_treemap() +
+      treemapify::geom_treemap_text(colour = "white", place = "centre")
+    
+    return(p)
+  }
+  
+  
+  # SECTION 8: INFORMATIONS ET STATS
+  
+  
+  # Information sur l'agrégation 
   output$aggregationInfo <- renderText({
     req(input$useAggregation, input$aggFunction)
+    
+    if(!isTRUE(input$useAggregation)) return("")
     
     tryCatch({
       agg_names <- c(
@@ -7559,19 +8102,11 @@ server <- function(input, output, session) {
         "count" = "Comptage", "min" = "Minimum", "max" = "Maximum", "sd" = "Écart-type"
       )
       
-      agg_name <- agg_names[[input$aggFunction]] %||% "Inconnue"
-      
-      info_text <- paste0("Fonction: ", agg_name, "\n")
+      info_text <- paste0("Fonction: ", agg_names[[input$aggFunction]] %||% "Inconnue", "\n")
       
       if(!is.null(input$groupVars) && length(input$groupVars) > 0) {
-        info_text <- paste0(info_text, 
-                            "Groupement par: ", paste(input$groupVars, collapse = ", "), "\n")
-      }
-      
-      if(!is.null(values$aggregatedData)) {
-        info_text <- paste0(info_text,
-                            "Observations agrégées: ", nrow(values$aggregatedData), "\n",
-                            "Observations d'origine: ", nrow(values$filteredData))
+        info_text <- paste0(info_text, "Groupement par: ", 
+                            paste(input$groupVars, collapse = ", "), "\n")
       }
       
       if(values$multipleY) {
@@ -7584,7 +8119,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Information saisonnière améliorée
+  # Information saisonnière améliorée 
   output$seasonalInfo <- renderText({
     req(input$vizType %in% c("seasonal_smooth", "seasonal_evolution"))
     
@@ -7622,7 +8157,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Statistiques des données
+  # Statistiques des données 
   output$dataStatsSummary <- renderText({
     req(values$plotData)
     tryCatch({
@@ -7657,7 +8192,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Statistiques du graphique
+  # Statistiques du graphique 
   output$plotStatsSummary <- renderText({
     req(values$currentInteractivePlot, input$vizXVar, input$vizYVar)
     tryCatch({
@@ -7723,7 +8258,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Analyse saisonnière
+  # Analyse saisonnière 
   output$seasonalAnalysisSummary <- renderText({
     req(input$vizType %in% c("seasonal_smooth", "seasonal_evolution"))
     tryCatch({
@@ -7760,13 +8295,17 @@ server <- function(input, output, session) {
     })
   })
   
-  # Indicateur multi-Y pour l'UI
+  
+  # SECTION 9: INDICATEURS RÉACTIFS
+  
+  
+  # Indicateur multi-Y pour l'UI 
   output$multiYIndicator <- reactive({
     !is.null(values$multipleY) && values$multipleY
   })
   outputOptions(output, "multiYIndicator", suspendWhenHidden = FALSE)
   
-  # Badge nombre de Y
+  # Badge nombre de Y 
   observe({
     if(!is.null(values$multipleY) && values$multipleY) {
       runjs(paste0("
@@ -7774,6 +8313,227 @@ server <- function(input, output, session) {
     "))
     }
   })
+  
+  
+  # SECTION AJOUTÉE: EXPORT AVANCÉ DES GRAPHIQUES
+  
+  
+  # Stocker le graphique ggplot actuel pour l'export
+  # Version améliorée pour garantir la disponibilité
+  currentPlotReactive <- reactive({
+    req(createPlot())
+    createPlot()
+  })
+  
+  # Observer pour mettre à jour values$currentPlot
+  observe({
+    plot <- currentPlotReactive()
+    if(!is.null(plot)) {
+      values$currentPlot <- plot
+    }
+  })
+  
+  # Interface pour l'export avancé
+  # NOTE: La section output$exportControls a été déplacée directement dans UI.R
+  # pour éviter le clignotement de l'interface lors des interactions.
+  # Les contrôles d'export sont maintenant statiques dans le fichier UI.R.
+  
+  
+  # Affichage des dimensions en pixels
+  output$exportDimensionsInfo <- renderUI({
+    req(input$exportDPI, input$exportWidth, input$exportHeight)
+    
+    width_px <- round(input$exportWidth * input$exportDPI)
+    height_px <- round(input$exportHeight * input$exportDPI)
+    
+    div(
+      style = "background-color: #e7f3ff; padding: 10px; border-radius: 4px; margin: 10px 0;",
+      icon("info-circle", style = "color: #0066cc;"),
+      span(style = "margin-left: 5px; font-weight: bold; color: #0066cc;",
+           paste0("Dimensions finales: ", width_px, " × ", height_px, " pixels"))
+    )
+  })
+  
+  # Presets rapides
+  observeEvent(input$presetScreen, {
+    updateNumericInput(session, "exportDPI", value = 96)
+    updateNumericInput(session, "exportWidth", value = 10)
+    updateNumericInput(session, "exportHeight", value = 6)
+    updateSelectInput(session, "exportFormat", selected = "png")
+    showNotification("Preset 'Écran' appliqué (96 DPI)", type = "message", duration = 2)
+  })
+  
+  observeEvent(input$presetPrint, {
+    updateNumericInput(session, "exportDPI", value = 300)
+    updateNumericInput(session, "exportWidth", value = 10)
+    updateNumericInput(session, "exportHeight", value = 6)
+    updateSelectInput(session, "exportFormat", selected = "png")
+    showNotification("Preset 'Impression' appliqué (300 DPI)", type = "message", duration = 2)
+  })
+  
+  observeEvent(input$presetHighQuality, {
+    updateNumericInput(session, "exportDPI", value = 600)
+    updateNumericInput(session, "exportWidth", value = 12)
+    updateNumericInput(session, "exportHeight", value = 8)
+    updateSelectInput(session, "exportFormat", selected = "tiff")
+    showNotification("Preset 'Haute qualité' appliqué (600 DPI, TIFF)", type = "message", duration = 2)
+  })
+  
+  # Fonction de téléchargement - VERSION CORRIGÉE ET FONCTIONNELLE
+  output$downloadPlot <- downloadHandler(
+    filename = function() {
+      format_ext <- input$exportFormat
+      if(is.null(format_ext)) format_ext <- "png"
+      if(format_ext == "jpg") format_ext <- "jpeg"
+      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+      paste0("graphique_", timestamp, ".", format_ext)
+    },
+    
+    content = function(file) {
+      # Récupérer le graphique directement
+      plot_to_export <- NULL
+      
+      # Essayer plusieurs sources pour obtenir le graphique
+      tryCatch({
+        if(!is.null(values$currentPlot)) {
+          plot_to_export <- values$currentPlot
+        } else {
+          plot_to_export <- createPlot()
+        }
+      }, error = function(e) {
+        plot_to_export <- createPlot()
+      })
+      
+      # Vérifier qu'on a bien un graphique
+      if(is.null(plot_to_export)) {
+        showNotification(
+          "Erreur: Aucun graphique disponible pour l'export. Veuillez d'abord créer un graphique.",
+          type = "error",
+          duration = 5
+        )
+        return(NULL)
+      }
+      
+      # Validation du DPI
+      dpi <- input$exportDPI
+      if(is.null(dpi)) dpi <- 300
+      dpi <- min(max(dpi, 72), 20000)
+      
+      # Dimensions
+      width <- input$exportWidth
+      height <- input$exportHeight
+      if(is.null(width)) width <- 10
+      if(is.null(height)) height <- 6
+      
+      # Format
+      format_type <- input$exportFormat
+      if(is.null(format_type)) format_type <- "png"
+      
+      # Message de progression
+      showNotification(
+        "Génération du graphique en cours...",
+        id = "export_progress",
+        duration = NULL,
+        type = "message"
+      )
+      
+      tryCatch({
+        # Export selon le format
+        if(format_type %in% c("png", "jpg", "tiff", "bmp")) {
+          # Formats raster
+          if(format_type == "jpg") {
+            quality <- input$jpegQuality
+            if(is.null(quality)) quality <- 95
+            jpeg(file, 
+                 width = width, 
+                 height = height, 
+                 units = "in", 
+                 res = dpi,
+                 quality = quality)
+          } else if(format_type == "tiff") {
+            compression <- input$tiffCompression
+            if(is.null(compression)) compression <- "lzw"
+            tiff(file, 
+                 width = width, 
+                 height = height, 
+                 units = "in", 
+                 res = dpi,
+                 compression = compression)
+          } else if(format_type == "bmp") {
+            bmp(file, 
+                width = width, 
+                height = height, 
+                units = "in", 
+                res = dpi)
+          } else {
+            # PNG par défaut
+            png(file, 
+                width = width, 
+                height = height, 
+                units = "in", 
+                res = dpi,
+                type = "cairo")
+          }
+          print(plot_to_export)
+          dev.off()
+          
+        } else if(format_type == "pdf") {
+          # Format PDF vectoriel
+          pdf(file, 
+              width = width, 
+              height = height)
+          print(plot_to_export)
+          dev.off()
+          
+        } else if(format_type == "svg") {
+          # Format SVG vectoriel
+          svg(file, 
+              width = width, 
+              height = height)
+          print(plot_to_export)
+          dev.off()
+          
+        } else if(format_type == "eps") {
+          # Format EPS vectoriel
+          setEPS()
+          postscript(file, 
+                     width = width, 
+                     height = height,
+                     horizontal = FALSE,
+                     onefile = FALSE,
+                     paper = "special")
+          print(plot_to_export)
+          dev.off()
+        }
+        
+        removeNotification("export_progress")
+        
+        # Vérifier que le fichier a bien été créé
+        if(file.exists(file) && file.info(file)$size > 0) {
+          showNotification(
+            paste0("✓ Graphique exporté avec succès (", 
+                   round(file.info(file)$size / 1024 / 1024, 2), " MB)"),
+            type = "message",
+            duration = 5
+          )
+        } else {
+          showNotification(
+            "Attention: Le fichier semble vide ou n'a pas été créé correctement",
+            type = "warning",
+            duration = 5
+          )
+        }
+        
+      }, error = function(e) {
+        removeNotification("export_progress")
+        showNotification(
+          paste("❌ Erreur lors de l'export:", e$message),
+          type = "error",
+          duration = 10
+        )
+      })
+    }
+  )
   # ---- Tests statistiques ----
   output$responseVarSelect <- renderUI({
     req(values$filteredData)
@@ -9799,8 +10559,31 @@ server <- function(input, output, session) {
                        type = "warning", duration = 5)
     }
   )
-  # ---- Analyses multivariées ----
-  # Sélection du groupe pour les moyennes (ACP)
+  # ---- Analyses multivariees ----
+  
+  # Fonction helper pour telecharger les graphiques avec options avancees
+  createPlotDownloadHandler <- function(plot_func, default_name) {
+    downloadHandler(
+      filename = function() {
+        ext <- input[[paste0(default_name, "_format")]]
+        paste0(default_name, "_", Sys.Date(), ".", ext)
+      },
+      content = function(file) {
+        width <- input[[paste0(default_name, "_width")]]
+        height <- input[[paste0(default_name, "_height")]]
+        dpi <- input[[paste0(default_name, "_dpi")]]
+        
+        p <- plot_func()
+        
+        ggsave(file, plot = p, device = input[[paste0(default_name, "_format")]], 
+               width = width, height = height, dpi = dpi, units = "cm")
+      }
+    )
+  }
+  
+  # SECTION 1: ACP (Analyse en Composantes Principales)
+  
+  # Selecteurs d'interface pour l'ACP
   output$pcaMeansGroupSelect <- renderUI({
     req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
@@ -9817,7 +10600,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "pcaVars",
-      label = "Sélectionnez les variables pour l'ACP:",
+      label = "Selectionnez les variables pour l'ACP:",
       choices = num_cols,
       multiple = TRUE,
       selected = num_cols,
@@ -9832,7 +10615,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "pcaQualiSup",
-      label = "Variables qualitatives supplémentaires:",
+      label = "Variables qualitatives supplementaires:",
       choices = fac_cols,
       multiple = TRUE,
       options = list(`actions-box` = TRUE)
@@ -9846,14 +10629,13 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "pcaIndSup",
-      label = "Individus supplémentaires (optionnel):",
+      label = "Individus supplementaires (optionnel):",
       choices = rownames(values$filteredData),
       multiple = TRUE,
       options = list(`actions-box` = TRUE)
     )
   })
   
-  # Select source for individual labels
   output$pcaLabelSourceSelect <- renderUI({
     req(values$filteredData)
     all_cols <- names(values$filteredData)
@@ -9867,7 +10649,6 @@ server <- function(input, output, session) {
       return(data)
     }
     
-    # Calculer les moyennes par groupe
     means_data <- data %>%
       group_by(!!sym(group_var)) %>%
       summarise(across(all_of(vars), mean, na.rm = TRUE), .groups = 'drop') %>%
@@ -9876,37 +10657,39 @@ server <- function(input, output, session) {
     return(means_data)
   }
   
-  # ACP avec les nouvelles fonctions
-  observeEvent(input$runPCA, {
+  # ACP MIS A JOUR AUTOMATIQUEMENT
+  pcaResultReactive <- reactive({
     req(values$filteredData, input$pcaVars)
+    
+    input$pcaScale
+    input$pcaUseMeans
+    input$pcaMeansGroup
+    input$pcaQualiSup
+    input$pcaIndSup
+    input$pcaComponents
+    input$pcaLabelSource
+    
     tryCatch({
-      # Préparation des données
-      if (input$pcaUseMeans && !is.null(input$pcaMeansGroup)) {
-        # Utiliser les moyennes par groupe
+      if (!is.null(input$pcaUseMeans) && input$pcaUseMeans && !is.null(input$pcaMeansGroup)) {
         pca_data <- calculate_group_means(values$filteredData, input$pcaVars, input$pcaMeansGroup)
       } else {
-        # Utiliser les données originales
         pca_data <- values$filteredData[, input$pcaVars, drop = FALSE]
       }
       
-      # Variables qualitatives supplémentaires
       quali_sup_indices <- NULL
-      if (!is.null(input$pcaQualiSup) && !input$pcaUseMeans) {
+      if (!is.null(input$pcaQualiSup) && (!input$pcaUseMeans || is.null(input$pcaUseMeans))) {
         quali_sup_indices <- which(names(values$filteredData) %in% input$pcaQualiSup)
       }
       
-      # Individus supplémentaires
       ind_sup_indices <- NULL
-      if (!is.null(input$pcaIndSup) && !input$pcaUseMeans) {
+      if (!is.null(input$pcaIndSup) && (!input$pcaUseMeans || is.null(input$pcaUseMeans))) {
         ind_sup_indices <- which(rownames(values$filteredData) %in% input$pcaIndSup)
       }
       
-      # Combinaison des données
-      if (!input$pcaUseMeans) {
+      if (!input$pcaUseMeans || is.null(input$pcaUseMeans)) {
         all_data <- cbind(pca_data, values$filteredData[, input$pcaQualiSup, drop = FALSE])
         
-        # Set custom labels for individuals, handling duplicates
-        if (input$pcaLabelSource != "rownames") {
+        if (!is.null(input$pcaLabelSource) && input$pcaLabelSource != "rownames") {
           custom_labels <- as.character(values$filteredData[[input$pcaLabelSource]])
           rownames(all_data) <- make.unique(custom_labels)
         }
@@ -9914,461 +10697,666 @@ server <- function(input, output, session) {
         all_data <- pca_data
       }
       
-      # Exécution de l'ACP avec les paramètres demandés
       res.pca <- PCA(all_data,
-                     scale.unit = input$pcaScale,
+                     scale.unit = ifelse(is.null(input$pcaScale), TRUE, input$pcaScale),
                      quali.sup = quali_sup_indices,
                      ind.sup = ind_sup_indices,
-                     ncp = input$pcaComponents,
+                     ncp = ifelse(is.null(input$pcaComponents), 5, input$pcaComponents),
                      graph = FALSE)
       
-      values$pcaResult <- res.pca
+      return(res.pca)
       
-      # Résumé
-      output$pcaSummary <- renderPrint({
-        summary(res.pca)
-      })
-      
-      # Visualisation avec les fonctions fviz demandées
-      output$pcaPlot <- renderPlotly({
-        req(values$pcaResult)
-        
-        tryCatch({
-          # Calcul des pourcentages de variance
-          eigenvals <- get_eigenvalue(values$pcaResult)
-          pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-          pc2_var <- round(eigenvals[2, "variance.percent"], 1)
-          
-          # Labels par défaut ou personnalisés
-          x_label <- if (!is.null(input$pcaXLabel) && input$pcaXLabel != "") {
-            input$pcaXLabel
-          } else {
-            paste0("PC1 (", pc1_var, "%)")
-          }
-          
-          y_label <- if (!is.null(input$pcaYLabel) && input$pcaYLabel != "") {
-            input$pcaYLabel
-          } else {
-            paste0("PC2 (", pc2_var, "%)")
-          }
-          
-          # Titre personnalisé
-          plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
-            input$pcaPlotTitle
-          } else {
-            "ACP - Analyse en Composantes Principales"
-          }
-          
-          if (input$pcaPlotType == "var") {
-            # Graphique des variables avec fviz_pca_var
-            p <- fviz_pca_var(values$pcaResult, 
-                              col.var = "cos2",
-                              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                              repel = TRUE,
-                              title = plot_title) +
-              labs(x = x_label, y = y_label)
-            
-          } else if (input$pcaPlotType == "ind") {
-            # Graphique des individus avec fviz_pca_ind
-            has_ind_sup <- !is.null(values$pcaResult$ind.sup)
-            
-            if (has_ind_sup) {
-              n_active <- nrow(values$pcaResult$ind$coord)
-              col_vector <- rep("Active", n_active)
-              
-              p <- fviz_pca_ind(values$pcaResult,
-                                geom.ind = c("point", "text"),
-                                col.ind = col_vector,
-                                palette = c("Active" = "#00AFBB"),
-                                addEllipses = FALSE,
-                                repel = TRUE,
-                                title = plot_title,
-                                legend.title = "Type") +
-                labs(x = x_label, y = y_label)
-            } else {
-              p <- fviz_pca_ind(values$pcaResult, 
-                                col.ind = "contrib",
-                                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                                repel = TRUE,
-                                title = plot_title) +
-                labs(x = x_label, y = y_label)
-            }
-            
-          } else if (input$pcaPlotType == "biplot") {
-            # Biplot avec fviz_pca_biplot
-            has_ind_sup <- !is.null(values$pcaResult$ind.sup)
-            
-            if (has_ind_sup) {
-              n_active <- nrow(values$pcaResult$ind$coord)
-              col_vector <- rep("Active", n_active)
-              
-              p <- fviz_pca_biplot(values$pcaResult,
-                                   geom.ind = "point",
-                                   col.ind = col_vector,
-                                   palette = c("Active" = "#00AFBB"),
-                                   col.var = "#FC4E07",
-                                   repel = TRUE,
-                                   addEllipses = FALSE,
-                                   title = plot_title,
-                                   legend.title = "Type") +
-                labs(x = x_label, y = y_label)
-            } else {
-              p <- fviz_pca_biplot(values$pcaResult, 
-                                   repel = TRUE,
-                                   col.var = "#FC4E07", 
-                                   col.ind = "#00AFBB",
-                                   label = "all",
-                                   title = plot_title) +
-                labs(x = x_label, y = y_label)
-            }
-          }
-          
-          # Centrage sur (0,0) si demandé
-          if (!is.null(input$pcaCenterAxes) && input$pcaCenterAxes) {
-            # Obtenir les limites actuelles
-            if (input$pcaPlotType == "var") {
-              coords <- values$pcaResult$var$coord[, 1:2]
-            } else if (input$pcaPlotType == "ind") {
-              coords <- values$pcaResult$ind$coord[, 1:2]
-            } else { # biplot
-              coords_ind <- values$pcaResult$ind$coord[, 1:2]
-              coords_var <- values$pcaResult$var$coord[, 1:2]
-              coords <- rbind(coords_ind, coords_var)
-            }
-            
-            # Calculer les limites symétriques
-            max_range <- max(abs(range(coords, na.rm = TRUE)))
-            p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-          }
-          
-          # Convertir en plotly
-          suppressWarnings({
-            plotly_obj <- ggplotly(p) %>% 
-              layout(showlegend = TRUE) %>%
-              config(displayModeBar = TRUE)
-          })
-          
-          plotly_obj
-          
-        }, error = function(e) {
-          # Version de base en cas d'erreur
-          if (input$pcaPlotType == "var") {
-            p <- fviz_pca_var(values$pcaResult, 
-                              col.var = "cos2",
-                              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                              repel = FALSE,
-                              title = "ACP - Cercle de corrélation des variables")
-          } else if (input$pcaPlotType == "ind") {
-            p <- fviz_pca_ind(values$pcaResult,
-                              geom.ind = "point",
-                              col.ind = "#00AFBB",
-                              addEllipses = FALSE,
-                              title = "ACP - Projection des individus")
-          } else {
-            p <- fviz_pca_biplot(values$pcaResult,
-                                 geom.ind = "point",
-                                 geom.var = c("arrow", "text"),
-                                 col.var = "#FC4E07",
-                                 col.ind = "#00AFBB",
-                                 repel = FALSE,
-                                 addEllipses = FALSE,
-                                 title = "ACP - Biplot")
-          }
-          
-          suppressWarnings({
-            ggplotly(p) %>% 
-              layout(showlegend = TRUE) %>%
-              config(displayModeBar = TRUE)
-          })
-        })
-      })
     }, error = function(e) {
       showNotification(paste("Erreur ACP :", e$message), type = "error")
+      return(NULL)
     })
   })
   
-  # Download for PCA plot
-  output$downloadPcaPlot <- downloadHandler(
-    filename = function() { paste("pca_plot", Sys.Date(), ".png", sep = "") },
-    content = function(file) {
-      eigenvals <- get_eigenvalue(values$pcaResult)
-      pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-      pc2_var <- round(eigenvals[2, "variance.percent"], 1)
-      
-      x_label <- if (!is.null(input$pcaXLabel) && input$pcaXLabel != "") {
-        input$pcaXLabel
-      } else {
-        paste0("PC1 (", pc1_var, "%)")
-      }
-      
-      y_label <- if (!is.null(input$pcaYLabel) && input$pcaYLabel != "") {
-        input$pcaYLabel
-      } else {
-        paste0("PC2 (", pc2_var, "%)")
-      }
-      
-      plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
-        input$pcaPlotTitle
-      } else {
-        "ACP - Analyse en Composantes Principales"
-      }
-      
-      p <- switch(input$pcaPlotType,
-                  "var" = fviz_pca_var(values$pcaResult, col.var = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE, title = plot_title) + labs(x = x_label, y = y_label),
-                  "ind" = fviz_pca_ind(values$pcaResult, col.ind = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE, addEllipses = !is.null(input$pcaQualiSup), title = plot_title) + labs(x = x_label, y = y_label),
-                  "biplot" = fviz_pca_biplot(values$pcaResult, repel = TRUE, col.var = "#FC4E07", col.ind = "#00AFBB", label = "all", addEllipses = !is.null(input$pcaQualiSup), title = plot_title) + labs(x = x_label, y = y_label))
-      
-      # Appliquer le centrage si demandé
-      if (!is.null(input$pcaCenterAxes) && input$pcaCenterAxes) {
-        if (input$pcaPlotType == "var") {
-          coords <- values$pcaResult$var$coord[, 1:2]
-        } else if (input$pcaPlotType == "ind") {
-          coords <- values$pcaResult$ind$coord[, 1:2]
-        } else {
-          coords_ind <- values$pcaResult$ind$coord[, 1:2]
-          coords_var <- values$pcaResult$var$coord[, 1:2]
-          coords <- rbind(coords_ind, coords_var)
-        }
-        max_range <- max(abs(range(coords, na.rm = TRUE)))
-        p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-      }
-      
-      ggsave(file, plot = p, device = "png", width = 10, height = 8)
+  observe({
+    res <- pcaResultReactive()
+    if (!is.null(res)) {
+      values$pcaResult <- res
     }
-  )
+  })
   
-  output$downloadPCA <- downloadHandler(
-    filename = function() {
-      paste0("pca_results_", Sys.Date(), ".txt")
-    },
-    content = function(file) {
-      sink(file)
-      print(values$pcaResult)
-      sink()
-    }
-  )
-  
-  # HCPC - Classification Hiérarchique sur Composantes Principales
-  observeEvent(input$runHCPC, {
-    req(values$pcaResult)
+  # DATAFRAMES DES RESULTATS ACP
+  pcaDataframes <- reactive({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    
     tryCatch({
-      # HCPC avec les paramètres demandés
-      res.hcpc <- HCPC(values$pcaResult,
-                       nb.clust = input$hcpcClusters,
-                       graph = FALSE)
+      eigenvalues_df <- as.data.frame(get_eigenvalue(res.pca))
+      eigenvalues_df$Dimension <- rownames(eigenvalues_df)
+      eigenvalues_df <- eigenvalues_df[, c("Dimension", "eigenvalue", "variance.percent", "cumulative.variance.percent")]
       
-      values$hcpcResult <- res.hcpc
+      ind_coords_df <- as.data.frame(res.pca$ind$coord)
+      ind_coords_df$Individual <- rownames(ind_coords_df)
+      ind_coords_df <- ind_coords_df[, c("Individual", names(res.pca$ind$coord))]
       
-      # Dendrogramme avec fviz_dend (pas de centrage)
-      output$hcpcDendPlot <- renderPlotly({
-        dend_title <- if (!is.null(input$hcpcDendTitle) && input$hcpcDendTitle != "") {
-          input$hcpcDendTitle
-        } else {
-          "Dendrogramme HCPC"
-        }
-        
-        p_dend <- fviz_dend(res.hcpc,
-                            cex = 0.7,
-                            palette = "jco",
-                            rect = TRUE,
-                            rect_fill = TRUE,
-                            rect_border = "jco",
-                            main = dend_title,
-                            sub = paste("Nombre de clusters:", input$hcpcClusters))
-        
-        ggplotly(p_dend) %>%
-          layout(margin = list(b = 100))
-      })
+      ind_contrib_df <- as.data.frame(res.pca$ind$contrib)
+      ind_contrib_df$Individual <- rownames(ind_contrib_df)
+      ind_contrib_df <- ind_contrib_df[, c("Individual", names(res.pca$ind$contrib))]
       
-      # Carte des clusters avec fviz_cluster
-      output$hcpcClusterPlot <- renderPlotly({
-        cluster_title <- if (!is.null(input$hcpcClusterTitle) && input$hcpcClusterTitle != "") {
-          input$hcpcClusterTitle
-        } else {
-          "Carte des clusters HCPC"
-        }
-        
-        # Labels des axes
-        eigenvals <- get_eigenvalue(values$pcaResult)
-        pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-        pc2_var <- round(eigenvals[2, "variance.percent"], 1)
-        
-        x_label <- if (!is.null(input$hcpcClusterXLabel) && input$hcpcClusterXLabel != "") {
-          input$hcpcClusterXLabel
-        } else {
-          paste0("PC1 (", pc1_var, "%)")
-        }
-        
-        y_label <- if (!is.null(input$hcpcClusterYLabel) && input$hcpcClusterYLabel != "") {
-          input$hcpcClusterYLabel
-        } else {
-          paste0("PC2 (", pc2_var, "%)")
-        }
-        
-        p_cluster <- fviz_cluster(res.hcpc,
-                                  repel = TRUE,
-                                  show.clust.cent = TRUE,
-                                  palette = "jco",
-                                  ggtheme = theme_minimal(),
-                                  main = cluster_title) +
-          labs(x = x_label, y = y_label)
-        
-        # Centrage sur (0,0) si demandé
-        if (!is.null(input$hcpcCenterAxes) && input$hcpcCenterAxes) {
-          coords <- values$pcaResult$ind$coord[, 1:2]
-          max_range <- max(abs(range(coords, na.rm = TRUE)))
-          p_cluster <- p_cluster + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-        }
-        
-        ggplotly(p_cluster) %>%
-          layout(showlegend = TRUE)
-      })
+      ind_cos2_df <- as.data.frame(res.pca$ind$cos2)
+      ind_cos2_df$Individual <- rownames(ind_cos2_df)
+      ind_cos2_df <- ind_cos2_df[, c("Individual", names(res.pca$ind$cos2))]
       
-      # Résultats détaillés
-      output$hcpcSummary <- renderPrint({
-        cat("=== CLASSIFICATION HIÉRARCHIQUE SUR COMPOSANTES PRINCIPALES (HCPC) ===\n\n")
-        
-        cat("Nombre de clusters:", input$hcpcClusters, "\n\n")
-        
-        # Affectation des individus aux clusters
-        cluster_results <- data.frame(
-          Individual = rownames(res.hcpc$data.clust),
-          Cluster = res.hcpc$data.clust$clust
-        )
-        cat("=== AFFECTATION DES INDIVIDUS AUX CLUSTERS ===\n")
-        print(cluster_results)
-        cat("\n")
-        
-        # Variables discriminantes par cluster
-        cat("=== VARIABLES LES PLUS DISCRIMINANTES PAR CLUSTER ===\n")
-        if (!is.null(res.hcpc$desc.var$quanti)) {
-          for (i in 1:length(res.hcpc$desc.var$quanti)) {
-            if (!is.null(res.hcpc$desc.var$quanti[[i]])) {
-              cat("\n--- CLUSTER", i, "---\n")
-              cluster_vars <- res.hcpc$desc.var$quanti[[i]]
-              print(round(cluster_vars, 4))
-            }
-          }
-        }
-        
-        # Description des axes par cluster
-        if (!is.null(res.hcpc$desc.axes$quanti)) {
-          cat("\n=== DESCRIPTION DES AXES PAR CLUSTER ===\n")
-          for (i in 1:length(res.hcpc$desc.axes$quanti)) {
-            if (!is.null(res.hcpc$desc.axes$quanti[[i]])) {
-              cat("\n--- CLUSTER", i, " - AXES ---\n")
-              axes_desc <- res.hcpc$desc.axes$quanti[[i]]
-              print(round(axes_desc, 4))
-            }
-          }
-        }
-        
-        # Parangons (individus les plus représentatifs)
-        if (!is.null(res.hcpc$desc.ind$para)) {
-          cat("\n=== INDIVIDUS LES PLUS REPRÉSENTATIFS (PARANGONS) ===\n")
-          for (i in 1:length(res.hcpc$desc.ind$para)) {
-            if (!is.null(res.hcpc$desc.ind$para[[i]])) {
-              cat("\n--- CLUSTER", i, " - PARANGONS ---\n")
-              print(res.hcpc$desc.ind$para[[i]])
-            }
-          }
-        }
-        
-        # Individus les plus éloignés du centre du cluster
-        if (!is.null(res.hcpc$desc.ind$dist)) {
-          cat("\n=== INDIVIDUS LES PLUS ÉLOIGNÉS DU CENTRE ===\n")
-          for (i in 1:length(res.hcpc$desc.ind$dist)) {
-            if (!is.null(res.hcpc$desc.ind$dist[[i]])) {
-              cat("\n--- CLUSTER", i, " - INDIVIDUS ÉLOIGNÉS ---\n")
-              print(res.hcpc$desc.ind$dist[[i]])
-            }
-          }
-        }
-      })
+      var_coords_df <- as.data.frame(res.pca$var$coord)
+      var_coords_df$Variable <- rownames(var_coords_df)
+      var_coords_df <- var_coords_df[, c("Variable", names(res.pca$var$coord))]
+      
+      var_contrib_df <- as.data.frame(res.pca$var$contrib)
+      var_contrib_df$Variable <- rownames(var_contrib_df)
+      var_contrib_df <- var_contrib_df[, c("Variable", names(res.pca$var$contrib))]
+      
+      var_cos2_df <- as.data.frame(res.pca$var$cos2)
+      var_cos2_df$Variable <- rownames(var_cos2_df)
+      var_cos2_df <- var_cos2_df[, c("Variable", names(res.pca$var$cos2))]
+      
+      var_cor_df <- as.data.frame(res.pca$var$cor)
+      var_cor_df$Variable <- rownames(var_cor_df)
+      var_cor_df <- var_cor_df[, c("Variable", names(res.pca$var$cor))]
+      
+      return(list(
+        eigenvalues = eigenvalues_df,
+        ind_coords = ind_coords_df,
+        ind_contrib = ind_contrib_df,
+        ind_cos2 = ind_cos2_df,
+        var_coords = var_coords_df,
+        var_contrib = var_contrib_df,
+        var_cos2 = var_cos2_df,
+        var_cor = var_cor_df
+      ))
     }, error = function(e) {
-      showNotification(paste("Erreur HCPC :", e$message), type = "error")
+      return(NULL)
     })
   })
   
-  # Downloads for HCPC plots
-  output$downloadHcpcClusterPlot <- downloadHandler(
-    filename = function() { paste("hcpc_cluster_plot", Sys.Date(), ".png", sep = "") },
-    content = function(file) {
-      cluster_title <- if (!is.null(input$hcpcClusterTitle) && input$hcpcClusterTitle != "") {
-        input$hcpcClusterTitle
-      } else {
-        "Carte des clusters HCPC"
-      }
-      
-      eigenvals <- get_eigenvalue(values$pcaResult)
-      pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-      pc2_var <- round(eigenvals[2, "variance.percent"], 1)
-      
-      x_label <- if (!is.null(input$hcpcClusterXLabel) && input$hcpcClusterXLabel != "") {
-        input$hcpcClusterXLabel
-      } else {
-        paste0("PC1 (", pc1_var, "%)")
-      }
-      
-      y_label <- if (!is.null(input$hcpcClusterYLabel) && input$hcpcClusterYLabel != "") {
-        input$hcpcClusterYLabel
-      } else {
-        paste0("PC2 (", pc2_var, "%)")
-      }
-      
-      p <- fviz_cluster(values$hcpcResult, repel = TRUE, show.clust.cent = TRUE, palette = "jco", ggtheme = theme_minimal(), main = cluster_title) +
+  output$pcaSummary <- renderPrint({
+    req(pcaResultReactive())
+    summary(pcaResultReactive())
+  })
+  
+  # Fonction pour creer le graphique ACP
+  createPcaPlot <- function() {
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    
+    eigenvals <- get_eigenvalue(res.pca)
+    pc1_var <- round(eigenvals[1, "variance.percent"], 1)
+    pc2_var <- round(eigenvals[2, "variance.percent"], 1)
+    
+    x_label <- if (!is.null(input$pcaXLabel) && input$pcaXLabel != "") {
+      input$pcaXLabel
+    } else {
+      paste0("PC1 (", pc1_var, "%)")
+    }
+    
+    y_label <- if (!is.null(input$pcaYLabel) && input$pcaYLabel != "") {
+      input$pcaYLabel
+    } else {
+      paste0("PC2 (", pc2_var, "%)")
+    }
+    
+    plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
+      input$pcaPlotTitle
+    } else {
+      "ACP - Analyse en Composantes Principales"
+    }
+    
+    plot_type <- ifelse(is.null(input$pcaPlotType), "var", input$pcaPlotType)
+    
+    if (plot_type == "var") {
+      p <- fviz_pca_var(res.pca, 
+                        col.var = "cos2",
+                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                        repel = TRUE,
+                        title = plot_title) +
         labs(x = x_label, y = y_label)
       
-      if (!is.null(input$hcpcCenterAxes) && input$hcpcCenterAxes) {
-        coords <- values$pcaResult$ind$coord[, 1:2]
-        max_range <- max(abs(range(coords, na.rm = TRUE)))
-        p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-      }
+    } else if (plot_type == "ind") {
+      has_ind_sup <- !is.null(res.pca$ind.sup)
       
-      ggsave(file, plot = p, device = "png", width = 10, height = 8)
-    }
-  )
-  
-  output$downloadHcpcDendPlot <- downloadHandler(
-    filename = function() { paste("hcpc_dend_plot", Sys.Date(), ".png", sep = "") },
-    content = function(file) {
-      dend_title <- if (!is.null(input$hcpcDendTitle) && input$hcpcDendTitle != "") {
-        input$hcpcDendTitle
+      if (has_ind_sup) {
+        n_active <- nrow(res.pca$ind$coord)
+        col_vector <- rep("Active", n_active)
+        
+        p <- fviz_pca_ind(res.pca,
+                          geom.ind = c("point", "text"),
+                          col.ind = col_vector,
+                          palette = c("Active" = "#00AFBB"),
+                          addEllipses = FALSE,
+                          repel = TRUE,
+                          title = plot_title,
+                          legend.title = "Type") +
+          labs(x = x_label, y = y_label)
       } else {
-        "Dendrogramme HCPC"
+        p <- fviz_pca_ind(res.pca, 
+                          col.ind = "contrib",
+                          gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                          repel = TRUE,
+                          title = plot_title) +
+          labs(x = x_label, y = y_label)
       }
       
-      p <- fviz_dend(values$hcpcResult, cex = 0.7, palette = "jco", rect = TRUE, rect_fill = TRUE, rect_border = "jco", main = dend_title)
-      ggsave(file, plot = p, device = "png", width = 10, height = 8)
+    } else {
+      has_ind_sup <- !is.null(res.pca$ind.sup)
+      
+      if (has_ind_sup) {
+        n_active <- nrow(res.pca$ind$coord)
+        col_vector <- rep("Active", n_active)
+        
+        p <- fviz_pca_biplot(res.pca,
+                             geom.ind = "point",
+                             col.ind = col_vector,
+                             palette = c("Active" = "#00AFBB"),
+                             col.var = "#FC4E07",
+                             repel = TRUE,
+                             addEllipses = FALSE,
+                             title = plot_title,
+                             legend.title = "Type") +
+          labs(x = x_label, y = y_label)
+      } else {
+        p <- fviz_pca_biplot(res.pca, 
+                             repel = TRUE,
+                             col.var = "#FC4E07", 
+                             col.ind = "#00AFBB",
+                             label = "all",
+                             title = plot_title) +
+          labs(x = x_label, y = y_label)
+      }
+    }
+    
+    if (!is.null(input$pcaCenterAxes) && input$pcaCenterAxes) {
+      if (plot_type == "var") {
+        coords <- res.pca$var$coord[, 1:2]
+      } else if (plot_type == "ind") {
+        coords <- res.pca$ind$coord[, 1:2]
+      } else {
+        coords_ind <- res.pca$ind$coord[, 1:2]
+        coords_var <- res.pca$var$coord[, 1:2]
+        coords <- rbind(coords_ind, coords_var)
+      }
+      
+      max_range <- max(abs(range(coords, na.rm = TRUE)))
+      p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+    }
+    
+    return(p)
+  }
+  
+  output$pcaPlot <- renderPlotly({
+    p <- createPcaPlot()
+    suppressWarnings({
+      plotly_obj <- ggplotly(p) %>% 
+        layout(showlegend = TRUE) %>%
+        config(displayModeBar = TRUE)
+    })
+    plotly_obj
+  })
+  
+  # Telechargement graphique ACP avec options avancees
+  output$downloadPcaPlot <- downloadHandler(
+    filename = function() {
+      ext <- input$pcaPlot_format
+      paste0("pca_plot_", Sys.Date(), ".", ext)
+    },
+    content = function(file) {
+      width <- input$pcaPlot_width
+      height <- input$pcaPlot_height
+      dpi <- input$pcaPlot_dpi
+      
+      p <- createPcaPlot()
+      ggsave(file, plot = p, device = input$pcaPlot_format, 
+             width = width, height = height, dpi = dpi, units = "cm")
     }
   )
   
-  # AFD - Sélection du groupe pour les moyennes
-  output$afdMeansGroupSelect <- renderUI({
-    req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    # Exclure le facteur discriminant des choix
-    if (!is.null(input$afdFactor)) {
-      fac_cols <- fac_cols[fac_cols != input$afdFactor]
+  # Telechargement donnees ACP - Excel
+  output$downloadPcaDataXlsx <- downloadHandler(
+    filename = function() {
+      paste0("pca_resultats_", Sys.Date(), ".xlsx")
+    },
+    content = function(file) {
+      req(pcaDataframes())
+      dfs <- pcaDataframes()
+      
+      wb <- createWorkbook()
+      
+      addWorksheet(wb, "Valeurs_propres")
+      writeData(wb, "Valeurs_propres", dfs$eigenvalues)
+      
+      addWorksheet(wb, "Ind_coordonnees")
+      writeData(wb, "Ind_coordonnees", dfs$ind_coords)
+      
+      addWorksheet(wb, "Ind_contributions")
+      writeData(wb, "Ind_contributions", dfs$ind_contrib)
+      
+      addWorksheet(wb, "Ind_cos2")
+      writeData(wb, "Ind_cos2", dfs$ind_cos2)
+      
+      addWorksheet(wb, "Var_coordonnees")
+      writeData(wb, "Var_coordonnees", dfs$var_coords)
+      
+      addWorksheet(wb, "Var_contributions")
+      writeData(wb, "Var_contributions", dfs$var_contrib)
+      
+      addWorksheet(wb, "Var_cos2")
+      writeData(wb, "Var_cos2", dfs$var_cos2)
+      
+      addWorksheet(wb, "Var_correlations")
+      writeData(wb, "Var_correlations", dfs$var_cor)
+      
+      saveWorkbook(wb, file, overwrite = TRUE)
     }
-    if (length(fac_cols) == 0) return(NULL)
+  )
+  
+  # Telechargement donnees ACP - CSV
+  output$downloadPcaDataCsv <- downloadHandler(
+    filename = function() {
+      paste0("pca_resultats_", Sys.Date(), ".zip")
+    },
+    content = function(file) {
+      req(pcaDataframes())
+      dfs <- pcaDataframes()
+      
+      temp_dir <- tempdir()
+      csv_files <- c()
+      
+      write.csv(dfs$eigenvalues, file.path(temp_dir, "valeurs_propres.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "valeurs_propres.csv")
+      
+      write.csv(dfs$ind_coords, file.path(temp_dir, "ind_coordonnees.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "ind_coordonnees.csv")
+      
+      write.csv(dfs$ind_contrib, file.path(temp_dir, "ind_contributions.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "ind_contributions.csv")
+      
+      write.csv(dfs$ind_cos2, file.path(temp_dir, "ind_cos2.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "ind_cos2.csv")
+      
+      write.csv(dfs$var_coords, file.path(temp_dir, "var_coordonnees.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "var_coordonnees.csv")
+      
+      write.csv(dfs$var_contrib, file.path(temp_dir, "var_contributions.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "var_contributions.csv")
+      
+      write.csv(dfs$var_cos2, file.path(temp_dir, "var_cos2.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "var_cos2.csv")
+      
+      write.csv(dfs$var_cor, file.path(temp_dir, "var_correlations.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "var_correlations.csv")
+      
+      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+    }
+  )
+  
+  
+  # SECTION 2: HCPC (Classification Hierarchique)
+  
+  hcpcResultReactive <- reactive({
+    req(pcaResultReactive())
+    input$hcpcClusters
     
-    selectInput("afdMeansGroup", "Variable de groupement pour les moyennes:", 
-                choices = fac_cols)
+    tryCatch({
+      res.hcpc <- HCPC(pcaResultReactive(),
+                       nb.clust = ifelse(is.null(input$hcpcClusters), 3, input$hcpcClusters),
+                       graph = FALSE)
+      return(res.hcpc)
+    }, error = function(e) {
+      showNotification(paste("Erreur HCPC :", e$message), type = "error")
+      return(NULL)
+    })
   })
+  
+  observe({
+    res <- hcpcResultReactive()
+    if (!is.null(res)) {
+      values$hcpcResult <- res
+    }
+  })
+  
+  hcpcDataframes <- reactive({
+    req(hcpcResultReactive())
+    res.hcpc <- hcpcResultReactive()
+    
+    tryCatch({
+      cluster_assign_df <- data.frame(
+        Individual = rownames(res.hcpc$data.clust),
+        Cluster = res.hcpc$data.clust$clust,
+        stringsAsFactors = FALSE
+      )
+      
+      desc_var_list <- list()
+      if (!is.null(res.hcpc$desc.var$quanti)) {
+        for (i in 1:length(res.hcpc$desc.var$quanti)) {
+          if (!is.null(res.hcpc$desc.var$quanti[[i]])) {
+            df <- as.data.frame(res.hcpc$desc.var$quanti[[i]])
+            df$Variable <- rownames(df)
+            df$Cluster <- i
+            df <- df[, c("Cluster", "Variable", setdiff(names(df), c("Cluster", "Variable")))]
+            desc_var_list[[i]] <- df
+          }
+        }
+      }
+      desc_var_df <- if (length(desc_var_list) > 0) do.call(rbind, desc_var_list) else NULL
+      
+      desc_axes_list <- list()
+      if (!is.null(res.hcpc$desc.axes$quanti)) {
+        for (i in 1:length(res.hcpc$desc.axes$quanti)) {
+          if (!is.null(res.hcpc$desc.axes$quanti[[i]])) {
+            df <- as.data.frame(res.hcpc$desc.axes$quanti[[i]])
+            df$Axe <- rownames(df)
+            df$Cluster <- i
+            df <- df[, c("Cluster", "Axe", setdiff(names(df), c("Cluster", "Axe")))]
+            desc_axes_list[[i]] <- df
+          }
+        }
+      }
+      desc_axes_df <- if (length(desc_axes_list) > 0) do.call(rbind, desc_axes_list) else NULL
+      
+      parangons_list <- list()
+      if (!is.null(res.hcpc$desc.ind$para)) {
+        for (i in 1:length(res.hcpc$desc.ind$para)) {
+          if (!is.null(res.hcpc$desc.ind$para[[i]])) {
+            df <- as.data.frame(res.hcpc$desc.ind$para[[i]])
+            df$Individual <- rownames(df)
+            df$Cluster <- i
+            df <- df[, c("Cluster", "Individual", setdiff(names(df), c("Cluster", "Individual")))]
+            parangons_list[[i]] <- df
+          }
+        }
+      }
+      parangons_df <- if (length(parangons_list) > 0) do.call(rbind, parangons_list) else NULL
+      
+      dist_list <- list()
+      if (!is.null(res.hcpc$desc.ind$dist)) {
+        for (i in 1:length(res.hcpc$desc.ind$dist)) {
+          if (!is.null(res.hcpc$desc.ind$dist[[i]])) {
+            df <- as.data.frame(res.hcpc$desc.ind$dist[[i]])
+            df$Individual <- rownames(df)
+            df$Cluster <- i
+            df <- df[, c("Cluster", "Individual", setdiff(names(df), c("Cluster", "Individual")))]
+            dist_list[[i]] <- df
+          }
+        }
+      }
+      dist_df <- if (length(dist_list) > 0) do.call(rbind, dist_list) else NULL
+      
+      return(list(
+        cluster_assignment = cluster_assign_df,
+        desc_variables = desc_var_df,
+        desc_axes = desc_axes_df,
+        parangons = parangons_df,
+        distant_individuals = dist_df
+      ))
+    }, error = function(e) {
+      return(NULL)
+    })
+  })
+  
+  createHcpcDendPlot <- function() {
+    req(hcpcResultReactive())
+    res.hcpc <- hcpcResultReactive()
+    
+    dend_title <- if (!is.null(input$hcpcDendTitle) && input$hcpcDendTitle != "") {
+      input$hcpcDendTitle
+    } else {
+      "Dendrogramme HCPC"
+    }
+    
+    p_dend <- fviz_dend(res.hcpc,
+                        cex = 0.7,
+                        palette = "jco",
+                        rect = TRUE,
+                        rect_fill = TRUE,
+                        rect_border = "jco",
+                        main = dend_title,
+                        sub = paste("Nombre de clusters:", length(unique(res.hcpc$data.clust$clust))))
+    return(p_dend)
+  }
+  
+  createHcpcClusterPlot <- function() {
+    req(hcpcResultReactive(), pcaResultReactive())
+    res.hcpc <- hcpcResultReactive()
+    res.pca <- pcaResultReactive()
+    
+    cluster_title <- if (!is.null(input$hcpcClusterTitle) && input$hcpcClusterTitle != "") {
+      input$hcpcClusterTitle
+    } else {
+      "Carte des clusters HCPC"
+    }
+    
+    eigenvals <- get_eigenvalue(res.pca)
+    pc1_var <- round(eigenvals[1, "variance.percent"], 1)
+    pc2_var <- round(eigenvals[2, "variance.percent"], 1)
+    
+    x_label <- if (!is.null(input$hcpcClusterXLabel) && input$hcpcClusterXLabel != "") {
+      input$hcpcClusterXLabel
+    } else {
+      paste0("PC1 (", pc1_var, "%)")
+    }
+    
+    y_label <- if (!is.null(input$hcpcClusterYLabel) && input$hcpcClusterYLabel != "") {
+      input$hcpcClusterYLabel
+    } else {
+      paste0("PC2 (", pc2_var, "%)")
+    }
+    
+    p_cluster <- fviz_cluster(res.hcpc,
+                              repel = TRUE,
+                              show.clust.cent = TRUE,
+                              palette = "jco",
+                              ggtheme = theme_minimal(),
+                              main = cluster_title) +
+      labs(x = x_label, y = y_label)
+    
+    if (!is.null(input$hcpcCenterAxes) && input$hcpcCenterAxes) {
+      coords <- res.pca$ind$coord[, 1:2]
+      max_range <- max(abs(range(coords, na.rm = TRUE)))
+      p_cluster <- p_cluster + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+    }
+    
+    return(p_cluster)
+  }
+  
+  output$hcpcDendPlot <- renderPlotly({
+    p_dend <- createHcpcDendPlot()
+    ggplotly(p_dend) %>% layout(margin = list(b = 100))
+  })
+  
+  output$hcpcClusterPlot <- renderPlotly({
+    p_cluster <- createHcpcClusterPlot()
+    ggplotly(p_cluster) %>% layout(showlegend = TRUE)
+  })
+  
+  output$hcpcSummary <- renderPrint({
+    req(hcpcResultReactive())
+    res.hcpc <- hcpcResultReactive()
+    
+    cat("=== CLASSIFICATION HIERARCHIQUE SUR COMPOSANTES PRINCIPALES (HCPC) ===\n\n")
+    cat("Nombre de clusters:", length(unique(res.hcpc$data.clust$clust)), "\n\n")
+    
+    cluster_results <- data.frame(
+      Individual = rownames(res.hcpc$data.clust),
+      Cluster = res.hcpc$data.clust$clust
+    )
+    cat("=== AFFECTATION DES INDIVIDUS AUX CLUSTERS ===\n")
+    print(cluster_results)
+    cat("\n")
+    
+    cat("=== VARIABLES LES PLUS DISCRIMINANTES PAR CLUSTER ===\n")
+    if (!is.null(res.hcpc$desc.var$quanti)) {
+      for (i in 1:length(res.hcpc$desc.var$quanti)) {
+        if (!is.null(res.hcpc$desc.var$quanti[[i]])) {
+          cat("\n--- CLUSTER", i, "---\n")
+          print(round(res.hcpc$desc.var$quanti[[i]], 4))
+        }
+      }
+    }
+    
+    if (!is.null(res.hcpc$desc.axes$quanti)) {
+      cat("\n=== DESCRIPTION DES AXES PAR CLUSTER ===\n")
+      for (i in 1:length(res.hcpc$desc.axes$quanti)) {
+        if (!is.null(res.hcpc$desc.axes$quanti[[i]])) {
+          cat("\n--- CLUSTER", i, " - AXES ---\n")
+          print(round(res.hcpc$desc.axes$quanti[[i]], 4))
+        }
+      }
+    }
+    
+    if (!is.null(res.hcpc$desc.ind$para)) {
+      cat("\n=== INDIVIDUS LES PLUS REPRESENTATIFS (PARANGONS) ===\n")
+      for (i in 1:length(res.hcpc$desc.ind$para)) {
+        if (!is.null(res.hcpc$desc.ind$para[[i]])) {
+          cat("\n--- CLUSTER", i, " - PARANGONS ---\n")
+          print(res.hcpc$desc.ind$para[[i]])
+        }
+      }
+    }
+    
+    if (!is.null(res.hcpc$desc.ind$dist)) {
+      cat("\n=== INDIVIDUS LES PLUS ELOIGNES DU CENTRE ===\n")
+      for (i in 1:length(res.hcpc$desc.ind$dist)) {
+        if (!is.null(res.hcpc$desc.ind$dist[[i]])) {
+          cat("\n--- CLUSTER", i, " - INDIVIDUS ELOIGNES ---\n")
+          print(res.hcpc$desc.ind$dist[[i]])
+        }
+      }
+    }
+  })
+  
+  # Telechargement graphique HCPC Dendrogramme
+  output$downloadHcpcDendPlot <- downloadHandler(
+    filename = function() {
+      ext <- input$hcpcDend_format
+      paste0("hcpc_dendrogramme_", Sys.Date(), ".", ext)
+    },
+    content = function(file) {
+      width <- input$hcpcDend_width
+      height <- input$hcpcDend_height
+      dpi <- input$hcpcDend_dpi
+      
+      p_dend <- createHcpcDendPlot()
+      ggsave(file, plot = p_dend, device = input$hcpcDend_format, 
+             width = width, height = height, dpi = dpi, units = "cm")
+    }
+  )
+  
+  # Telechargement graphique HCPC Cluster
+  output$downloadHcpcClusterPlot <- downloadHandler(
+    filename = function() {
+      ext <- input$hcpcCluster_format
+      paste0("hcpc_clusters_", Sys.Date(), ".", ext)
+    },
+    content = function(file) {
+      width <- input$hcpcCluster_width
+      height <- input$hcpcCluster_height
+      dpi <- input$hcpcCluster_dpi
+      
+      p_cluster <- createHcpcClusterPlot()
+      ggsave(file, plot = p_cluster, device = input$hcpcCluster_format, 
+             width = width, height = height, dpi = dpi, units = "cm")
+    }
+  )
+  
+  # Telechargement donnees HCPC - Excel
+  output$downloadHcpcDataXlsx <- downloadHandler(
+    filename = function() {
+      paste0("hcpc_resultats_", Sys.Date(), ".xlsx")
+    },
+    content = function(file) {
+      req(hcpcDataframes())
+      dfs <- hcpcDataframes()
+      
+      wb <- createWorkbook()
+      
+      addWorksheet(wb, "Affectation_clusters")
+      writeData(wb, "Affectation_clusters", dfs$cluster_assignment)
+      
+      if (!is.null(dfs$desc_variables)) {
+        addWorksheet(wb, "Desc_variables")
+        writeData(wb, "Desc_variables", dfs$desc_variables)
+      }
+      
+      if (!is.null(dfs$desc_axes)) {
+        addWorksheet(wb, "Desc_axes")
+        writeData(wb, "Desc_axes", dfs$desc_axes)
+      }
+      
+      if (!is.null(dfs$parangons)) {
+        addWorksheet(wb, "Parangons")
+        writeData(wb, "Parangons", dfs$parangons)
+      }
+      
+      if (!is.null(dfs$distant_individuals)) {
+        addWorksheet(wb, "Individus_eloignes")
+        writeData(wb, "Individus_eloignes", dfs$distant_individuals)
+      }
+      
+      saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
+  
+  # Telechargement donnees HCPC - CSV
+  output$downloadHcpcDataCsv <- downloadHandler(
+    filename = function() {
+      paste0("hcpc_resultats_", Sys.Date(), ".zip")
+    },
+    content = function(file) {
+      req(hcpcDataframes())
+      dfs <- hcpcDataframes()
+      
+      temp_dir <- tempdir()
+      csv_files <- c()
+      
+      write.csv(dfs$cluster_assignment, file.path(temp_dir, "affectation_clusters.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "affectation_clusters.csv")
+      
+      if (!is.null(dfs$desc_variables)) {
+        write.csv(dfs$desc_variables, file.path(temp_dir, "desc_variables.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "desc_variables.csv")
+      }
+      
+      if (!is.null(dfs$desc_axes)) {
+        write.csv(dfs$desc_axes, file.path(temp_dir, "desc_axes.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "desc_axes.csv")
+      }
+      
+      if (!is.null(dfs$parangons)) {
+        write.csv(dfs$parangons, file.path(temp_dir, "parangons.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "parangons.csv")
+      }
+      
+      if (!is.null(dfs$distant_individuals)) {
+        write.csv(dfs$distant_individuals, file.path(temp_dir, "individus_eloignes.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "individus_eloignes.csv")
+      }
+      
+      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+    }
+  )
+  
+  
+  # SECTION 3: AFD (Analyse Factorielle Discriminante) - VERSION CORRIGEE
   
   output$afdFactorSelect <- renderUI({
     req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    selectInput("afdFactor", "Facteur discriminant:", choices = fac_cols)
+    if (length(fac_cols) == 0) return(NULL)
+    
+    selectInput("afdFactor", "Variable categorielle (groupes):",
+                choices = fac_cols)
   })
   
   output$afdVarSelect <- renderUI({
     req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    if (length(num_cols) == 0) return(NULL)
+    
     pickerInput(
       inputId = "afdVars",
-      label = "Variables pour l'AFD:",
+      label = "Variables quantitatives:",
       choices = num_cols,
       multiple = TRUE,
       selected = num_cols,
@@ -10376,384 +11364,502 @@ server <- function(input, output, session) {
     )
   })
   
-  observeEvent(input$runAFD, {
-    req(values$filteredData, input$afdFactor, input$afdVars)
+  output$afdMeansGroupSelect <- renderUI({
+    req(values$filteredData)
+    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+    if (length(fac_cols) == 0) return(NULL)
+    
+    selectInput("afdMeansGroup", "Variable de groupement pour les moyennes:", 
+                choices = fac_cols)
+  })
+  
+  # CORRECTION MAJEURE : Gestion correcte des moyennes par groupe
+  afdResultReactive <- reactive({
+    req(values$filteredData, input$afdVars, input$afdFactor)
+    
+    input$afdUseMeans
+    input$afdMeansGroup
+    input$afdCrossValidation
+    
     tryCatch({
-      if (input$afdUseMeans && !is.null(input$afdMeansGroup)) {
-        # Utiliser les moyennes par groupe
-        temp_data <- values$filteredData[, c(input$afdFactor, input$afdVars, input$afdMeansGroup)]
-        temp_data <- na.omit(temp_data)
+      if (!is.null(input$afdUseMeans) && input$afdUseMeans && !is.null(input$afdMeansGroup)) {
+        # Calculer les moyennes uniquement sur les variables quantitatives
+        afd_data_numeric <- calculate_group_means(values$filteredData, 
+                                                  input$afdVars, 
+                                                  input$afdMeansGroup)
         
-        # Calculer les moyennes par groupe de moyennes, mais garder le facteur discriminant
-        afd_data <- temp_data %>%
-          group_by(!!sym(input$afdMeansGroup), !!sym(input$afdFactor)) %>%
-          summarise(across(all_of(input$afdVars), mean, na.rm = TRUE), .groups = 'drop') %>%
-          select(-!!sym(input$afdMeansGroup))
-        
+        # Ajouter la variable de groupement comme facteur avec les noms des groupes
+        afd_data <- afd_data_numeric
+        afd_data[[input$afdFactor]] <- factor(rownames(afd_data_numeric))
       } else {
-        # Utiliser les données originales
-        afd_data <- values$filteredData[, c(input$afdFactor, input$afdVars)]
-        afd_data <- na.omit(afd_data)
+        afd_data <- values$filteredData[, c(input$afdVars, input$afdFactor), drop = FALSE]
       }
       
-      # Vérification du nombre de groupes
-      if (nlevels(afd_data[[input$afdFactor]]) < 2) {
-        showNotification("L'AFD nécessite au moins 2 groupes", type = "error")
-        return()
-      }
+      afd_formula <- as.formula(paste(input$afdFactor, "~", paste(input$afdVars, collapse = " + ")))
       
-      # AFD
-      afd_formula <- as.formula(paste(input$afdFactor, "~ ."))
       afd_result <- lda(afd_formula, data = afd_data)
-      values$afdResult <- afd_result
+      afd_predict <- predict(afd_result, afd_data[, input$afdVars, drop = FALSE])
       
-      # Prédictions
-      afd_predict <- predict(afd_result, afd_data)
-      
-      # Calcul des pourcentages de variance
-      eigenvals <- afd_result$svd^2
-      prop_var <- eigenvals / sum(eigenvals) * 100
-      
-      # Préparation des données pour la visualisation
-      afd_plot_data <- data.frame(
-        LD1 = afd_predict$x[, 1],
-        Group = afd_data[[input$afdFactor]],
-        Individual = rownames(afd_data)
-      )
-      
-      if (ncol(afd_predict$x) > 1) {
-        afd_plot_data$LD2 = afd_predict$x[, 2]
-      } else {
-        afd_plot_data$LD2 = 0
-      }
-      
-      # Graphique des individus
-      output$afdIndPlot <- renderPlotly({
-        # Titre et labels personnalisés
-        ind_title <- if (!is.null(input$afdIndTitle) && input$afdIndTitle != "") {
-          input$afdIndTitle
-        } else {
-          "AFD - Projection des individus"
-        }
-        
-        x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
-          input$afdIndXLabel
-        } else {
-          if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
-        }
-        
-        y_label <- if (!is.null(input$afdIndYLabel) && input$afdIndYLabel != "") {
-          input$afdIndYLabel
-        } else {
-          if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
-        }
-        
-        p_ind <- ggplot(afd_plot_data, aes(x = LD1, y = LD2, color = Group)) +
-          geom_point(size = 4, alpha = 0.7) +
-          stat_ellipse(type = "norm", level = 0.68, size = 1) +
-          geom_text_repel(aes(label = Individual),
-                          size = 3.5, box.padding = 0.1, point.padding = 0.03,
-                          segment.color = "grey50", max.overlaps = Inf, force = 3,
-                          fontface = "bold") +
-          geom_hline(yintercept = 0, linetype = "dashed", color = "grey60") +
-          geom_vline(xintercept = 0, linetype = "dashed", color = "grey60") +
-          labs(title = ind_title, x = x_label, y = y_label, color = input$afdFactor) +
-          scale_color_brewer(type = "qual", palette = "Set1") +
-          theme_minimal() +
-          theme(legend.position = "bottom", panel.grid = element_blank(),
-                plot.title = element_text(hjust = 0.5))
-        
-        # Centrage sur (0,0) si demandé
-        if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
-          coords <- afd_plot_data[, c("LD1", "LD2")]
-          max_range <- max(abs(range(coords, na.rm = TRUE)))
-          p_ind <- p_ind + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-        }
-        
-        ggplotly(p_ind, tooltip = "text") %>%
-          layout(showlegend = TRUE)
-      })
-      
-      # Graphique des variables (loadings)
-      if (ncol(afd_predict$x) >= 1) {
-        loadings <- afd_result$scaling
-        if (ncol(loadings) == 1) {
-          var_contrib <- data.frame(
-            Variable = rownames(loadings),
-            LD1 = loadings[, 1],
-            LD2 = 0
-          )
-        } else {
-          var_contrib <- data.frame(
-            Variable = rownames(loadings),
-            LD1 = loadings[, 1],
-            LD2 = loadings[, 2]
-          )
-        }
-        
-        output$afdVarPlot <- renderPlotly({
-          # Titre et labels personnalisés
-          var_title <- if (!is.null(input$afdVarTitle) && input$afdVarTitle != "") {
-            input$afdVarTitle
-          } else {
-            "AFD - Contribution des variables"
-          }
-          
-          x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
-            input$afdVarXLabel
-          } else {
-            if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
-          }
-          
-          y_label <- if (!is.null(input$afdVarYLabel) && input$afdVarYLabel != "") {
-            input$afdVarYLabel
-          } else {
-            if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
-          }
-          
-          p_var <- ggplot(var_contrib, aes(x = LD1, y = LD2)) +
-            geom_segment(aes(x = 0, y = 0, xend = LD1, yend = LD2),
-                         arrow = arrow(length = unit(0.3, "cm")),
-                         color = "blue", size = 1) +
-            geom_text_repel(aes(label = Variable), size = 3.5, max.overlaps = Inf,
-                            color = "blue", fontface = "bold",
-                            box.padding = 0.3, segment.color = "blue", force = 2) +
-            geom_hline(yintercept = 0, linetype = "dashed", color = "grey60") +
-            geom_vline(xintercept = 0, linetype = "dashed", color = "grey60") +
-            labs(title = var_title, x = x_label, y = y_label) +
-            theme_minimal() +
-            theme(plot.title = element_text(hjust = 0.5), panel.grid = element_blank())
-          
-          # Centrage sur (0,0) si demandé
-          if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
-            coords <- var_contrib[, c("LD1", "LD2")]
-            max_range <- max(abs(range(coords, na.rm = TRUE)))
-            p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-          }
-          
-          ggplotly(p_var, tooltip = "text")
-        })
-      }
-      
-      # Métriques complètes de l'AFD
-      output$afdSummary <- renderPrint({
-        cat("ANALYSE FACTORIELLE DISCRIMINANTE (AFD)\n")
-        cat("----------------------------==\n\n")
-        
-        # Informations générales
-        cat("Facteur discriminant:", input$afdFactor, "\n")
-        cat("Variables utilisées:", paste(input$afdVars, collapse = ", "), "\n")
-        cat("Nombre d'observations:", nrow(afd_data), "\n")
-        cat("Nombre de groupes:", nlevels(afd_data[[input$afdFactor]]), "\n")
-        if (input$afdUseMeans && !is.null(input$afdMeansGroup)) {
-          cat("Analyse basée sur les moyennes par groupe:", input$afdMeansGroup, "\n")
-        }
-        cat("\n")
-        
-        # 1. Tests globaux
-        cat("1. TESTS GLOBAUX\n")
-        cat("------------=\n")
-        
-        # Test de Wilks
-        eigenvals <- afd_result$svd^2
-        wilks_lambda <- prod(1 / (1 + eigenvals))
-        cat("Lambda de Wilks:", round(wilks_lambda, 4), "\n")
-        
-        # Valeurs propres et variance expliquée
-        cat("\nValeurs propres:\n")
-        print(round(eigenvals, 4))
-        
-        prop_var <- eigenvals / sum(eigenvals) * 100
-        cat("\nVariance expliquée (%):\n")
-        for (i in seq_along(prop_var)) {
-          cat("LD", i, ": ", round(prop_var[i], 2), "%\n", sep = "")
-        }
-        cat("Variance cumulée:", round(cumsum(prop_var), 2), "%\n")
-        
-        # Corrélation canonique
-        can_cor <- sqrt(eigenvals / (1 + eigenvals))
-        cat("\nCorrélations canoniques:\n")
-        print(round(can_cor, 4))
-        
-        # Coefficients standardisés (loadings)
-        cat("\n2. POIDS DES VARIABLES\n")
-        cat("----------------==\n")
-        
-        cat("Coefficients des fonctions discriminantes:\n")
-        print(round(afd_result$scaling, 4))
-        
-        # Structure matrix (corrélations variables-fonctions)
-        X_std <- scale(afd_data[, input$afdVars])
-        scores <- as.matrix(X_std) %*% afd_result$scaling
-        structure_matrix <- cor(X_std, scores)
-        cat("\nMatrice de structure (corrélations):\n")
-        print(round(structure_matrix, 4))
-        
-        # F-tests pour chaque variable
-        cat("\nTests F univariés:\n")
-        f_tests <- data.frame(Variable = input$afdVars)
-        for (var in input$afdVars) {
-          aov_result <- aov(as.formula(paste(var, "~", input$afdFactor)), data = afd_data)
-          f_stat <- summary(aov_result)[[1]][1, "F value"]
-          p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
-          f_tests[f_tests$Variable == var, "F_statistic"] <- round(f_stat, 4)
-          f_tests[f_tests$Variable == var, "p_value"] <- round(p_val, 4)
-        }
-        print(f_tests)
-        
-        # Matrice de confusion
-        cat("\n3. QUALITÉ DE CLASSIFICATION\n")
-        cat("--------------------====\n")
-        
-        confusion_matrix <- table(Réel = afd_data[[input$afdFactor]],
-                                  Prédit = afd_predict$class)
-        cat("Matrice de confusion:\n")
-        print(confusion_matrix)
-        
-        # Taux de bonne attribution
-        accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-        cat("\nTaux de classification correcte:", round(accuracy * 100, 2), "%\n")
-        
-        # Taux par groupe
-        cat("\nTaux de classification par groupe:\n")
-        for (i in 1:nrow(confusion_matrix)) {
-          group_acc <- confusion_matrix[i,i] / sum(confusion_matrix[i,])
-          cat(rownames(confusion_matrix)[i], ":", round(group_acc * 100, 2), "%\n")
-        }
-        
-        # Validation croisée (Leave-One-Out)
-        cat("\n4. VALIDATION CROISÉE (Leave-One-Out)\n")
-        cat("----------------------------==\n")
-        
+      # Validation croisée uniquement si pas de moyennes
+      cv_results <- NULL
+      if (!is.null(input$afdCrossValidation) && input$afdCrossValidation && 
+          (!input$afdUseMeans || is.null(input$afdUseMeans))) {
         cv_predictions <- numeric(nrow(afd_data))
         for (i in 1:nrow(afd_data)) {
-          # Données d'entraînement (sans l'observation i)
           train_data <- afd_data[-i, ]
           test_data <- afd_data[i, , drop = FALSE]
-          
-          # Modèle sur données d'entraînement
           cv_model <- lda(afd_formula, data = train_data)
           cv_pred <- predict(cv_model, test_data)
           cv_predictions[i] <- as.character(cv_pred$class)
         }
-        
         cv_predictions <- factor(cv_predictions, levels = levels(afd_data[[input$afdFactor]]))
-        cv_confusion <- table(Réel = afd_data[[input$afdFactor]],
-                              Prédit = cv_predictions)
-        
-        cat("Matrice de confusion (validation croisée):\n")
-        print(cv_confusion)
-        
-        cv_accuracy <- sum(diag(cv_confusion)) / sum(cv_confusion)
-        cat("\nTaux de classification en validation croisée:",
-            round(cv_accuracy * 100, 2), "%\n")
-        
-        cat("\n5. CENTROÏDES DES GROUPES\n")
-        cat("--------------------\n")
-        print(round(afd_result$means, 4))
-        
-        cat("\n6. PROBABILITÉS A PRIORI\n")
-        cat("----------------====\n")
-        print(round(afd_result$prior, 4))
-      })
+        cv_results <- list(predictions = cv_predictions)
+      }
+      
+      return(list(
+        model = afd_result,
+        predictions = afd_predict,
+        data = afd_data,
+        cv_results = cv_results
+      ))
+      
     }, error = function(e) {
       showNotification(paste("Erreur AFD :", e$message), type = "error")
+      return(NULL)
     })
   })
   
-  # Downloads for AFD plots
+  observe({
+    res <- afdResultReactive()
+    if (!is.null(res)) {
+      values$afdResult <- res$model
+    }
+  })
+  
+  # CORRECTION : Renommage de 'loadings' en 'coefficients' pour inclure les coefficients discriminants
+  afdDataframes <- reactive({
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    afd_result <- afd_res$model
+    afd_predict <- afd_res$predictions
+    afd_data <- afd_res$data
+    
+    tryCatch({
+      ind_coords_df <- as.data.frame(afd_predict$x)
+      ind_coords_df$Individual <- rownames(ind_coords_df)
+      ind_coords_df$Groupe_reel <- afd_data[[input$afdFactor]]
+      ind_coords_df$Groupe_predit <- afd_predict$class
+      ind_coords_df <- ind_coords_df[, c("Individual", "Groupe_reel", "Groupe_predit", 
+                                         setdiff(names(ind_coords_df), c("Individual", "Groupe_reel", "Groupe_predit")))]
+      
+      # Coefficients des fonctions discriminantes (loadings)
+      loadings_df <- as.data.frame(afd_result$scaling)
+      loadings_df$Variable <- rownames(loadings_df)
+      loadings_df <- loadings_df[, c("Variable", setdiff(names(loadings_df), "Variable"))]
+      
+      X_std <- scale(afd_data[, input$afdVars])
+      scores <- as.matrix(X_std) %*% afd_result$scaling
+      structure_matrix <- cor(X_std, scores)
+      structure_df <- as.data.frame(structure_matrix)
+      structure_df$Variable <- rownames(structure_df)
+      structure_df <- structure_df[, c("Variable", setdiff(names(structure_df), "Variable"))]
+      
+      f_tests_df <- data.frame(Variable = input$afdVars)
+      for (var in input$afdVars) {
+        aov_result <- aov(as.formula(paste(var, "~", input$afdFactor)), data = afd_data)
+        f_stat <- summary(aov_result)[[1]][1, "F value"]
+        p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
+        f_tests_df[f_tests_df$Variable == var, "F_statistic"] <- round(f_stat, 4)
+        f_tests_df[f_tests_df$Variable == var, "p_value"] <- round(p_val, 4)
+      }
+      
+      confusion_matrix <- table(Reel = afd_data[[input$afdFactor]], 
+                                Predit = afd_predict$class)
+      confusion_df <- as.data.frame.matrix(confusion_matrix)
+      confusion_df$Groupe_reel <- rownames(confusion_df)
+      confusion_df <- confusion_df[, c("Groupe_reel", setdiff(names(confusion_df), "Groupe_reel"))]
+      
+      accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+      group_acc_df <- data.frame(
+        Groupe = rownames(confusion_matrix),
+        Taux_classification = numeric(nrow(confusion_matrix))
+      )
+      for (i in 1:nrow(confusion_matrix)) {
+        group_acc_df$Taux_classification[i] <- round(confusion_matrix[i,i] / sum(confusion_matrix[i,]) * 100, 2)
+      }
+      
+      centroids_df <- as.data.frame(afd_result$means)
+      centroids_df$Groupe <- rownames(centroids_df)
+      centroids_df <- centroids_df[, c("Groupe", setdiff(names(centroids_df), "Groupe"))]
+      
+      eigenvals <- afd_result$svd^2
+      prop_var <- eigenvals / sum(eigenvals) * 100
+      can_cor <- sqrt(eigenvals / (1 + eigenvals))
+      
+      variance_df <- data.frame(
+        Fonction = paste0("LD", 1:length(eigenvals)),
+        Valeur_propre = eigenvals,
+        Variance_expliquee = round(prop_var, 2),
+        Variance_cumulee = round(cumsum(prop_var), 2),
+        Correlation_canonique = round(can_cor, 4)
+      )
+      
+      cv_confusion_df <- NULL
+      cv_accuracy_df <- NULL
+      if (!is.null(afd_res$cv_results)) {
+        cv_confusion <- table(Reel = afd_data[[input$afdFactor]], 
+                              Predit = afd_res$cv_results$predictions)
+        cv_confusion_df <- as.data.frame.matrix(cv_confusion)
+        cv_confusion_df$Groupe_reel <- rownames(cv_confusion_df)
+        cv_confusion_df <- cv_confusion_df[, c("Groupe_reel", setdiff(names(cv_confusion_df), "Groupe_reel"))]
+        
+        cv_accuracy <- sum(diag(cv_confusion)) / sum(cv_confusion)
+        cv_accuracy_df <- data.frame(
+          Metrique = c("Taux_classification_global"),
+          Valeur = round(cv_accuracy * 100, 2)
+        )
+      }
+      
+      return(list(
+        ind_coords = ind_coords_df,
+        coefficients = loadings_df,
+        structure_matrix = structure_df,
+        f_tests = f_tests_df,
+        confusion_matrix = confusion_df,
+        classification_rates = group_acc_df,
+        centroids = centroids_df,
+        variance_explained = variance_df,
+        cv_confusion = cv_confusion_df,
+        cv_accuracy = cv_accuracy_df
+      ))
+    }, error = function(e) {
+      return(NULL)
+    })
+  })
+  
+  createAfdIndPlot <- function() {
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    afd_result <- afd_res$model
+    afd_predict <- afd_res$predictions
+    afd_data <- afd_res$data
+    
+    eigenvals <- afd_result$svd^2
+    prop_var <- eigenvals / sum(eigenvals) * 100
+    
+    afd_plot_data <- data.frame(
+      LD1 = afd_predict$x[,1], 
+      LD2 = if(ncol(afd_predict$x) > 1) afd_predict$x[,2] else 0,
+      Group = afd_data[[input$afdFactor]], 
+      Individual = rownames(afd_data)
+    )
+    
+    ind_title <- if (!is.null(input$afdIndTitle) && input$afdIndTitle != "") {
+      input$afdIndTitle
+    } else {
+      "AFD - Projection des individus"
+    }
+    
+    x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
+      input$afdIndXLabel
+    } else {
+      if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
+    }
+    
+    y_label <- if (!is.null(input$afdIndYLabel) && input$afdIndYLabel != "") {
+      input$afdIndYLabel
+    } else {
+      if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
+    }
+    
+    p_ind <- ggplot(afd_plot_data, aes(x = LD1, y = LD2, color = Group)) +
+      geom_point() +
+      stat_ellipse() +
+      geom_text_repel(aes(label = Individual)) +
+      geom_hline(yintercept = 0) +
+      geom_vline(xintercept = 0) +
+      labs(title = ind_title, x = x_label, y = y_label) +
+      theme_minimal()
+    
+    if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
+      coords <- afd_plot_data[, c("LD1", "LD2")]
+      max_range <- max(abs(range(coords, na.rm = TRUE)))
+      p_ind <- p_ind + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+    }
+    
+    return(p_ind)
+  }
+  
+  createAfdVarPlot <- function() {
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    afd_result <- afd_res$model
+    
+    loadings <- afd_result$scaling
+    var_contrib <- data.frame(
+      Variable = rownames(loadings), 
+      LD1 = loadings[,1], 
+      LD2 = if(ncol(loadings) > 1) loadings[,2] else 0
+    )
+    
+    eigenvals <- afd_result$svd^2
+    prop_var <- eigenvals / sum(eigenvals) * 100
+    
+    var_title <- if (!is.null(input$afdVarTitle) && input$afdVarTitle != "") {
+      input$afdVarTitle
+    } else {
+      "AFD - Contribution des variables"
+    }
+    
+    x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
+      input$afdVarXLabel
+    } else {
+      if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
+    }
+    
+    y_label <- if (!is.null(input$afdVarYLabel) && input$afdVarYLabel != "") {
+      input$afdVarYLabel
+    } else {
+      if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
+    }
+    
+    p_var <- ggplot(var_contrib, aes(x = LD1, y = LD2)) +
+      geom_segment(aes(x = 0, y = 0, xend = LD1, yend = LD2), arrow = arrow()) +
+      geom_text_repel(aes(label = Variable)) +
+      geom_hline(yintercept = 0) +
+      geom_vline(xintercept = 0) +
+      labs(title = var_title, x = x_label, y = y_label) +
+      theme_minimal()
+    
+    if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
+      coords <- var_contrib[, c("LD1", "LD2")]
+      max_range <- max(abs(range(coords, na.rm = TRUE)))
+      p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+    }
+    
+    return(p_var)
+  }
+  
+  output$afdIndPlot <- renderPlotly({
+    p_ind <- createAfdIndPlot()
+    ggplotly(p_ind) %>% layout(showlegend = TRUE)
+  })
+  
+  output$afdVarPlot <- renderPlotly({
+    p_var <- createAfdVarPlot()
+    ggplotly(p_var) %>% layout(showlegend = TRUE)
+  })
+  
+  output$afdSummary <- renderPrint({
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    afd_result <- afd_res$model
+    afd_predict <- afd_res$predictions
+    afd_data <- afd_res$data
+    
+    cat("=== ANALYSE FACTORIELLE DISCRIMINANTE (AFD) ===\n\n")
+    
+    cat("1. VARIANCE EXPLIQUEE\n")
+    cat("----------------------\n")
+    eigenvals <- afd_result$svd^2
+    prop_var <- eigenvals / sum(eigenvals) * 100
+    can_cor <- sqrt(eigenvals / (1 + eigenvals))
+    
+    cat("\nCorrelations canoniques:\n")
+    print(round(can_cor, 4))
+    
+    cat("\n2. POIDS DES VARIABLES\n")
+    cat("----------------------\n")
+    cat("Coefficients des fonctions discriminantes:\n")
+    print(round(afd_result$scaling, 4))
+    
+    X_std <- scale(afd_data[, input$afdVars])
+    scores <- as.matrix(X_std) %*% afd_result$scaling
+    structure_matrix <- cor(X_std, scores)
+    cat("\nMatrice de structure (correlations):\n")
+    print(round(structure_matrix, 4))
+    
+    cat("\nTests F univaries:\n")
+    f_tests <- data.frame(Variable = input$afdVars)
+    for (var in input$afdVars) {
+      aov_result <- aov(as.formula(paste(var, "~", input$afdFactor)), data = afd_data)
+      f_stat <- summary(aov_result)[[1]][1, "F value"]
+      p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
+      f_tests[f_tests$Variable == var, "F_statistic"] <- round(f_stat, 4)
+      f_tests[f_tests$Variable == var, "p_value"] <- round(p_val, 4)
+    }
+    print(f_tests)
+    
+    cat("\n3. QUALITE DE CLASSIFICATION\n")
+    cat("-----------------------------\n")
+    confusion_matrix <- table(Reel = afd_data[[input$afdFactor]], Predit = afd_predict$class)
+    cat("Matrice de confusion:\n")
+    print(confusion_matrix)
+    
+    accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+    cat("\nTaux de classification correcte:", round(accuracy * 100, 2), "%\n")
+    
+    cat("\nTaux de classification par groupe:\n")
+    for (i in 1:nrow(confusion_matrix)) {
+      group_acc <- confusion_matrix[i,i] / sum(confusion_matrix[i,])
+      cat(rownames(confusion_matrix)[i], ":", round(group_acc * 100, 2), "%\n")
+    }
+    
+    if (!is.null(afd_res$cv_results)) {
+      cat("\n4. VALIDATION CROISEE (Leave-One-Out)\n")
+      cat("-------------------------------------\n")
+      
+      cv_confusion <- table(Reel = afd_data[[input$afdFactor]], 
+                            Predit = afd_res$cv_results$predictions)
+      
+      cat("Matrice de confusion (validation croisee):\n")
+      print(cv_confusion)
+      
+      cv_accuracy <- sum(diag(cv_confusion)) / sum(cv_confusion)
+      cat("\nTaux de classification en validation croisee:", round(cv_accuracy * 100, 2), "%\n")
+    } else {
+      cat("\n4. VALIDATION CROISEE\n")
+      cat("---------------------\n")
+      cat("Validation croisee desactivee.\n")
+    }
+    
+    cat("\n5. CENTROIDES DES GROUPES\n")
+    cat("-------------------------\n")
+    print(round(afd_result$means, 4))
+    
+    cat("\n6. PROBABILITES A PRIORI\n")
+    cat("------------------------\n")
+    print(round(afd_result$prior, 4))
+  })
+  
+  # Telechargement graphique AFD Individus
   output$downloadAfdIndPlot <- downloadHandler(
-    filename = function() { paste("afd_ind_plot", Sys.Date(), ".png", sep = "") },
+    filename = function() {
+      ext <- input$afdInd_format
+      paste0("afd_individus_", Sys.Date(), ".", ext)
+    },
     content = function(file) {
-      afd_predict <- predict(values$afdResult, values$filteredData[, input$afdVars])
-      eigenvals <- values$afdResult$svd^2
-      prop_var <- eigenvals / sum(eigenvals) * 100
-      afd_plot_data <- data.frame(LD1 = afd_predict$x[,1], LD2 = if(ncol(afd_predict$x)>1) afd_predict$x[,2] else 0,
-                                  Group = values$filteredData[[input$afdFactor]], Individual = rownames(values$filteredData))
+      width <- input$afdInd_width
+      height <- input$afdInd_height
+      dpi <- input$afdInd_dpi
       
-      ind_title <- if (!is.null(input$afdIndTitle) && input$afdIndTitle != "") {
-        input$afdIndTitle
-      } else {
-        "AFD - Projection des individus"
-      }
-      
-      x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
-        input$afdIndXLabel
-      } else {
-        if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
-      }
-      
-      y_label <- if (!is.null(input$afdIndYLabel) && input$afdIndYLabel != "") {
-        input$afdIndYLabel
-      } else {
-        if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
-      }
-      
-      p_ind <- ggplot(afd_plot_data, aes(x = LD1, y = LD2, color = Group)) +
-        geom_point() +
-        stat_ellipse() +
-        geom_text_repel(aes(label = Individual)) +
-        geom_hline(yintercept = 0) +
-        geom_vline(xintercept = 0) +
-        labs(title = ind_title, x = x_label, y = y_label) +
-        theme_minimal()
-      
-      if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
-        coords <- afd_plot_data[, c("LD1", "LD2")]
-        max_range <- max(abs(range(coords, na.rm = TRUE)))
-        p_ind <- p_ind + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-      }
-      
-      ggsave(file, plot = p_ind, device = "png", width = 10, height = 8)
+      p_ind <- createAfdIndPlot()
+      ggsave(file, plot = p_ind, device = input$afdInd_format, 
+             width = width, height = height, dpi = dpi, units = "cm")
     }
   )
   
+  # Telechargement graphique AFD Variables
   output$downloadAfdVarPlot <- downloadHandler(
-    filename = function() { paste("afd_var_plot", Sys.Date(), ".png", sep = "") },
+    filename = function() {
+      ext <- input$afdVar_format
+      paste0("afd_variables_", Sys.Date(), ".", ext)
+    },
     content = function(file) {
-      loadings <- values$afdResult$scaling
-      var_contrib <- data.frame(Variable = rownames(loadings), LD1 = loadings[,1], LD2 = if(ncol(loadings)>1) loadings[,2] else 0)
+      width <- input$afdVar_width
+      height <- input$afdVar_height
+      dpi <- input$afdVar_dpi
       
-      eigenvals <- values$afdResult$svd^2
-      prop_var <- eigenvals / sum(eigenvals) * 100
-      
-      var_title <- if (!is.null(input$afdVarTitle) && input$afdVarTitle != "") {
-        input$afdVarTitle
-      } else {
-        "AFD - Contribution des variables"
-      }
-      
-      x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
-        input$afdVarXLabel
-      } else {
-        if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
-      }
-      
-      y_label <- if (!is.null(input$afdVarYLabel) && input$afdVarYLabel != "") {
-        input$afdVarYLabel
-      } else {
-        if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
-      }
-      
-      p_var <- ggplot(var_contrib, aes(x = LD1, y = LD2)) +
-        geom_segment(aes(x = 0, y = 0, xend = LD1, yend = LD2), arrow = arrow()) +
-        geom_text_repel(aes(label = Variable)) +
-        geom_hline(yintercept = 0) +
-        geom_vline(xintercept = 0) +
-        labs(title = var_title, x = x_label, y = y_label) +
-        theme_minimal()
-      
-      if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
-        coords <- var_contrib[, c("LD1", "LD2")]
-        max_range <- max(abs(range(coords, na.rm = TRUE)))
-        p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
-      }
-      
-      ggsave(file, plot = p_var, device = "png", width = 10, height = 8)
+      p_var <- createAfdVarPlot()
+      ggsave(file, plot = p_var, device = input$afdVar_format, 
+             width = width, height = height, dpi = dpi, units = "cm")
     }
   )
   
+  # CORRECTION : Telechargement donnees AFD - Excel avec nom correct
+  output$downloadAfdDataXlsx <- downloadHandler(
+    filename = function() {
+      paste0("afd_resultats_", Sys.Date(), ".xlsx")
+    },
+    content = function(file) {
+      req(afdDataframes())
+      dfs <- afdDataframes()
+      
+      wb <- createWorkbook()
+      
+      addWorksheet(wb, "Coordonnees_individus")
+      writeData(wb, "Coordonnees_individus", dfs$ind_coords)
+      
+      addWorksheet(wb, "Coefficients_discriminants")
+      writeData(wb, "Coefficients_discriminants", dfs$coefficients)
+      
+      addWorksheet(wb, "Matrice_structure")
+      writeData(wb, "Matrice_structure", dfs$structure_matrix)
+      
+      addWorksheet(wb, "Tests_F")
+      writeData(wb, "Tests_F", dfs$f_tests)
+      
+      addWorksheet(wb, "Matrice_confusion")
+      writeData(wb, "Matrice_confusion", dfs$confusion_matrix)
+      
+      addWorksheet(wb, "Taux_classification")
+      writeData(wb, "Taux_classification", dfs$classification_rates)
+      
+      addWorksheet(wb, "Centroides")
+      writeData(wb, "Centroides", dfs$centroids)
+      
+      addWorksheet(wb, "Variance_expliquee")
+      writeData(wb, "Variance_expliquee", dfs$variance_explained)
+      
+      if (!is.null(dfs$cv_confusion)) {
+        addWorksheet(wb, "CV_confusion")
+        writeData(wb, "CV_confusion", dfs$cv_confusion)
+        
+        addWorksheet(wb, "CV_taux")
+        writeData(wb, "CV_taux", dfs$cv_accuracy)
+      }
+      
+      saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
   
+  # CORRECTION : Telechargement donnees AFD - CSV avec nom correct
+  output$downloadAfdDataCsv <- downloadHandler(
+    filename = function() {
+      paste0("afd_resultats_", Sys.Date(), ".zip")
+    },
+    content = function(file) {
+      req(afdDataframes())
+      dfs <- afdDataframes()
+      
+      temp_dir <- tempdir()
+      csv_files <- c()
+      
+      write.csv(dfs$ind_coords, file.path(temp_dir, "coordonnees_individus.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "coordonnees_individus.csv")
+      
+      write.csv(dfs$coefficients, file.path(temp_dir, "coefficients_discriminants.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "coefficients_discriminants.csv")
+      
+      write.csv(dfs$structure_matrix, file.path(temp_dir, "matrice_structure.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "matrice_structure.csv")
+      
+      write.csv(dfs$f_tests, file.path(temp_dir, "tests_F.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "tests_F.csv")
+      
+      write.csv(dfs$confusion_matrix, file.path(temp_dir, "matrice_confusion.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "matrice_confusion.csv")
+      
+      write.csv(dfs$classification_rates, file.path(temp_dir, "taux_classification.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "taux_classification.csv")
+      
+      write.csv(dfs$centroids, file.path(temp_dir, "centroides.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "centroides.csv")
+      
+      write.csv(dfs$variance_explained, file.path(temp_dir, "variance_expliquee.csv"), row.names = FALSE)
+      csv_files <- c(csv_files, "variance_expliquee.csv")
+      
+      if (!is.null(dfs$cv_confusion)) {
+        write.csv(dfs$cv_confusion, file.path(temp_dir, "cv_confusion.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "cv_confusion.csv")
+        
+        write.csv(dfs$cv_accuracy, file.path(temp_dir, "cv_taux.csv"), row.names = FALSE)
+        csv_files <- c(csv_files, "cv_taux.csv")
+      }
+      
+      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+    }
+  )
   # ---- Seuils d'efficacité ----
   
   # Valeurs réactives pour l'analyse des seuils
