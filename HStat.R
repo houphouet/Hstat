@@ -2210,7 +2210,7 @@ ui <- dashboardPage(
                         ),
                         selected = "mean"
                       ),
-                      # CORRECTION: Ajout du uiOutput pour les variables de regroupement
+                      # Variables de regroupement
                       uiOutput("groupVarsSelect"),
                       div(
                         style = "margin-top: 10px; padding: 8px; background-color: #d1ecf1; border-radius: 4px;",
@@ -2241,9 +2241,9 @@ ui <- dashboardPage(
                   )
                 ),
                 
-                # === PANNEAU D'AFFICHAGE DU GRAPHIQUE (Droite) 
+                # === PANNEAU D'AFFICHAGE DU GRAPHIQUE (Droite) ===
                 box(
-                  title = tagList(icon("chart-area"), " Graphique Interactif"),
+                  title = tagList(icon("chart-area"), " Graphique "),
                   status = "success",
                   width = 8,
                   solidHeader = TRUE,
@@ -2292,12 +2292,11 @@ ui <- dashboardPage(
                       )
                     )
                   )
-                ),
+                )
               ),
               
               # === SECTION EXPORT DU GRAPHIQUE ===
               fluidRow(
-                # NOUVELLE SECTION: EXPORT AVANCÉ
                 box(
                   title = tagList(icon("download"), " Exporter le graphique"),
                   status = "primary",
@@ -2306,39 +2305,11 @@ ui <- dashboardPage(
                   collapsible = TRUE,
                   collapsed = FALSE,
                   
-                  # DPI recommandés
-                  div(
-                    style = "margin: 10px 0; padding: 10px; background-color: #e7f3ff; border-left: 3px solid #007bff; border-radius: 4px;",
-                    icon("info-circle", style = "color: #007bff;"),
-                    span(style = "margin-left: 5px; font-weight: 600; color: #004085;",
-                         "DPI recommandés: 72-150 (écran), 300 (impression standard), 600+ (haute qualité)")
-                  ),
-                  
-                  # Largeur et hauteur
                   fluidRow(
-                    column(6,
-                           numericInput("exportWidth", 
-                                        label = "Largeur (pouces):",
-                                        value = 10,
-                                        min = 1,
-                                        max = 100,
-                                        step = 0.5)
-                    ),
-                    column(6,
-                           numericInput("exportHeight", 
-                                        label = "Hauteur (pouces):",
-                                        value = 6,
-                                        min = 1,
-                                        max = 100,
-                                        step = 0.5)
-                    )
-                  ),
-                  
-                  # Format et DPI
-                  fluidRow(
-                    column(6,
+                    column(4,
+                           # Format d'export
                            selectInput("exportFormat", 
-                                       label = "Format d'export:",
+                                       label = tagList(icon("file-image"), " Format d'export:"),
                                        choices = c(
                                          "PNG (Recommandé)" = "png",
                                          "JPEG/JPG" = "jpg",
@@ -2350,51 +2321,58 @@ ui <- dashboardPage(
                                        ),
                                        selected = "png")
                     ),
-                    column(6,
-                           numericInput("exportDPI", 
-                                        label = "DPI (résolution):",
-                                        value = 300,
-                                        min = 72,
-                                        max = 20000,
-                                        step = 50)
+                    
+                    column(4,
+                           # DPI
+                           sliderInput("exportDPI", 
+                                       label = tagList(icon("sliders-h"), " Résolution (DPI):"),
+                                       value = 300,
+                                       min = 300,
+                                       max = 20000,
+                                       step = 50)
+                    ),
+                    
+                    column(4,
+                           # Bouton de téléchargement CORRIGÉ
+                           div(style = "margin-top: 25px;",
+                               # Utiliser downloadLink au lieu de downloadButton
+                               tags$a(
+                                 id = "downloadPlot",
+                                 class = "btn btn-success btn-lg shiny-download-link",
+                                 style = "width: 100%; font-weight: bold; padding: 12px; font-size: 16px; 
+                            cursor: pointer; display: block; text-align: center; 
+                            text-decoration: none; color: white;
+                            background-color: #28a745; border: 1px solid #28a745;",
+                                 href = "",
+                                 target = "_blank",
+                                 download = NA,
+                                 icon("download"),
+                                 " Télécharger le Graphique"
+                               ),
+                               
+                           )
                     )
                   ),
                   
-                  # Dimensions finales
-                  uiOutput("exportDimensionsInfo"),
                   
-                  # Presets rapides
+                  # Dimensions calculées
                   div(
-                    style = "margin: 15px 0; padding: 15px; background-color: #d4edda; border-left: 3px solid #28a745; border-radius: 4px;",
-                    h5(icon("magic"), " Presets rapides:", 
-                       style = "color: #155724; margin-top: 0; font-size: 14px; font-weight: bold;"),
-                    fluidRow(
-                      column(4,
-                             actionButton("presetScreen", 
-                                          "Écran",
-                                          class = "btn-sm btn-info",
-                                          style = "width: 100%;")
-                      ),
-                      column(4,
-                             actionButton("presetPrint", 
-                                          "Impression",
-                                          class = "btn-sm btn-success",
-                                          style = "width: 100%;")
-                      ),
-                      column(4,
-                             actionButton("presetHighQuality", 
-                                          "Haute qualité",
-                                          class = "btn-sm btn-warning",
-                                          style = "width: 100%;")
-                      )
-                    )
+                    style = "margin: 10px 0; padding: 15px; 
+               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+               border-radius: 8px;",
+                    h5(
+                      icon("ruler-combined"), " Dimensions : 12×8 pouces",
+                      style = "color: white; margin: 0; font-size: 15px; font-weight: bold;"
+                    ),
+                    uiOutput("exportDimensionsInfo")
                   ),
                   
                   # Options JPEG
                   conditionalPanel(
                     condition = "input.exportFormat == 'jpg'",
                     div(
-                      style = "margin: 10px 0;",
+                      style = "margin: 10px 0; padding: 10px; background-color: #fff8e1; 
+                 border-left: 3px solid #ffc107; border-radius: 4px;",
                       sliderInput("jpegQuality",
                                   "Qualité JPEG:",
                                   min = 50,
@@ -2408,7 +2386,8 @@ ui <- dashboardPage(
                   conditionalPanel(
                     condition = "input.exportFormat == 'tiff'",
                     div(
-                      style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;",
+                      style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; 
+                 border-left: 3px solid #ffc107; border-radius: 4px;",
                       h5(icon("compress"), " Compression TIFF:", 
                          style = "color: #856404; margin-top: 0; font-size: 14px; font-weight: bold;"),
                       selectInput("tiffCompression",
@@ -2418,27 +2397,11 @@ ui <- dashboardPage(
                                               "ZIP" = "zip"),
                                   selected = "lzw")
                     )
-                  ),
-                  
-                  # Bouton de téléchargement - AMÉLIORÉ ET FONCTIONNEL
-                  div(
-                    style = "margin-top: 20px; text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
-                    downloadButton(
-                      "downloadPlot", 
-                      label = tagList(icon("download"), " Télécharger le graphique"),
-                      class = "btn-primary btn-lg",
-                      style = "width: 90%; padding: 15px 30px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"
-                    ),
-                    br(),
-                    helpText(
-                      icon("info-circle", style = "color: #007bff;"),
-                      "Cliquez pour télécharger le graphique avec les paramètres sélectionnés ci-dessus.",
-                      style = "margin-top: 10px; font-size: 13px; color: #666;"
-                    )
                   )
                 )
               ),
-              # === PANNEAU D'OPTIONS AVANCÉES (Extensible) 
+              
+              # === PANNEAU D'OPTIONS AVANCÉES (Extensible) ===
               fluidRow(
                 box(
                   title = tagList(icon("cog"), " Options Avancées de Personnalisation"),
@@ -2462,7 +2425,7 @@ ui <- dashboardPage(
                   ),
                   
                   fluidRow(
-                    # ========== COLONNE 1: TEXTES ET LABELS =
+                    # ========== COLONNE 1: TEXTES ET LABELS 
                     column(
                       width = 4,
                       div(
@@ -2842,7 +2805,7 @@ ui <- dashboardPage(
                 )
               ),
               
-              # === PANNEAU DES STATISTIQUES ET INFORMATIONS
+              # === PANNEAU DES STATISTIQUES ET INFORMATIONS ===
               fluidRow(
                 # Statistiques des données
                 box(
@@ -2886,75 +2849,130 @@ ui <- dashboardPage(
                   )
                 )
               ),
-              # CORRECTION: Ajout du script SortableJS pour le drag-and-drop
+              
+              # === SCRIPTS JAVASCRIPT ET CSS ===
               tags$head(
+                # Script SortableJS pour le drag-and-drop
                 tags$script(src = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
+                
+                # Script d'initialisation Sortable
                 tags$script(HTML("
-            $(document).ready(function() {
-              // Fonction pour initialiser Sortable
-              function initSortable() {
-                var el = document.getElementById('xOrderSortable');
-                if (el && !el.sortableInstance) {
-                  el.sortableInstance = Sortable.create(el, {
-                    animation: 150,
-                    ghostClass: 'sortable-ghost',
-                    handle: '.sortable-item',
-                    onEnd: function(evt) {
-                      // Récupérer l'ordre des éléments
-                      var items = el.querySelectorAll('.sortable-item');
-                      var order = [];
-                      items.forEach(function(item) {
-                        order.push(item.getAttribute('data-value'));
-                      });
-                      // Envoyer l'ordre à Shiny
-                      Shiny.setInputValue('xLevelOrder', order, {priority: 'event'});
-                    }
-                  });
-                }
-              }
-              
-              // Initialiser au chargement
-              setTimeout(initSortable, 500);
-              
-              // Réinitialiser quand le contenu change
-              $(document).on('shiny:value', function(event) {
-                if (event.target.id === 'xOrderEditor') {
-                  setTimeout(initSortable, 100);
-                }
+    $(document).ready(function() {
+      // Fonction pour initialiser Sortable
+      function initSortable() {
+        var el = document.getElementById('xOrderSortable');
+        if (el && !el.sortableInstance) {
+          el.sortableInstance = Sortable.create(el, {
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            handle: '.sortable-item',
+            onEnd: function(evt) {
+              // Récupérer l'ordre des éléments
+              var items = el.querySelectorAll('.sortable-item');
+              var order = [];
+              items.forEach(function(item) {
+                order.push(item.getAttribute('data-value'));
               });
-            });
-          ")),
+              // Envoyer l'ordre à Shiny
+              Shiny.setInputValue('xLevelOrder', order, {priority: 'event'});
+            }
+          });
+        }
+      }
+      
+      // Initialiser au chargement
+      setTimeout(initSortable, 500);
+      
+      // Réinitialiser quand le contenu change
+      $(document).on('shiny:value', function(event) {
+        if (event.target.id === 'xOrderEditor') {
+          setTimeout(initSortable, 100);
+        }
+      });
+    });
+  ")),
+                
+                # Styles CSS
                 tags$style(HTML("
-            .sortable-ghost {
-              opacity: 0.4;
-              background-color: #e3f2fd;
-            }
-            .sortable-item:hover {
-              box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
-              border-color: #28a745 !important;
-            
-            /* CORRECTION: Styles pour rendre le bouton download cliquable */
-            #downloadPlot {
-              cursor: pointer !important;
-              pointer-events: auto !important;
-              opacity: 1 !important;
-              z-index: 1000;
-            }
-            
-            #downloadPlot:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 6px 12px rgba(0,0,0,0.3) !important;
-              background-color: #0056b3 !important;
-              transition: all 0.3s ease;
-            }
-            
-            #downloadPlot:active {
-              transform: translateY(0);
-            }
-          "))
+    /* Styles pour le drag-and-drop */
+    .sortable-ghost {
+      opacity: 0.4;
+      background-color: #e3f2fd;
+    }
+    
+    .sortable-item:hover {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+      border-color: #28a745 !important;
+    }
+    
+    /* CORRECTION: Forcer le bouton de téléchargement à être cliquable */
+    #downloadPlot {
+      cursor: pointer !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 100 !important;
+    }
+    
+    #downloadPlot:hover {
+      background-color: #1e7e34 !important;
+      transform: scale(1.02);
+      transition: all 0.2s ease;
+    }
+    
+    #downloadPlot:active {
+      transform: scale(0.98);
+    }
+    
+    /* S'assurer que rien ne recouvre le bouton */
+    #downloadButtonContainer {
+      position: relative;
+      z-index: 100;
+    }
+    
+    /* Améliorer la visibilité du bouton */
+    .btn-success {
+      background-color: #28a745 !important;
+      border-color: #28a745 !important;
+    }
+    
+    .btn-success:hover {
+      background-color: #218838 !important;
+      border-color: #1e7e34 !important;
+    }
+  ")),
+                tags$script(HTML("
+  $(document).ready(function() {
+    // S'assurer que le lien de téléchargement fonctionne correctement
+    Shiny.addCustomMessageHandler('download-ready', function(message) {
+      console.log('Téléchargement prêt');
+    });
+    
+    // Améliorer l'apparence du bouton au survol
+    $('#downloadPlot').hover(
+      function() {
+        $(this).css('background-color', '#218838');
+        $(this).css('transform', 'scale(1.02)');
+        $(this).css('transition', 'all 0.2s ease');
+      },
+      function() {
+        $(this).css('background-color', '#28a745');
+        $(this).css('transform', 'scale(1)');
+      }
+    );
+    
+    // Feedback visuel lors du clic
+    $('#downloadPlot').on('mousedown', function() {
+      $(this).css('transform', 'scale(0.98)');
+    });
+    
+    $('#downloadPlot').on('mouseup', function() {
+      $(this).css('transform', 'scale(1.02)');
+    });
+  });
+"))
               )
-              
       ),
+      
       # ---- Tests statistiques ----
       tabItem(tabName = "tests",
               fluidRow(
@@ -3456,20 +3474,27 @@ ui <- dashboardPage(
                     checkboxInput("pcaCenterAxes", "Centrer sur (0,0)", TRUE),
                     hr(),
                     h5("Options de telechargement graphique:", style = "font-weight: bold; color: #337ab7;"),
+                    div(style = "background-color: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0;",
+                        p(style = "margin: 0; font-size: 12px; color: #155724;",
+                          icon("info-circle"), 
+                          HTML("<strong> AUTOMATIQUE:</strong> Les dimensions sont calculees automatiquement selon le DPI.<br>
+                    <strong>72-96 DPI (Web)</strong>: 30x24 cm (augmentees)<br>
+                    <strong>150 DPI (Presentation)</strong>: 25x20 cm (standards)<br>
+                    <strong>300 DPI (Impression)</strong>: 25x20 cm (standards)<br>
+                    <strong>600+ DPI (Publication)</strong>: 22.5x18 cm (optimisees)"))
+                    ),
                     fluidRow(
-                      column(4,
+                      column(6,
                              selectInput("pcaPlot_format", "Format:",
                                          choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
                                          selected = "png")
                       ),
-                      column(4,
-                             numericInput("pcaPlot_width", "Largeur (cm):", value = 25, min = 5, max = 100)
-                      ),
-                      column(4,
-                             numericInput("pcaPlot_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                      column(6,
+                             numericInput("pcaPlot_dpi", "Resolution (DPI):", value = 300, min = 72, max = 1200)
                       )
                     ),
-                    numericInput("pcaPlot_dpi", "Resolution (DPI):", value = 300, min = 72, max = 1200),
+                    p(style = "font-size: 11px; color: #666; font-style: italic;",
+                      icon("magic"), " Les dimensions (largeur x hauteur) sont calculees automatiquement en fonction du DPI selectionne."),
                     hr(),
                     div(style = "text-align: center;",
                         downloadButton("downloadPcaPlot", "Telecharger graphique", class = "btn-info", style = "margin: 5px;"),
@@ -3516,6 +3541,8 @@ ui <- dashboardPage(
                              checkboxInput("hcpcCenterAxes", "Centrer sur (0,0)", TRUE),
                              hr(),
                              h5("Options telechargement carte clusters:"),
+                             p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
+                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("hcpcCluster_format", "Format:",
@@ -3524,14 +3551,6 @@ ui <- dashboardPage(
                                ),
                                column(6,
                                       numericInput("hcpcCluster_dpi", "DPI:", value = 300, min = 72, max = 2000)
-                               )
-                             ),
-                             fluidRow(
-                               column(6,
-                                      numericInput("hcpcCluster_width", "Largeur (cm):", value = 25, min = 5, max = 100)
-                               ),
-                               column(6,
-                                      numericInput("hcpcCluster_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
                                )
                              )
                       ),
@@ -3542,6 +3561,8 @@ ui <- dashboardPage(
                                "Le dendrogramme n'est pas centre sur (0,0)"),
                              hr(),
                              h5("Options telechargement dendrogramme:"),
+                             p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
+                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("hcpcDend_format", "Format:",
@@ -3549,15 +3570,7 @@ ui <- dashboardPage(
                                                   selected = "png")
                                ),
                                column(6,
-                                      numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = 20000)
-                               )
-                             ),
-                             fluidRow(
-                               column(6,
-                                      numericInput("hcpcDend_width", "Largeur (cm):", value = 30, min = 5, max = 100)
-                               ),
-                               column(6,
-                                      numericInput("hcpcDend_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                                      numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = 2000)
                                )
                              )
                       )
@@ -3605,24 +3618,49 @@ ui <- dashboardPage(
                 box(title = "Analyse Factorielle Discriminante (AFD)", 
                     status = "primary", width = 12, solidHeader = TRUE,
                     
-                    fluidRow(
-                      column(4,
-                             uiOutput("afdFactorSelect")),
-                      column(8,
-                             uiOutput("afdVarSelect"))
+                    # ÉTAPE 1 : Sélection du facteur discriminant (BIEN VISIBLE)
+                    div(style = "background-color: #fff5f5; border-left: 5px solid #e74c3c; padding: 15px; margin-bottom: 15px;",
+                        h4(style = "color: #e74c3c; margin-top: 0;",
+                           icon("bullseye"), " Variable à discriminer (OBLIGATOIRE)"),
+                        p(style = "margin: 5px 0; font-size: 13px; color: #555;",
+                          "Sélectionnez la variable catégorielle que vous souhaitez discriminer (prédire). Cette variable doit contenir au moins 2 groupes différents."),
+                        uiOutput("afdFactorSelect"),
+                        p(style = "margin: 5px 0 0 0; font-size: 11px; color: #e74c3c; font-weight: bold;",
+                          icon("exclamation-circle"), " Si aucune variable n'apparaît, vérifiez que vos données contiennent des variables catégorielles (facteurs).")
                     ),
+                    
+                    # ÉTAPE 2 : Sélection des variables quantitatives
+                    div(style = "background-color: #f0fff4; border-left: 5px solid #27ae60; padding: 15px; margin-bottom: 15px;",
+                        h4(style = "color: #27ae60; margin-top: 0;",
+                           icon("chart-line"), " ÉTAPE 2 : Variables quantitatives (OBLIGATOIRE)"),
+                        p(style = "margin: 5px 0; font-size: 13px; color: #555;",
+                          "Sélectionnez les variables numériques qui serviront à discriminer les groupes. Plus il y a de variables pertinentes, meilleure sera la discrimination."),
+                        uiOutput("afdVarSelect"),
+                        p(style = "margin: 5px 0 0 0; font-size: 11px; color: #27ae60; font-style: italic;",
+                          icon("check-circle"), " Conseil : Sélectionnez au moins 2-3 variables pour obtenir de bons résultats.")
+                    ),
+                    
+                    hr(),
+                    h4(style = "color: #3498db; margin-top: 10px;", icon("cogs"), " ÉTAPE 3 : Options avancées (optionnel)"),
                     checkboxInput("afdUseMeans", "Utiliser les moyennes par groupe", FALSE),
                     conditionalPanel(
                       condition = "input.afdUseMeans == true",
                       uiOutput("afdMeansGroupSelect")
                     ),
+                    uiOutput("afdPredictVarsSelect"),
+                    div(style = "background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 10px; margin: 10px 0;",
+                        p(style = "margin: 0; font-size: 12px; color: #0c5460;",
+                          icon("info-circle"), 
+                          HTML(" <strong>Variables de prediction:</strong> Selectionnez des variables categorielles supplementaires pour enrichir la prediction du modele."))
+                    ),
+                    uiOutput("afdQualiSupSelect"),
                     div(style = "background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0;",
                         checkboxInput("afdCrossValidation", 
                                       HTML("<strong>Activer la validation croisee (Leave-One-Out)</strong>"), 
                                       FALSE),
                         p(style = "margin: 5px 0 0 25px; font-size: 12px; color: #856404;",
                           icon("exclamation-triangle"), 
-                          " ATTENTION : La validation croisee peut etre tres longue sur de grands jeux de donnees.")
+                          " ATTENTION: La validation croisee peut etre tres longue sur de grands jeux de donnees.")
                     ),
                     hr(),
                     h5("Personnalisation graphique:", style = "font-weight: bold; color: #337ab7;"),
@@ -3635,6 +3673,8 @@ ui <- dashboardPage(
                              checkboxInput("afdIndCenterAxes", "Centrer sur (0,0)", TRUE),
                              hr(),
                              h5("Options telechargement projection individus:"),
+                             p(style = "font-size: 11px; color: #337ab7; font-style: italic;",
+                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("afdInd_format", "Format:",
@@ -3642,15 +3682,7 @@ ui <- dashboardPage(
                                                   selected = "png")
                                ),
                                column(6,
-                                      numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = 20000)
-                               )
-                             ),
-                             fluidRow(
-                               column(6,
-                                      numericInput("afdInd_width", "Largeur (cm):", value = 25, min = 5, max = 100)
-                               ),
-                               column(6,
-                                      numericInput("afdInd_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                                      numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = 2000)
                                )
                              )
                       ),
@@ -3662,6 +3694,8 @@ ui <- dashboardPage(
                              checkboxInput("afdVarCenterAxes", "Centrer sur (0,0)", TRUE),
                              hr(),
                              h5("Options telechargement contribution variables:"),
+                             p(style = "font-size: 11px; color: #337ab7; font-style: italic;",
+                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("afdVar_format", "Format:",
@@ -3669,15 +3703,7 @@ ui <- dashboardPage(
                                                   selected = "png")
                                ),
                                column(6,
-                                      numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = 20000)
-                               )
-                             ),
-                             fluidRow(
-                               column(6,
-                                      numericInput("afdVar_width", "Largeur (cm):", value = 25, min = 5, max = 100)
-                               ),
-                               column(6,
-                                      numericInput("afdVar_height", "Hauteur (cm):", value = 20, min = 5, max = 100)
+                                      numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = 2000)
                                )
                              )
                       )
@@ -3727,7 +3753,6 @@ ui <- dashboardPage(
                 )
               )
       ),
-      
       # ---- Seuils d'efficacité ----
       tabItem(tabName = "threshold",
               # Message d'information sur la mise à jour automatique
@@ -4263,11 +4288,11 @@ server <- function(input, output, session) {
     multiResultsMain = NULL, multiResultsInteraction = NULL,
     normalityResults = NULL, homogeneityResults = NULL,
     currentVarIndex = 1, currentValidationVar = 1,
-    allTestResults = list(),  # To accumulate multiple test results for Excel
-    allPostHocResults = list(),  # To accumulate multiple post-hoc results for Excel
-    modelsList = list(),  # Models per variable for diagnostics/resid
-    normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),  # Per variable for validation
-    currentDiagVar = 1, currentResidVar = 1  # Navigation for diagnostics and resid
+    allTestResults = list(),  
+    allPostHocResults = list(),  
+    modelsList = list(),  
+    normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),  
+    currentDiagVar = 1, currentResidVar = 1  
   )
   
   # ---- Aide et réinitialisation ----
@@ -5278,7 +5303,7 @@ server <- function(input, output, session) {
     updatePickerInput(session, "numVars", selected = character(0))
     showNotification("Toutes les variables désélectionnées", type = "message", duration = 2)
   })
-   
+  
   # UI pour sélection des facteurs
   output$descFactorUI <- renderUI({
     req(values$filteredData)
@@ -5883,7 +5908,7 @@ server <- function(input, output, session) {
       contingency_table <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
       crosstab_values$contingency_table <- addmargins(contingency_table)
       
-      # CORRECTION : Proportions en lignes
+      # Proportions en lignes
       if ("row_prop" %in% input$analysisOptions) {
         row_prop <- prop.table(contingency_table, margin = 1) * 100
         crosstab_values$row_proportions <- addmargins(row_prop, margin = 2)
@@ -5891,7 +5916,7 @@ server <- function(input, output, session) {
         crosstab_values$row_proportions <- NULL
       }
       
-      # CORRECTION : Proportions en colonnes
+      # Proportions en colonnes
       if ("col_prop" %in% input$analysisOptions) {
         col_prop <- prop.table(contingency_table, margin = 2) * 100  
         crosstab_values$col_proportions <- addmargins(col_prop, margin = 1)
@@ -6808,7 +6833,7 @@ server <- function(input, output, session) {
   })
   
   
-  # SECTION 3: GESTION DES NIVEAUX X - AMÉLIORATION POUR PERSISTANCE
+  # SECTION 3: GESTION DES NIVEAUX X 
   
   # NOUVELLE FONCTIONNALITÉ: Initialiser le stockage des labels personnalisés
   observe({
@@ -6837,14 +6862,14 @@ server <- function(input, output, session) {
       }
       values$currentXLevels <- unique_vals
       
-      # NOUVELLE: Stocker les labels personnalisés de manière persistante
+      # Stocker les labels personnalisés de manière persistante
       if(!is.null(input$vizXVar) && is.null(values$storedLevelLabels[[input$vizXVar]])) {
         values$storedLevelLabels[[input$vizXVar]] <- unique_vals
       }
     }
   })
   
-  # Éditeur de niveaux amélioré pour la variable X 
+  # Éditeur de niveauxpour la variable X 
   output$xLevelsEditor <- renderUI({
     req(values$filteredData, input$vizXVar)
     
@@ -6902,7 +6927,7 @@ server <- function(input, output, session) {
       div(style = if(length(unique_vals) > 10) "max-height: 400px; overflow-y: auto; padding-right: 10px;" else "",
           lapply(seq_along(unique_vals), function(i) {
             lvl <- unique_vals[i]
-            # NOUVELLE: Récupérer le label stocké s'il existe
+            # Récupérer le label stocké s'il existe
             stored_label <- values$storedLevelLabels[[x_var]]
             default_val <- if(!is.null(stored_label) && !is.null(names(stored_label)) && lvl %in% names(stored_label)) {
               stored_label[[lvl]]
@@ -6947,7 +6972,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # NOUVELLE: Observateur pour appliquer et stocker les labels
+  # Observateur pour appliquer et stocker les labels
   observeEvent(input$applyLabels, {
     req(values$currentXLevels, input$vizXVar)
     
@@ -7251,7 +7276,7 @@ server <- function(input, output, session) {
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
     
     if(x_type %in% c("factor", "categorical", "text")) {
-      # NOUVELLE: Utiliser les labels stockés de manière persistante
+      # Utiliser les labels stockés de manière persistante
       if(!is.null(values$storedLevelLabels[[x_var]])) {
         level_mapping <- values$storedLevelLabels[[x_var]]
         
@@ -7375,7 +7400,7 @@ server <- function(input, output, session) {
   # SECTION 5.5: GESTION DES LABELS DE LÉGENDE
   
   
-  # NOUVELLE: Créer une interface pour personnaliser les labels de légende
+  # Créer une interface pour personnaliser les labels de légende
   observeEvent(input$customizeLegendLabels, {
     req(values$plotData)
     
@@ -7437,7 +7462,7 @@ server <- function(input, output, session) {
     ))
   })
   
-  # NOUVELLE: Appliquer les labels de légende personnalisés
+  # Appliquer les labels de légende personnalisés
   observeEvent(input$applyLegendLabels, {
     # Déterminer la clé de stockage
     storage_key <- if(!is.null(values$multipleY) && values$multipleY) {
@@ -7470,7 +7495,7 @@ server <- function(input, output, session) {
     showNotification("Labels de légende appliqués", type = "message", duration = 2)
   })
   
-  # NOUVELLE: Réinitialiser les labels de légende
+  # Réinitialiser les labels de légende
   observeEvent(input$resetLegendLabels, {
     storage_key <- if(!is.null(values$multipleY) && values$multipleY) {
       "multiY_legend"
@@ -7559,7 +7584,7 @@ server <- function(input, output, session) {
                           scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
     }
     
-    # NOUVELLE: Appliquer les labels de légende personnalisés
+    # Appliquer les labels de légende personnalisés
     if(!is.null(color_var)) {
       storage_key <- if(color_var == "Variable") {
         "multiY_legend"
@@ -7576,7 +7601,7 @@ server <- function(input, output, session) {
     
     # Personnalisation du thème (sauf pour seasonal_evolution qui a son propre style)
     if(viz_type != "seasonal_evolution") {
-      # NOUVELLE: Créer les paramètres de formatage des axes
+      # Créer les paramètres de formatage des axes
       x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
         "bold.italic"
       } else if(isTRUE(input$xAxisBold)) {
@@ -7607,7 +7632,7 @@ server <- function(input, output, session) {
         "plain"
       }
       
-      # NOUVELLE: Obtenir l'angle des labels X
+      # Obtenir l'angle des labels X
       x_angle <- input$xAxisAngle %||% 0
       x_hjust <- if(x_angle > 0) 1 else 0.5
       x_vjust <- if(x_angle > 0) 1 else 0.5
@@ -7683,7 +7708,7 @@ server <- function(input, output, session) {
       p <- p + ylab(y_var)
     }
     
-    # NOUVELLE: Ajouter le titre de légende personnalisé
+    # Ajouter le titre de légende personnalisé
     if(!is.null(input$legendTitle) && input$legendTitle != "" && !is.null(color_var)) {
       p <- p + labs(color = input$legendTitle, fill = input$legendTitle)
     }
@@ -7721,7 +7746,7 @@ server <- function(input, output, session) {
     return(plotly_obj)
   })
   
-  # NOUVELLE: Rendre fonctionnel le bouton Personnaliser
+  # Rendre fonctionnel le bouton Personnaliser
   observeEvent(input$customizePlot, {
     showModal(modalDialog(
       title = tagList(icon("paint-brush"), " Personnalisation Rapide"),
@@ -7751,7 +7776,7 @@ server <- function(input, output, session) {
     ))
   })
   
-  # NOUVELLE: Appliquer la personnalisation rapide
+  # Appliquer la personnalisation rapide
   observeEvent(input$applyQuickCustom, {
     updateTextInput(session, "plotTitle", value = input$quickPlotTitle)
     updateTextInput(session, "xAxisLabel", value = input$quickXLabel)
@@ -7787,7 +7812,7 @@ server <- function(input, output, session) {
                            se = isTRUE(input$showConfidenceInterval))
     }
     
-    # NOUVELLE: Ajouter les valeurs si demandé
+    # Ajouter les valeurs si demandé
     if(isTRUE(input$showValues)) {
       p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
                          vjust = -0.5, size = 3, check_overlap = TRUE)
@@ -7814,7 +7839,7 @@ server <- function(input, output, session) {
       }
     }
     
-    # NOUVELLE: Ajouter les valeurs si demandé
+    # Ajouter les valeurs si demandé
     if(isTRUE(input$showValues)) {
       p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
                          vjust = -0.5, size = 3, check_overlap = TRUE)
@@ -7835,7 +7860,7 @@ server <- function(input, output, session) {
       p <- p + geom_col(width = input$barWidth %||% 0.8)
     }
     
-    # NOUVELLE: Ajouter les valeurs si demandé
+    # Ajouter les valeurs si demandé
     if(isTRUE(input$showValues)) {
       p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
                          vjust = -0.5, size = 3, 
@@ -7896,7 +7921,7 @@ server <- function(input, output, session) {
                            se = isTRUE(input$showConfidenceInterval))
     }
     
-    # NOUVELLE: Ajouter les valeurs si demandé (pour les points)
+    # Ajouter les valeurs si demandé (pour les points)
     if(isTRUE(input$showValues) && isTRUE(input$showPoints)) {
       p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
                          vjust = -0.5, size = 2.5, check_overlap = TRUE)
@@ -7927,7 +7952,7 @@ server <- function(input, output, session) {
                    na.rm = TRUE)
     }
     
-    # NOUVELLE: Ajouter les valeurs si demandé
+    # Ajouter les valeurs si demandé
     if(isTRUE(input$showValues)) {
       p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
                          vjust = -0.5, size = 3, check_overlap = TRUE)
@@ -8008,7 +8033,7 @@ server <- function(input, output, session) {
       scale_fill_gradient(low = "white", high = "steelblue") +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
     
-    # NOUVELLE: Ajouter les valeurs si demandé
+    # Ajouter les valeurs si demandé
     if(isTRUE(input$showValues)) {
       p <- p + geom_text(aes(label = count), color = "black", size = 3)
     }
@@ -8044,7 +8069,7 @@ server <- function(input, output, session) {
       coord_polar(theta = "y") +
       theme_void()
     
-    # NOUVELLE: Toujours afficher les valeurs/pourcentages pour les pie charts
+    # Toujours afficher les valeurs/pourcentages pour les pie charts
     p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
                        position = position_stack(vjust = 0.5))
     
@@ -8065,7 +8090,7 @@ server <- function(input, output, session) {
       xlim(c(0.5, 2.5)) +
       theme_void()
     
-    # NOUVELLE: Toujours afficher les valeurs/pourcentages pour les donut charts
+    # Toujours afficher les valeurs/pourcentages pour les donut charts
     p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
                        position = position_stack(vjust = 0.5))
     
@@ -8119,7 +8144,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Information saisonnière améliorée 
+  # Information saisonnière e 
   output$seasonalInfo <- renderText({
     req(input$vizType %in% c("seasonal_smooth", "seasonal_evolution"))
     
@@ -8315,466 +8340,588 @@ server <- function(input, output, session) {
   })
   
   
-  # SECTION AJOUTÉE: EXPORT AVANCÉ DES GRAPHIQUES
   
   
-  # Stocker le graphique ggplot actuel pour l'export
-  # Version améliorée pour garantir la disponibilité
-  currentPlotReactive <- reactive({
-    req(createPlot())
-    createPlot()
-  })
   
-  # Observer pour mettre à jour values$currentPlot
-  observe({
-    plot <- currentPlotReactive()
-    if(!is.null(plot)) {
-      values$currentPlot <- plot
-    }
-  })
-  
-  # Interface pour l'export avancé
-  # NOTE: La section output$exportControls a été déplacée directement dans UI.R
-  # pour éviter le clignotement de l'interface lors des interactions.
-  # Les contrôles d'export sont maintenant statiques dans le fichier UI.R.
+  # SECTION: EXPORT AVANCÉ DES GRAPHIQUES 
   
   
   # Affichage des dimensions en pixels
   output$exportDimensionsInfo <- renderUI({
-    req(input$exportDPI, input$exportWidth, input$exportHeight)
+    req(input$exportDPI)
     
-    width_px <- round(input$exportWidth * input$exportDPI)
-    height_px <- round(input$exportHeight * input$exportDPI)
+    # Calcul automatique des dimensions optimales
+    # Utiliser des dimensions standard qui fonctionnent bien pour tous les DPI
+    width_inches <- 12   # 12 pouces de largeur (format paysage)
+    height_inches <- 8   # 8 pouces de hauteur
+    
+    # Calculer les dimensions en pixels
+    width_px <- round(width_inches * input$exportDPI)
+    height_px <- round(height_inches * input$exportDPI)
+    
+    # Calculer la taille approximative du fichier (estimation grossière)
+    file_size_mb <- round((width_px * height_px * 3) / (1024 * 1024), 1)  # RGB, non compressé
     
     div(
-      style = "background-color: #e7f3ff; padding: 10px; border-radius: 4px; margin: 10px 0;",
-      icon("info-circle", style = "color: #0066cc;"),
-      span(style = "margin-left: 5px; font-weight: bold; color: #0066cc;",
-           paste0("Dimensions finales: ", width_px, " × ", height_px, " pixels"))
+      style = "padding: 0;",
+      div(
+        style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;",
+        div(
+          style = "flex: 1;",
+          div(
+            style = "color: white; font-size: 14px; margin-bottom: 5px;",
+            icon("arrows-alt-h", style = "margin-right: 5px;"),
+            strong("Largeur:"),
+            span(style = "margin-left: 5px;", paste0(width_inches, " pouces (", width_px, " px)"))
+          ),
+          div(
+            style = "color: white; font-size: 14px;",
+            icon("arrows-alt-v", style = "margin-right: 5px;"),
+            strong("Hauteur:"),
+            span(style = "margin-left: 5px;", paste0(height_inches, " pouces (", height_px, " px)"))
+          )
+        )
+      ),
+      div(
+        style = "padding: 10px; background-color: rgba(255,255,255,0.2); border-radius: 4px; color: white; font-size: 13px;",
+        icon("image", style = "margin-right: 5px;"),
+        strong("Résolution finale:"),
+        span(style = "margin-left: 5px;", paste0(width_px, " × ", height_px, " pixels")),
+        br(),
+        icon("hdd", style = "margin-right: 5px; margin-top: 5px;"),
+        strong("Taille estimée:"),
+        span(style = "margin-left: 5px;", paste0("≈ ", file_size_mb, " MB (non compressé)"))
+      )
     )
   })
   
-  # Presets rapides
-  observeEvent(input$presetScreen, {
-    updateNumericInput(session, "exportDPI", value = 96)
-    updateNumericInput(session, "exportWidth", value = 10)
-    updateNumericInput(session, "exportHeight", value = 6)
-    updateSelectInput(session, "exportFormat", selected = "png")
-    showNotification("Preset 'Écran' appliqué (96 DPI)", type = "message", duration = 2)
-  })
-  
-  observeEvent(input$presetPrint, {
-    updateNumericInput(session, "exportDPI", value = 300)
-    updateNumericInput(session, "exportWidth", value = 10)
-    updateNumericInput(session, "exportHeight", value = 6)
-    updateSelectInput(session, "exportFormat", selected = "png")
-    showNotification("Preset 'Impression' appliqué (300 DPI)", type = "message", duration = 2)
-  })
-  
-  observeEvent(input$presetHighQuality, {
-    updateNumericInput(session, "exportDPI", value = 600)
-    updateNumericInput(session, "exportWidth", value = 12)
-    updateNumericInput(session, "exportHeight", value = 8)
-    updateSelectInput(session, "exportFormat", selected = "tiff")
-    showNotification("Preset 'Haute qualité' appliqué (600 DPI, TIFF)", type = "message", duration = 2)
-  })
-  
-  # Fonction de téléchargement - VERSION CORRIGÉE ET FONCTIONNELLE
   output$downloadPlot <- downloadHandler(
     filename = function() {
-      format_ext <- input$exportFormat
-      if(is.null(format_ext)) format_ext <- "png"
-      if(format_ext == "jpg") format_ext <- "jpeg"
+      # Récupérer le format sélectionné
+      format_selected <- isolate(input$exportFormat)
+      if(is.null(format_selected)) format_selected <- "png"
+      
+      # Mapping des extensions CORRECTES
+      extension_map <- list(
+        "png" = "png",
+        "jpg" = "jpg",
+        "jpeg" = "jpg",
+        "tiff" = "tiff",
+        "tif" = "tiff",
+        "pdf" = "pdf",
+        "svg" = "svg",
+        "eps" = "eps",
+        "ps" = "eps",
+        "bmp" = "bmp",
+        "emf" = "emf",
+        "wmf" = "wmf"
+      )
+      
+      extension <- extension_map[[format_selected]]
+      if(is.null(extension)) extension <- "png"
+      
+      # Créer nom avec timestamp
       timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-      paste0("graphique_", timestamp, ".", format_ext)
+      viz_type <- if(!is.null(input$vizType)) input$vizType else "graphique"
+      
+      filename <- paste0(viz_type, "_", timestamp, ".", extension)
+      
+      return(filename)
     },
     
     content = function(file) {
-      # Récupérer le graphique directement
-      plot_to_export <- NULL
-      
-      # Essayer plusieurs sources pour obtenir le graphique
+      # Fermer tous les devices graphiques
       tryCatch({
-        if(!is.null(values$currentPlot)) {
-          plot_to_export <- values$currentPlot
-        } else {
-          plot_to_export <- createPlot()
+        while (!is.null(dev.list())) {
+          dev.off()
         }
-      }, error = function(e) {
-        plot_to_export <- createPlot()
-      })
+      }, error = function(e) {})
       
-      # Vérifier qu'on a bien un graphique
-      if(is.null(plot_to_export)) {
-        showNotification(
-          "Erreur: Aucun graphique disponible pour l'export. Veuillez d'abord créer un graphique.",
-          type = "error",
-          duration = 5
-        )
+      # Isoler TOUTES les valeurs réactives
+      plot_obj <- isolate(createPlot())
+      format <- isolate(input$exportFormat)
+      if(is.null(format)) format <- "png"
+      
+      dpi <- isolate(input$exportDPI)
+      if(is.null(dpi)) dpi <- 300
+      
+      jpeg_quality <- isolate(input$jpegQuality)
+      if(is.null(jpeg_quality)) jpeg_quality <- 95
+      
+      tiff_compression <- isolate(input$tiffCompression)
+      if(is.null(tiff_compression)) tiff_compression <- "lzw"
+      
+      # Dimensions optimales
+      width_inches <- 12
+      height_inches <- 8
+      
+      # Vérifier que le graphique existe
+      if (is.null(plot_obj)) {
+        showNotification("Erreur: Aucun graphique disponible", type = "error", duration = 5)
+        # Créer fichier vide pour éviter erreur Shiny
+        cat("", file = file)
         return(NULL)
       }
       
-      # Validation du DPI
-      dpi <- input$exportDPI
-      if(is.null(dpi)) dpi <- 300
-      dpi <- min(max(dpi, 72), 20000)
-      
-      # Dimensions
-      width <- input$exportWidth
-      height <- input$exportHeight
-      if(is.null(width)) width <- 10
-      if(is.null(height)) height <- 6
-      
-      # Format
-      format_type <- input$exportFormat
-      if(is.null(format_type)) format_type <- "png"
-      
-      # Message de progression
-      showNotification(
-        "Génération du graphique en cours...",
-        id = "export_progress",
-        duration = NULL,
-        type = "message"
-      )
-      
+      # Export selon format avec gestion d'erreur complète
       tryCatch({
-        # Export selon le format
-        if(format_type %in% c("png", "jpg", "tiff", "bmp")) {
-          # Formats raster
-          if(format_type == "jpg") {
-            quality <- input$jpegQuality
-            if(is.null(quality)) quality <- 95
-            jpeg(file, 
-                 width = width, 
-                 height = height, 
-                 units = "in", 
-                 res = dpi,
-                 quality = quality)
-          } else if(format_type == "tiff") {
-            compression <- input$tiffCompression
-            if(is.null(compression)) compression <- "lzw"
-            tiff(file, 
-                 width = width, 
-                 height = height, 
-                 units = "in", 
-                 res = dpi,
-                 compression = compression)
-          } else if(format_type == "bmp") {
-            bmp(file, 
-                width = width, 
-                height = height, 
-                units = "in", 
-                res = dpi)
+        
+        # FORMATS RASTER
+        if (format == "png") {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            dpi = dpi,
+            device = "png",
+            type = "cairo",
+            bg = "white"
+          )
+          
+        } else if (format %in% c("jpg", "jpeg")) {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            dpi = dpi,
+            device = "jpeg",
+            quality = jpeg_quality,
+            bg = "white"
+          )
+          
+        } else if (format %in% c("tiff", "tif")) {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            dpi = dpi,
+            device = "tiff",
+            compression = tiff_compression,
+            bg = "white"
+          )
+          
+        } else if (format == "bmp") {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            dpi = dpi,
+            device = "bmp",
+            bg = "white"
+          )
+          
+          # FORMATS VECTORIELS
+        } else if (format == "pdf") {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            device = cairo_pdf,
+            bg = "white"
+          )
+          
+        } else if (format == "svg") {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            device = "svg",
+            bg = "white"
+          )
+          
+        } else if (format %in% c("eps", "ps")) {
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            device = cairo_ps,
+            fallback_resolution = dpi,
+            bg = "white"
+          )
+          
+          # FORMATS WINDOWS
+        } else if (format == "emf") {
+          if (.Platform$OS.type == "windows") {
+            if (requireNamespace("devEMF", quietly = TRUE)) {
+              devEMF::emf(file = file, width = width_inches, height = height_inches, bg = "white")
+              print(plot_obj)
+              dev.off()
+            } else {
+              stop("Package 'devEMF' requis pour EMF")
+            }
           } else {
-            # PNG par défaut
-            png(file, 
-                width = width, 
-                height = height, 
-                units = "in", 
-                res = dpi,
-                type = "cairo")
+            stop("Format EMF disponible uniquement sous Windows")
           }
-          print(plot_to_export)
-          dev.off()
           
-        } else if(format_type == "pdf") {
-          # Format PDF vectoriel
-          pdf(file, 
-              width = width, 
-              height = height)
-          print(plot_to_export)
-          dev.off()
+        } else if (format == "wmf") {
+          if (.Platform$OS.type == "windows") {
+            win.metafile(filename = file, width = width_inches, height = height_inches, bg = "white")
+            print(plot_obj)
+            dev.off()
+          } else {
+            stop("Format WMF disponible uniquement sous Windows")
+          }
           
-        } else if(format_type == "svg") {
-          # Format SVG vectoriel
-          svg(file, 
-              width = width, 
-              height = height)
-          print(plot_to_export)
-          dev.off()
-          
-        } else if(format_type == "eps") {
-          # Format EPS vectoriel
-          setEPS()
-          postscript(file, 
-                     width = width, 
-                     height = height,
-                     horizontal = FALSE,
-                     onefile = FALSE,
-                     paper = "special")
-          print(plot_to_export)
-          dev.off()
+        } else {
+          # Format non reconnu -> PNG par défaut
+          showNotification(
+            paste("Format", format, "non reconnu. Export en PNG."),
+            type = "warning",
+            duration = 4
+          )
+          ggsave(
+            filename = file,
+            plot = plot_obj,
+            width = width_inches,
+            height = height_inches,
+            units = "in",
+            dpi = dpi,
+            device = "png",
+            type = "cairo",
+            bg = "white"
+          )
         }
         
-        removeNotification("export_progress")
-        
-        # Vérifier que le fichier a bien été créé
-        if(file.exists(file) && file.info(file)$size > 0) {
-          showNotification(
-            paste0("✓ Graphique exporté avec succès (", 
-                   round(file.info(file)$size / 1024 / 1024, 2), " MB)"),
-            type = "message",
-            duration = 5
-          )
+        # Vérification finale
+        if (file.exists(file)) {
+          file_size <- file.info(file)$size
+          if (file_size > 0) {
+            file_size_mb <- round(file_size / (1024 * 1024), 2)
+            showNotification(
+              HTML(paste0(
+                "<strong>✓ Export réussi!</strong><br/>",
+                "Format: ", toupper(format), "<br/>",
+                if(format %in% c("png", "jpg", "jpeg", "tiff", "bmp")) 
+                  paste0("Résolution: ", dpi, " DPI<br/>") else "",
+                "Taille: ", file_size_mb, " MB"
+              )),
+              type = "message",
+              duration = 4
+            )
+          } else {
+            stop("Fichier créé mais vide")
+          }
         } else {
-          showNotification(
-            "Attention: Le fichier semble vide ou n'a pas été créé correctement",
-            type = "warning",
-            duration = 5
-          )
+          stop("Fichier non créé")
         }
         
       }, error = function(e) {
-        removeNotification("export_progress")
+        error_msg <- conditionMessage(e)
+        
         showNotification(
-          paste("❌ Erreur lors de l'export:", e$message),
+          HTML(paste0(
+            "<strong>Erreur d'export</strong><br/>",
+            "Format: ", format, "<br/>",
+            "Erreur: ", error_msg
+          )),
           type = "error",
-          duration = 10
+          duration = 8
         )
+        
+        # Créer fichier minimal pour éviter erreur Shiny
+        cat("", file = file)
       })
+      
+      # Nettoyage final
+      tryCatch({
+        while (!is.null(dev.list())) {
+          dev.off()
+        }
+      }, error = function(e) {})
+      
+      return(invisible(NULL))
+    },
+    
+    contentType = function() {
+      format <- isolate(input$exportFormat)
+      if(is.null(format)) format <- "png"
+      
+      # MIME types CORRECTS
+      mime_types <- list(
+        "png" = "image/png",
+        "jpg" = "image/jpeg",
+        "jpeg" = "image/jpeg",
+        "tiff" = "image/tiff",
+        "tif" = "image/tiff",
+        "bmp" = "image/bmp",
+        "pdf" = "application/pdf",
+        "svg" = "image/svg+xml",
+        "eps" = "application/postscript",
+        "ps" = "application/postscript",
+        "emf" = "image/x-emf",
+        "wmf" = "image/x-wmf"
+      )
+      
+      mime_type <- mime_types[[format]]
+      if(is.null(mime_type)) mime_type <- "image/png"
+      
+      return(mime_type)
     }
   )
   # ---- Tests statistiques ----
-  output$responseVarSelect <- renderUI({
-    req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    tagList(
-      pickerInput("responseVar", "Variable(s) réponse:", 
-                  choices = num_cols, 
-                  multiple = TRUE,
-                  options = list(`actions-box` = TRUE)),
-      actionButton("selectAllResponse", "Tout sélectionner", class = "btn-success btn-sm"),
-      actionButton("deselectAllResponse", "Tout désélectionner", class = "btn-danger btn-sm")
-    )
-  })
+output$responseVarSelect <- renderUI({
+  req(values$filteredData)
+  num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+  tagList(
+    pickerInput("responseVar", "Variable(s) réponse:", 
+                choices = num_cols, 
+                multiple = TRUE,
+                options = list(`actions-box` = TRUE)),
+    actionButton("selectAllResponse", "Tout sélectionner", class = "btn-success btn-sm"),
+    actionButton("deselectAllResponse", "Tout désélectionner", class = "btn-danger btn-sm")
+  )
+})
+
+observeEvent(input$selectAllResponse, {
+  num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+  updatePickerInput(session, "responseVar", selected = num_cols)
+})
+
+observeEvent(input$deselectAllResponse, {
+  updatePickerInput(session, "responseVar", selected = character(0))
+})
+
+output$factorVarSelect <- renderUI({
+  req(values$filteredData)
+  fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+  tagList(
+    pickerInput("factorVar", "Facteur(s):", 
+                choices = fac_cols, 
+                multiple = TRUE,
+                options = list(`actions-box` = TRUE)),
+    actionButton("selectAllFactors", "Tout sélectionner", class = "btn-success btn-sm"),
+    actionButton("deselectAllFactors", "Tout désélectionner", class = "btn-danger btn-sm")
+  )
+})
+
+observeEvent(input$selectAllFactors, {
+  fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+  updatePickerInput(session, "factorVar", selected = fac_cols)
+})
+
+observeEvent(input$deselectAllFactors, {
+  updatePickerInput(session, "factorVar", selected = character(0))
+})
+
+# Tests de normalité et homogénéité sur données brutes
+observeEvent(input$testNormalityRaw, {
+  req(input$responseVar)
   
-  observeEvent(input$selectAllResponse, {
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    updatePickerInput(session, "responseVar", selected = num_cols)
-  })
+  results_list <- list()
   
-  observeEvent(input$deselectAllResponse, {
-    updatePickerInput(session, "responseVar", selected = character(0))
-  })
-  
-  output$factorVarSelect <- renderUI({
-    req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    tagList(
-      pickerInput("factorVar", "Facteur(s):", 
-                  choices = fac_cols, 
-                  multiple = TRUE,
-                  options = list(`actions-box` = TRUE)),
-      actionButton("selectAllFactors", "Tout sélectionner", class = "btn-success btn-sm"),
-      actionButton("deselectAllFactors", "Tout désélectionner", class = "btn-danger btn-sm")
-    )
-  })
-  
-  observeEvent(input$selectAllFactors, {
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    updatePickerInput(session, "factorVar", selected = fac_cols)
-  })
-  
-  observeEvent(input$deselectAllFactors, {
-    updatePickerInput(session, "factorVar", selected = character(0))
-  })
-  
-  # Tests de normalité et homogénéité sur données brutes
-  observeEvent(input$testNormalityRaw, {
-    req(input$responseVar)
-    
-    results_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        data_values <- values$filteredData[[`var`]]
-        data_values <- data_values[!is.na(data_values)]
-        
-        if (length(data_values) >= 3 && length(data_values) <= 5000) {
-          norm_test <- shapiro.test(data_values)
-          results_list[[`var`]] <- data.frame(
-            Test = "Normalité (données brutes)",
-            Variable = `var`,
-            Facteur = "Global",
-            Statistique = round(norm_test$statistic, 4),
-            ddl = NA,
-            p_value = norm_test$p.value,
-            Interpretation = interpret_test_results("shapiro", norm_test$p.value),
-            stringsAsFactors = FALSE
-          )
-        } else {
-          results_list[[`var`]] <- data.frame(
-            Test = "Normalité (données brutes)",
-            Variable = `var`,
-            Facteur = "Global",
-            Statistique = NA,
-            ddl = NA,
-            p_value = NA,
-            Interpretation = "Échantillon trop petit/grand pour Shapiro-Wilk",
-            stringsAsFactors = FALSE
-          )
-        }
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
+  for (var in input$responseVar) {
+    tryCatch({
+      data_values <- values$filteredData[[var]]
+      data_values <- data_values[!is.na(data_values)]
+      
+      if (length(data_values) >= 3 && length(data_values) <= 5000) {
+        norm_test <- shapiro.test(data_values)
+        results_list[[var]] <- data.frame(
           Test = "Normalité (données brutes)",
-          Variable = `var`,
+          Variable = var,
+          Facteur = "Global",
+          Statistique = round(norm_test$statistic, 4),
+          ddl = NA,
+          p_value = norm_test$p.value,
+          Interpretation = interpret_test_results("shapiro", norm_test$p.value),
+          stringsAsFactors = FALSE
+        )
+      } else {
+        results_list[[var]] <- data.frame(
+          Test = "Normalité (données brutes)",
+          Variable = var,
           Facteur = "Global",
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = "Échantillon trop petit/grand pour Shapiro-Wilk",
           stringsAsFactors = FALSE
         )
-      })
-    }
-    
+      }
+    }, error = function(e) {
+      results_list[[var]] <- data.frame(
+        Test = "Normalité (données brutes)",
+        Variable = var,
+        Facteur = "Global",
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  if (length(results_list) > 0) {
     values$testResultsDF <- do.call(rbind, results_list)
     values$normalityResults <- NULL
     values$homogeneityResults <- NULL
     values$currentTestType <- "non-parametric"
-  })
+  } else {
+    showNotification("Aucun résultat de normalité généré", type = "warning")
+  }
+})
+
+observeEvent(input$testHomogeneityRaw, {
+  req(input$responseVar, input$factorVar)
   
-  observeEvent(input$testHomogeneityRaw, {
-    req(input$responseVar, input$factorVar)
-    
-    if (length(input$factorVar) != 1) {
-      showNotification("Le test d'homogénéité nécessite exactement un facteur", type = "warning")
-      return()
-    }
-    
-    results_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        fvar <- input$factorVar[1]
-        formula_str <- as.formula(paste(`var`, "~", `fvar`))
-        levene_test <- car::leveneTest(formula_str, data = values$filteredData)
-        
-        results_list[[`var`]] <- data.frame(
-          Test = "Homogénéité (données brutes)",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = round(levene_test$`F value`[1], 4),
-          ddl = paste(levene_test$Df[1], ",", levene_test$Df[2]),
-          p_value = levene_test$`Pr(>F)`[1],
-          Interpretation = interpret_test_results("levene", levene_test$`Pr(>F)`[1]),
-          stringsAsFactors = FALSE
-        )
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
-          Test = "Homogénéité (données brutes)",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = NA,
-          ddl = NA,
-          p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
-          stringsAsFactors = FALSE
-        )
-      })
-    }
-    
+  if (length(input$factorVar) != 1) {
+    showNotification("Le test d'homogénéité nécessite exactement un facteur", type = "warning")
+    return()
+  }
+  
+  results_list <- list()
+  
+  for (var in input$responseVar) {
+    tryCatch({
+      fvar <- input$factorVar[1]
+      formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+      levene_test <- car::leveneTest(formula_str, data = values$filteredData)
+      
+      results_list[[var]] <- data.frame(
+        Test = "Homogénéité (données brutes)",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = round(levene_test$`F value`[1], 4),
+        ddl = paste(levene_test$Df[1], ",", levene_test$Df[2]),
+        p_value = levene_test$`Pr(>F)`[1],
+        Interpretation = interpret_test_results("levene", levene_test$`Pr(>F)`[1]),
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) {
+      results_list[[var]] <- data.frame(
+        Test = "Homogénéité (données brutes)",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  if (length(results_list) > 0) {
     values$testResultsDF <- do.call(rbind, results_list)
     values$normalityResults <- NULL
     values$homogeneityResults <- NULL
     values$currentTestType <- "non-parametric"
-  })
+  } else {
+    showNotification("Aucun résultat d'homogénéité généré", type = "warning")
+  }
+})
+
+# Test t-student
+observeEvent(input$testT, {
+  req(input$responseVar, input$factorVar)
+  if (length(input$factorVar) > 1) {
+    showNotification("Le test t nécessite un seul facteur", type = "warning")
+    return()
+  }
   
-  # Test t-student
-  observeEvent(input$testT, {
-    req(input$responseVar, input$factorVar)
-    if (length(input$factorVar) > 1) {
-      showNotification("Le test t nécessite un seul facteur", type = "warning")
-      return()
-    }
-    
-    results_list <- list()
-    normality_results <- list()
-    homogeneity_results <- list()
-    model_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        fvar <- input$factorVar[1]
-        factor_levels <- levels(as.factor(values$filteredData[[`fvar`]]))
-        
-        if (length(factor_levels) != 2) {
-          next
-        }
-        
-        # Tests de validation
-        group1_data <- values$filteredData[values$filteredData[[`fvar`]] == factor_levels[1], `var`]
-        group2_data <- values$filteredData[values$filteredData[[`fvar`]] == factor_levels[2], `var`]
-        
-        group1_data <- group1_data[!is.na(group1_data)]
-        group2_data <- group2_data[!is.na(group2_data)]
-        
-        # Test de normalité
-        normality_group1 <- if(length(group1_data) >= 3 && length(group1_data) <= 5000) {
-          shapiro.test(group1_data)
-        } else {
-          list(p.value = NA)
-        }
-        
-        normality_group2 <- if(length(group2_data) >= 3 && length(group2_data) <= 5000) {
-          shapiro.test(group2_data)
-        } else {
-          list(p.value = NA)
-        }
-        
-        # Test d'homogénéité
-        test_data <- data.frame(
-          values = c(group1_data, group2_data),
-          group = factor(c(rep(factor_levels[1], length(group1_data)), 
-                           rep(factor_levels[2], length(group2_data))))
-        )
-        
-        homogeneity_test <- car::leveneTest(values ~ group, data = test_data)
-        
-        # Stocker les résultats de validation
-        normality_results[[`var`]] <- list(
-          group1 = normality_group1,
-          group2 = normality_group2,
-          group1_name = factor_levels[1],
-          group2_name = factor_levels[2]
-        )
-        
-        homogeneity_results[[`var`]] <- homogeneity_test
-        
-        # Exécuter le t-test et créer un modèle factice pour les diagnostics
-        formula_str <- as.formula(paste(`var`, "~", `fvar`))
-        test_result <- t.test(formula_str, data = values$filteredData)
-        
-        # Créer un modèle lm pour les diagnostics
-        lm_model <- lm(formula_str, data = values$filteredData)
-        model_list[[`var`]] <- lm_model
-        
-        # Créer le dataframe de résultats
-        results_list[[`var`]] <- data.frame(
-          Test = "t-test",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = round(test_result$statistic, 4),
-          ddl = round(test_result$parameter, 2),
-          p_value = test_result$p.value,
-          Interpretation = interpret_test_results("t.test", test_result$p.value),
-          stringsAsFactors = FALSE
-        )
-        
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
-          Test = "t-test",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = NA,
-          ddl = NA,
-          p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
-          stringsAsFactors = FALSE
-        )
-      })
-    }
-    
+  results_list <- list()
+  normality_results <- list()
+  homogeneity_results <- list()
+  model_list <- list()
+  
+  for (var in input$responseVar) {
+    tryCatch({
+      fvar <- input$factorVar[1]
+      factor_levels <- levels(as.factor(values$filteredData[[fvar]]))
+      
+      if (length(factor_levels) != 2) {
+        next
+      }
+      
+      # Tests de validation
+      group1_data <- values$filteredData[values$filteredData[[fvar]] == factor_levels[1], var]
+      group2_data <- values$filteredData[values$filteredData[[fvar]] == factor_levels[2], var]
+      
+      group1_data <- group1_data[!is.na(group1_data)]
+      group2_data <- group2_data[!is.na(group2_data)]
+      
+      # Test de normalité
+      normality_group1 <- if(length(group1_data) >= 3 && length(group1_data) <= 5000) {
+        shapiro.test(group1_data)
+      } else {
+        list(p.value = NA)
+      }
+      
+      normality_group2 <- if(length(group2_data) >= 3 && length(group2_data) <= 5000) {
+        shapiro.test(group2_data)
+      } else {
+        list(p.value = NA)
+      }
+      
+      # Test d'homogénéité
+      test_data <- data.frame(
+        values = c(group1_data, group2_data),
+        group = factor(c(rep(factor_levels[1], length(group1_data)), 
+                         rep(factor_levels[2], length(group2_data))))
+      )
+      
+      homogeneity_test <- car::leveneTest(values ~ group, data = test_data)
+      
+      # Stocker les résultats de validation
+      normality_results[[var]] <- list(
+        group1 = normality_group1,
+        group2 = normality_group2,
+        group1_name = factor_levels[1],
+        group2_name = factor_levels[2]
+      )
+      
+      homogeneity_results[[var]] <- homogeneity_test
+      
+      # Exécuter le t-test et créer un modèle factice pour les diagnostics
+      formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+      test_result <- t.test(formula_str, data = values$filteredData)
+      
+      # Créer un modèle lm pour les diagnostics
+      lm_model <- lm(formula_str, data = values$filteredData)
+      model_list[[var]] <- lm_model
+      
+      # Créer le dataframe de résultats
+      results_list[[var]] <- data.frame(
+        Test = "t-test",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = round(test_result$statistic, 4),
+        ddl = round(test_result$parameter, 2),
+        p_value = test_result$p.value,
+        Interpretation = interpret_test_results("t.test", test_result$p.value),
+        stringsAsFactors = FALSE
+      )
+      
+    }, error = function(e) {
+      results_list[[var]] <- data.frame(
+        Test = "t-test",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  if (length(results_list) > 0) {
     values$testResultsDF <- do.call(rbind, results_list)
     values$normalityResults <- normality_results
     values$homogeneityResults <- homogeneity_results
@@ -8782,213 +8929,269 @@ server <- function(input, output, session) {
     values$modelList <- model_list
     values$currentModelVar <- 1
     values$currentTestType <- "parametric"
-  })
+  } else {
+    showNotification("Aucun résultat t-test généré", type = "warning")
+  }
+})
+
+# Test de Wilcoxon
+observeEvent(input$testWilcox, {
+  req(input$responseVar, input$factorVar)
+  if (length(input$factorVar) > 1) {
+    showNotification("Le test de Wilcoxon nécessite un seul facteur", type = "warning")
+    return()
+  }
   
-  # Test de Wilcoxon
-  observeEvent(input$testWilcox, {
-    req(input$responseVar, input$factorVar)
-    if (length(input$factorVar) > 1) {
-      showNotification("Le test de Wilcoxon nécessite un seul facteur", type = "warning")
-      return()
-    }
-    
-    results_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        fvar <- input$factorVar[1]
-        formula_str <- as.formula(paste(`var`, "~", `fvar`))
-        test_result <- wilcox.test(formula_str, data = values$filteredData, exact = FALSE)
-        
-        results_list[[`var`]] <- data.frame(
-          Test = "Wilcoxon",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = round(test_result$statistic, 4),
-          ddl = NA,
-          p_value = test_result$p.value,
-          Interpretation = interpret_test_results("wilcox.test", test_result$p.value),
-          stringsAsFactors = FALSE
-        )
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
-          Test = "Wilcoxon",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = NA,
-          ddl = NA,
-          p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
-          stringsAsFactors = FALSE
-        )
-      })
-    }
-    
-    values$testResultsDF <- do.call(rbind, results_list)
-    values$normalityResults <- NULL
-    values$homogeneityResults <- NULL
-    values$currentTestType <- "non-parametric"
-  })
+  results_list <- list()
   
-  # Test de Kruskal-Wallis
-  observeEvent(input$testKruskal, {
-    req(input$responseVar, input$factorVar)
-    if (length(input$factorVar) > 1) {
-      showNotification("Kruskal-Wallis nécessite un seul facteur", type = "warning")
-      return()
-    }
-    
-    results_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        fvar <- input$factorVar[1]
-        formula_str <- as.formula(paste(`var`, "~", `fvar`))
-        test_result <- kruskal.test(formula_str, data = values$filteredData)
-        
-        results_list[[`var`]] <- data.frame(
-          Test = "Kruskal-Wallis",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = round(test_result$statistic, 4),
-          ddl = test_result$parameter,
-          p_value = test_result$p.value,
-          Interpretation = interpret_test_results("kruskal.test", test_result$p.value),
-          stringsAsFactors = FALSE
-        )
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
-          Test = "Kruskal-Wallis",
-          Variable = `var`,
-          Facteur = `fvar`,
-          Statistique = NA,
-          ddl = NA,
-          p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
-          stringsAsFactors = FALSE
-        )
-      })
-    }
-    
-    values$testResultsDF <- do.call(rbind, results_list)
-    values$normalityResults <- NULL
-    values$homogeneityResults <- NULL
-    values$currentTestType <- "non-parametric"
-  })
-  
-  # Test Scheirer-Ray-Hare
-  observeEvent(input$testScheirerRayHare, {
-    req(input$responseVar, input$factorVar)
-    
-    if (length(input$factorVar) < 2) {
-      showNotification("Scheirer-Ray-Hare nécessite au moins 2 facteurs", type = "warning")
-      return()
-    }
-    
-    results_list <- list()
-    
-    for (var in input$responseVar) {
-      tryCatch({
-        # Préparer la formule
-        if (input$interaction && length(input$factorVar) == 2) {
-          formula_str <- as.formula(paste(`var`, "~", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "*")))
-        } else {
-          formula_str <- as.formula(paste(`var`, "~", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+")))
-        }
-        
-        # Exécuter le test Scheirer-Ray-Hare
-        test_result <- rcompanion::scheirerRayHare(formula_str, data = values$filteredData)
-        
-        # Extraire les résultats pour chaque effet
-        for (i in 1:nrow(test_result)) {
-          effect_name <- rownames(test_result)[i]
-          if (effect_name != "Residuals") {
-            results_list[[paste(`var`, effect_name, sep = "_")]] <- data.frame(
-              Test = "Scheirer-Ray-Hare",
-              Variable = `var`,
-              Facteur = effect_name,
-              Statistique = round(test_result$H[i], 4),
-              ddl = test_result$Df[i],
-              p_value = test_result$`p.value`[i],
-              Interpretation = interpret_test_results("scheirerRayHare", test_result$`p.value`[i]),
-              stringsAsFactors = FALSE
-            )
-          }
-        }
-        
-        # Stocker le résultat complet pour les post-hoc
-        values$scheirerResults <- test_result
-        
-      }, error = function(e) {
-        results_list[[`var`]] <- data.frame(
-          Test = "Scheirer-Ray-Hare",
-          Variable = `var`,
-          Facteur = paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"),
-          Statistique = NA,
-          ddl = NA,
-          p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
-          stringsAsFactors = FALSE
-        )
-      })
-    }
-    
-    values$testResultsDF <- do.call(rbind, results_list)
-    values$normalityResults <- NULL
-    values$homogeneityResults <- NULL
-    values$currentTestType <- "non-parametric"
-  })
-  
-  # Test ANOVA
-  observeEvent(input$testANOVA, {
-    req(input$responseVar, input$factorVar)
-    
-    results_list <- list()
-    normality_results <- list()
-    homogeneity_results <- list()
-    model_list <- list()
-    
+  for (var in input$responseVar) {
     tryCatch({
-      df <- values$filteredData
-      for (f in input$factorVar) {
-        if (!is.factor(df[[`f`]])) df[[`f`]] <- factor(df[[`f`]])
+      fvar <- input$factorVar[1]
+      formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+      test_result <- wilcox.test(formula_str, data = values$filteredData, exact = FALSE)
+      
+      results_list[[var]] <- data.frame(
+        Test = "Wilcoxon",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = round(test_result$statistic, 4),
+        ddl = NA,
+        p_value = test_result$p.value,
+        Interpretation = interpret_test_results("wilcox.test", test_result$p.value),
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) {
+      results_list[[var]] <- data.frame(
+        Test = "Wilcoxon",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  if (length(results_list) > 0) {
+    values$testResultsDF <- do.call(rbind, results_list)
+    values$normalityResults <- NULL
+    values$homogeneityResults <- NULL
+    values$currentTestType <- "non-parametric"
+  } else {
+    showNotification("Aucun résultat Wilcoxon généré", type = "warning")
+  }
+})
+
+# Test de Kruskal-Wallis
+observeEvent(input$testKruskal, {
+  req(input$responseVar, input$factorVar)
+  if (length(input$factorVar) > 1) {
+    showNotification("Kruskal-Wallis nécessite un seul facteur", type = "warning")
+    return()
+  }
+  
+  results_list <- list()
+  
+  for (var in input$responseVar) {
+    tryCatch({
+      fvar <- input$factorVar[1]
+      formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+      test_result <- kruskal.test(formula_str, data = values$filteredData)
+      
+      results_list[[var]] <- data.frame(
+        Test = "Kruskal-Wallis",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = round(test_result$statistic, 4),
+        ddl = test_result$parameter,
+        p_value = test_result$p.value,
+        Interpretation = interpret_test_results("kruskal.test", test_result$p.value),
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) {
+      results_list[[var]] <- data.frame(
+        Test = "Kruskal-Wallis",
+        Variable = var,
+        Facteur = fvar,
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  if (length(results_list) > 0) {
+    values$testResultsDF <- do.call(rbind, results_list)
+    values$normalityResults <- NULL
+    values$homogeneityResults <- NULL
+    values$currentTestType <- "non-parametric"
+  } else {
+    showNotification("Aucun résultat Kruskal-Wallis généré", type = "warning")
+  }
+})
+
+# Test Scheirer-Ray-Hare
+observeEvent(input$testScheirerRayHare, {
+  req(input$responseVar, input$factorVar)
+  
+  if (length(input$factorVar) < 2) {
+    showNotification("Scheirer-Ray-Hare nécessite au moins 2 facteurs", type = "warning")
+    return()
+  }
+  
+  results_list <- list()
+  error_messages <- c()
+  
+  for (var in input$responseVar) {
+    tryCatch({
+      # Préparer la formule
+      if (input$interaction && length(input$factorVar) == 2) {
+        formula_str <- as.formula(paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "*")))
+      } else {
+        formula_str <- as.formula(paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+")))
       }
       
-      for (var in input$responseVar) {
-        formula_str <- paste(`var`, "~", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = ifelse(input$interaction, "*", "+")))
-        model <- aov(as.formula(formula_str), data = df)
-        anova_table <- summary(model)[[1]]
-        
-        # Stocker le modèle
-        model_list[[`var`]] <- model
-        
-        # Créer le dataframe de résultats pour chaque effet
-        for (i in 1:(nrow(anova_table) - 1)) {
-          effect_name <- rownames(anova_table)[i]
-          results_list[[paste(`var`, effect_name, sep = "_")]] <- data.frame(
-            Test = "ANOVA",
-            Variable = `var`,
+      # Vérifier que les données sont valides
+      test_data <- values$filteredData[, c(var, input$factorVar)]
+      test_data <- na.omit(test_data)
+      
+      if (nrow(test_data) < 3) {
+        error_messages <- c(error_messages, paste(var, ": Pas assez de données après suppression des NA"))
+        next
+      }
+      
+      # Exécuter le test Scheirer-Ray-Hare
+      test_result <- rcompanion::scheirerRayHare(formula_str, data = values$filteredData)
+      
+      # Vérifier si le résultat est valide
+      if (is.null(test_result) || nrow(test_result) == 0) {
+        error_messages <- c(error_messages, paste(var, ": Test n'a produit aucun résultat"))
+        next
+      }
+      
+      # Extraire les résultats pour chaque effet
+      effects_found <- 0
+      for (i in 1:nrow(test_result)) {
+        effect_name <- rownames(test_result)[i]
+        if (!is.null(effect_name) && effect_name != "Residuals" && !is.na(effect_name)) {
+          results_list[[paste(var, effect_name, sep = "_")]] <- data.frame(
+            Test = "Scheirer-Ray-Hare",
+            Variable = var,
             Facteur = effect_name,
-            Statistique = round(anova_table$`F value`[i], 4),
-            ddl = paste(anova_table$Df[i], ",", anova_table$Df[nrow(anova_table)]),
-            p_value = anova_table$`Pr(>F)`[i],
-            Interpretation = interpret_test_results("anova", anova_table$`Pr(>F)`[i]),
+            Statistique = round(test_result$H[i], 4),
+            ddl = test_result$Df[i],
+            p_value = test_result$`p.value`[i],
+            Interpretation = interpret_test_results("scheirerRayHare", test_result$`p.value`[i]),
             stringsAsFactors = FALSE
           )
+          effects_found <- effects_found + 1
         }
-        
-        # Tests de validation des résidus
-        residuals_data <- residuals(model)
-        if (length(residuals_data) > 3) {
-          normality_results[[`var`]] <- shapiro.test(residuals_data)
-        }
-        
-        fitted_data <- fitted(model)
-        fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
-        test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
-        homogeneity_results[[`var`]] <- car::leveneTest(residuals ~ fitted_group, data = test_data)
       }
       
+      if (effects_found == 0) {
+        error_messages <- c(error_messages, paste(var, ": Aucun effet trouvé (uniquement des résidus)"))
+      }
+      
+      # Stocker le résultat complet pour les post-hoc
+      values$scheirerResults <- test_result
+      
+    }, error = function(e) {
+      error_msg <- paste(var, ":", e$message)
+      error_messages <<- c(error_messages, error_msg)
+      
+      results_list[[var]] <- data.frame(
+        Test = "Scheirer-Ray-Hare",
+        Variable = var,
+        Facteur = paste(input$factorVar, collapse = " + "),
+        Statistique = NA,
+        ddl = NA,
+        p_value = NA,
+        Interpretation = paste("Erreur:", e$message),
+        stringsAsFactors = FALSE
+      )
+    })
+  }
+  
+  # Afficher les messages d'erreur détaillés
+  if (length(error_messages) > 0) {
+    showNotification(
+      paste("Problèmes détectés:\n", paste(error_messages, collapse = "\n")),
+      type = "warning",
+      duration = 10
+    )
+  }
+  
+  if (length(results_list) > 0) {
+    values$testResultsDF <- do.call(rbind, results_list)
+    values$normalityResults <- NULL
+    values$homogeneityResults <- NULL
+    values$currentTestType <- "non-parametric"
+    
+    showNotification(
+      paste("Test Scheirer-Ray-Hare terminé:", length(results_list), "résultat(s) généré(s)"),
+      type = "message",
+      duration = 3
+    )
+  } else {
+    showNotification("Aucun résultat Scheirer-Ray-Hare généré. Vérifiez vos données et facteurs.", type = "error", duration = 10)
+  }
+})
+
+# Test ANOVA
+observeEvent(input$testANOVA, {
+  req(input$responseVar, input$factorVar)
+  
+  results_list <- list()
+  normality_results <- list()
+  homogeneity_results <- list()
+  model_list <- list()
+  
+  tryCatch({
+    df <- values$filteredData
+    for (f in input$factorVar) {
+      if (!is.factor(df[[f]])) df[[f]] <- factor(df[[f]])
+    }
+    
+    for (var in input$responseVar) {
+      formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = ifelse(input$interaction, "*", "+")))
+      model <- aov(as.formula(formula_str), data = df)
+      anova_table <- summary(model)[[1]]
+      
+      # Stocker le modèle
+      model_list[[var]] <- model
+      
+      # Créer le dataframe de résultats pour chaque effet
+      for (i in 1:(nrow(anova_table) - 1)) {
+        effect_name <- rownames(anova_table)[i]
+        results_list[[paste(var, effect_name, sep = "_")]] <- data.frame(
+          Test = "ANOVA",
+          Variable = var,
+          Facteur = effect_name,
+          Statistique = round(anova_table$`F value`[i], 4),
+          ddl = paste(anova_table$Df[i], ",", anova_table$Df[nrow(anova_table)]),
+          p_value = anova_table$`Pr(>F)`[i],
+          Interpretation = interpret_test_results("anova", anova_table$`Pr(>F)`[i]),
+          stringsAsFactors = FALSE
+        )
+      }
+      
+      # Tests de validation des résidus
+      residuals_data <- residuals(model)
+      if (length(residuals_data) > 3) {
+        normality_results[[var]] <- shapiro.test(residuals_data)
+      }
+      
+      fitted_data <- fitted(model)
+      fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
+      test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
+      homogeneity_results[[var]] <- car::leveneTest(residuals ~ fitted_group, data = test_data)
+    }
+    
+    if (length(results_list) > 0) {
       values$testResultsDF <- do.call(rbind, results_list)
       values$anovaModel <- model
       values$currentModel <- model
@@ -8998,335 +9201,432 @@ server <- function(input, output, session) {
       values$homogeneityResults <- homogeneity_results
       values$currentValidationVar <- 1
       values$currentTestType <- "parametric"
-      
-    }, error = function(e) {
-      showNotification(paste("Erreur ANOVA :", e$message), type = "error")
-    })
+    } else {
+      showNotification("Aucun résultat ANOVA généré", type = "warning")
+    }
+    
+  }, error = function(e) {
+    showNotification(paste("Erreur ANOVA :", e$message), type = "error")
   })
+})
+
+# Test de régression linéaire
+observeEvent(input$testLM, {
+  req(input$responseVar, input$factorVar)
   
-  # Test de régression linéaire
-  observeEvent(input$testLM, {
-    req(input$responseVar, input$factorVar)
-    
-    results_list <- list()
-    model_list <- list()
-    
-    tryCatch({
-      df <- values$filteredData
-      for (var in input$responseVar) {
-        formula_str <- paste(`var`, "~", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
-        model <- lm(as.formula(formula_str), data = df)
-        summary_model <- summary(model)
-        
-        # Stocker le modèle
-        model_list[[`var`]] <- model
-        
-        # Résultat global du modèle
-        results_list[[paste(`var`, "global", sep = "_")]] <- data.frame(
+  results_list <- list()
+  model_list <- list()
+  
+  tryCatch({
+    df <- values$filteredData
+    for (var in input$responseVar) {
+      formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
+      model <- lm(as.formula(formula_str), data = df)
+      summary_model <- summary(model)
+      
+      # Stocker le modèle
+      model_list[[var]] <- model
+      
+      # Résultat global du modèle
+      results_list[[paste(var, "global", sep = "_")]] <- data.frame(
+        Test = "Régression linéaire",
+        Variable = var,
+        Facteur = "Modèle global",
+        Statistique = round(summary_model$fstatistic[1], 4),
+        ddl = paste(summary_model$fstatistic[2], ",", summary_model$fstatistic[3]),
+        p_value = pf(summary_model$fstatistic[1], summary_model$fstatistic[2], 
+                     summary_model$fstatistic[3], lower.tail = FALSE),
+        Interpretation = paste("R² =", round(summary_model$r.squared, 4)),
+        stringsAsFactors = FALSE
+      )
+      
+      # Coefficients
+      coef_table <- summary_model$coefficients
+      for (i in 2:nrow(coef_table)) {
+        results_list[[paste(var, rownames(coef_table)[i], sep = "_")]] <- data.frame(
           Test = "Régression linéaire",
-          Variable = `var`,
-          Facteur = "Modèle global",
-          Statistique = round(summary_model$fstatistic[1], 4),
-          ddl = paste(summary_model$fstatistic[2], ",", summary_model$fstatistic[3]),
-          p_value = pf(summary_model$fstatistic[1], summary_model$fstatistic[2], 
-                       summary_model$fstatistic[3], lower.tail = FALSE),
-          Interpretation = paste("R² =", round(summary_model$r.squared, 4)),
+          Variable = var,
+          Facteur = rownames(coef_table)[i],
+          Statistique = round(coef_table[i, "t value"], 4),
+          ddl = summary_model$df[2],
+          p_value = coef_table[i, "Pr(>|t|)"],
+          Interpretation = interpret_test_results("lm", coef_table[i, "Pr(>|t|)"]),
           stringsAsFactors = FALSE
         )
-        
-        # Coefficients
-        coef_table <- summary_model$coefficients
-        for (i in 2:nrow(coef_table)) {
-          results_list[[paste(`var`, rownames(coef_table)[i], sep = "_")]] <- data.frame(
-            Test = "Régression linéaire",
-            Variable = `var`,
-            Facteur = rownames(coef_table)[i],
-            Statistique = round(coef_table[i, "t value"], 4),
-            ddl = summary_model$df[2],
-            p_value = coef_table[i, "Pr(>|t|)"],
-            Interpretation = interpret_test_results("lm", coef_table[i, "Pr(>|t|)"]),
-            stringsAsFactors = FALSE
-          )
-        }
       }
-      
+    }
+    
+    if (length(results_list) > 0) {
       values$testResultsDF <- do.call(rbind, results_list)
       values$currentModel <- model
       values$modelList <- model_list
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
-      
-    }, error = function(e) {
-      showNotification(paste("Erreur régression :", e$message), type = "error")
-    })
+    } else {
+      showNotification("Aucun résultat de régression généré", type = "warning")
+    }
+    
+  }, error = function(e) {
+    showNotification(paste("Erreur régression :", e$message), type = "error")
   })
+})
+
+# Test GLM
+observeEvent(input$testGLM, {
+  req(input$responseVar, input$factorVar)
   
-  # Test GLM
-  observeEvent(input$testGLM, {
-    req(input$responseVar, input$factorVar)
-    
-    results_list <- list()
-    model_list <- list()
-    
-    tryCatch({
-      df <- values$filteredData
-      for (var in input$responseVar) {
-        formula_str <- paste(`var`, "~", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
-        model <- glm(as.formula(formula_str), data = df, family = gaussian())
-        summary_model <- summary(model)
-        
-        # Stocker le modèle
-        model_list[[`var`]] <- model
-        
-        # Coefficients
-        coef_table <- summary_model$coefficients
-        for (i in 2:nrow(coef_table)) {
-          results_list[[paste(`var`, rownames(coef_table)[i], sep = "_")]] <- data.frame(
-            Test = "GLM",
-            Variable = `var`,
-            Facteur = rownames(coef_table)[i],
-            Statistique = round(coef_table[i, "z value"], 4),
-            ddl = NA,
-            p_value = coef_table[i, "Pr(>|z|)"],
-            Interpretation = interpret_test_results("glm", coef_table[i, "Pr(>|z|)"]),
-            stringsAsFactors = FALSE
-          )
-        }
-      }
+  results_list <- list()
+  model_list <- list()
+  
+  tryCatch({
+    df <- values$filteredData
+    for (var in input$responseVar) {
+      formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
+      model <- glm(as.formula(formula_str), data = df, family = gaussian())
+      summary_model <- summary(model)
       
+      # Stocker le modèle
+      model_list[[var]] <- model
+      
+      # Coefficients
+      coef_table <- summary_model$coefficients
+      for (i in 2:nrow(coef_table)) {
+        results_list[[paste(var, rownames(coef_table)[i], sep = "_")]] <- data.frame(
+          Test = "GLM",
+          Variable = var,
+          Facteur = rownames(coef_table)[i],
+          Statistique = round(coef_table[i, "z value"], 4),
+          ddl = NA,
+          p_value = coef_table[i, "Pr(>|z|)"],
+          Interpretation = interpret_test_results("glm", coef_table[i, "Pr(>|z|)"]),
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+    
+    if (length(results_list) > 0) {
       values$testResultsDF <- do.call(rbind, results_list)
       values$currentModel <- model
       values$modelList <- model_list
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
-      
-    }, error = function(e) {
-      showNotification(paste("Erreur GLM :", e$message), type = "error")
-    })
-  })
-  
-  # Affichage du dataframe des résultats
-  output$testResultsDF <- renderDT({
-    req(values$testResultsDF)
-    datatable(values$testResultsDF, 
-              options = list(pageLength = 10, scrollX = TRUE),
-              rownames = FALSE)
-  })
-  
-  # Contrôle de l'affichage de la validation
-  output$showValidation <- reactive({
-    !is.null(values$normalityResults) || !is.null(values$homogeneityResults)
-  })
-  outputOptions(output, "showValidation", suspendWhenHidden = FALSE)
-  
-  # Contrôle de l'affichage des diagnostics (uniquement pour les tests paramétriques)
-  output$showParametricDiagnostics <- reactive({
-    !is.null(values$currentTestType) && values$currentTestType == "parametric" && !is.null(values$modelList)
-  })
-  outputOptions(output, "showParametricDiagnostics", suspendWhenHidden = FALSE)
-  
-  # Navigation pour la validation
-  output$showValidationNavigation <- reactive({
-    length(input$responseVar) > 1 && !is.null(values$normalityResults)
-  })
-  outputOptions(output, "showValidationNavigation", suspendWhenHidden = FALSE)
-  
-  output$validationNavigation <- renderUI({
-    req(input$responseVar, length(input$responseVar) > 1)
-    
-    current_idx <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
-    total_vars <- length(input$responseVar)
-    
-    div(style = "display: inline-block;",
-        actionButton("prevValidationVar", "", icon = icon("chevron-left"), 
-                     style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Variable", current_idx, "sur", total_vars, ":", input$responseVar[current_idx]),
-             style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton("nextValidationVar", "", icon = icon("chevron-right"), 
-                     style = "margin-left: 10px;", class = "btn-sm")
-    )
-  })
-  
-  # Navigation pour les diagnostics de modèles
-  output$showModelNavigation <- reactive({
-    !is.null(values$modelList) && length(values$modelList) > 1
-  })
-  outputOptions(output, "showModelNavigation", suspendWhenHidden = FALSE)
-  
-  output$modelDiagNavigation <- renderUI({
-    req(values$modelList, length(values$modelList) > 1)
-    
-    current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total_vars <- length(values$modelList)
-    var_names <- names(values$modelList)
-    
-    div(style = "display: inline-block; margin-bottom: 15px;",
-        actionButton("prevModelVar", "", icon = icon("chevron-left"), 
-                     style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Modèle", current_idx, "sur", total_vars, ":", var_names[current_idx]),
-             style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton("nextModelVar", "", icon = icon("chevron-right"), 
-                     style = "margin-left: 10px;", class = "btn-sm")
-    )
-  })
-  
-  # Navigation pour les résidus
-  output$showResidNavigation <- reactive({
-    !is.null(values$modelList) && length(values$modelList) > 1
-  })
-  outputOptions(output, "showResidNavigation", suspendWhenHidden = FALSE)
-  
-  output$residNavigation <- renderUI({
-    req(values$modelList, length(values$modelList) > 1)
-    
-    current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total_vars <- length(values$modelList)
-    var_names <- names(values$modelList)
-    
-    div(style = "display: inline-block; margin-bottom: 15px;",
-        actionButton("prevResidVar", "", icon = icon("chevron-left"), 
-                     style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Variable", current_idx, "sur", total_vars, ":", var_names[current_idx]),
-             style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton("nextResidVar", "", icon = icon("chevron-right"), 
-                     style = "margin-left: 10px;", class = "btn-sm")
-    )
-  })
-  
-  # Gestion des événements de navigation
-  observeEvent(input$prevValidationVar, {
-    current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
-    total <- length(input$responseVar)
-    values$currentValidationVar <- if (current > 1) current - 1 else total
-  })
-  
-  observeEvent(input$nextValidationVar, {
-    current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
-    total <- length(input$responseVar)
-    values$currentValidationVar <- if (current < total) current + 1 else 1
-  })
-  
-  observeEvent(input$prevModelVar, {
-    current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total <- length(values$modelList)
-    values$currentModelVar <- if (current > 1) current - 1 else total
-    values$currentModel <- values$modelList[[values$currentModelVar]]
-  })
-  
-  observeEvent(input$nextModelVar, {
-    current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total <- length(values$modelList)
-    values$currentModelVar <- if (current < total) current + 1 else 1
-    values$currentModel <- values$modelList[[values$currentModelVar]]
-  })
-  
-  observeEvent(input$prevResidVar, {
-    current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total <- length(values$modelList)
-    values$currentModelVar <- if (current > 1) current - 1 else total
-    values$currentModel <- values$modelList[[values$currentModelVar]]
-  })
-  
-  observeEvent(input$nextResidVar, {
-    current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
-    total <- length(values$modelList)
-    values$currentModelVar <- if (current < total) current + 1 else 1
-    values$currentModel <- values$modelList[[values$currentModelVar]]
-  })
-  
-  # Affichage des résultats de normalité
-  output$normalityResults <- renderPrint({
-    req(values$normalityResults, input$responseVar)
-    current_var <- input$responseVar[values$currentValidationVar]
-    norm <- values$normalityResults[[`current_var`]]
-    
-    if (is.null(norm)) {
-      cat("Aucun résultat de normalité disponible pour cette variable.\n")
-    } else if ("group1" %in% names(norm)) {
-      cat("Groupe 1 (", norm$group1_name, "): p = ", norm$group1$p.value, "\n")
-      cat("Groupe 2 (", norm$group2_name, "): p = ", norm$group2$p.value, "\n")
     } else {
-      cat("Résidus : p = ", norm$p.value, "\n")
+      showNotification("Aucun résultat GLM généré", type = "warning")
     }
-  })
-  
-  output$normalityInterpretation <- renderUI({
-    req(values$normalityResults, input$responseVar)
-    current_var <- input$responseVar[values$currentValidationVar]
-    norm <- values$normalityResults[[`current_var`]]
     
-    if (is.null(norm)) {
-      interp_text <- "Aucun résultat de normalité disponible pour cette variable."
-    } else if ("group1" %in% names(norm)) {
-      interp1 <- interpret_normality(norm$group1$p.value)
-      interp2 <- interpret_normality(norm$group2$p.value)
-      interp_text <- paste0("Groupe 1: ", interp1, "<br>Groupe 2: ", interp2)
-    } else {
-      interp_text <- interpret_normality(norm$p.value)
-    }
-    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+  }, error = function(e) {
+    showNotification(paste("Erreur GLM :", e$message), type = "error")
   })
+})
+
+# Affichage du dataframe des résultats
+output$testResultsDF <- renderDT({
+  req(values$testResultsDF)
+  datatable(values$testResultsDF, 
+            options = list(pageLength = 10, scrollX = TRUE),
+            rownames = FALSE)
+})
+
+# Contrôle de l'affichage de la validation
+output$showValidation <- reactive({
+  !is.null(values$normalityResults) || !is.null(values$homogeneityResults)
+})
+outputOptions(output, "showValidation", suspendWhenHidden = FALSE)
+
+# Contrôle de l'affichage des diagnostics (uniquement pour les tests paramétriques)
+output$showParametricDiagnostics <- reactive({
+  !is.null(values$currentTestType) && values$currentTestType == "parametric" && !is.null(values$modelList)
+})
+outputOptions(output, "showParametricDiagnostics", suspendWhenHidden = FALSE)
+
+# Navigation pour la validation
+output$showValidationNavigation <- reactive({
+  length(input$responseVar) > 1 && !is.null(values$normalityResults)
+})
+outputOptions(output, "showValidationNavigation", suspendWhenHidden = FALSE)
+
+output$validationNavigation <- renderUI({
+  req(input$responseVar, length(input$responseVar) > 1)
   
-  # Affichage des résultats d'homogénéité
-  output$homogeneityResults <- renderPrint({
-    req(values$homogeneityResults, input$responseVar)
-    current_var <- input$responseVar[values$currentValidationVar]
-    hom <- values$homogeneityResults[[`current_var`]]
-    
-    if (is.null(hom)) {
-      cat("Aucun résultat d'homogénéité disponible pour cette variable.\n")
-    } else {
-      cat("p = ", hom$`Pr(>F)`[1], "\n")
-    }
-  })
+  current_idx <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
+  total_vars <- length(input$responseVar)
   
-  output$homogeneityInterpretation <- renderUI({
-    req(values$homogeneityResults, input$responseVar)
-    current_var <- input$responseVar[values$currentValidationVar]
-    hom <- values$homogeneityResults[[`current_var`]]
-    
-    if (is.null(hom)) {
-      interp_text <- "Aucun résultat d'homogénéité disponible pour cette variable."
-    } else {
-      interp_text <- interpret_homogeneity(hom$`Pr(>F)`[1])
-    }
-    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
-  })
-  
-  # Diagnostics des modèles
-  output$modelDiagnostics <- renderPlot({
-    req(values$currentModel)
-    par(mfrow = c(2, 2))
-    plot(values$currentModel)
-  })
-  
-  output$modelDiagnosticsInterpretation <- renderUI({
-    req(values$currentModel)
-    interp_text <- "Vérifiez les graphiques pour les violations des hypothèses (normalité, homoscédasticité, etc.)."
-    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
-  })
-  
-  # Téléchargement des diagnostics de modèles
-  output$downloadModelDiagnostics <- downloadHandler(
-    filename = function() {
-      paste0("diagnostics_modele_", Sys.Date(), ".png")
-    },
-    content = function(file) {
-      png(file, width = 3200, height = 2400, res = 300, type = "cairo")
-      par(mfrow = c(2, 2))
-      plot(values$currentModel)
-      dev.off()
-    }
+  div(style = "display: inline-block;",
+      actionButton("prevValidationVar", "", icon = icon("chevron-left"), 
+                   style = "margin-right: 10px;", class = "btn-sm"),
+      span(paste("Variable", current_idx, "sur", total_vars, ":", input$responseVar[current_idx]),
+           style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
+      actionButton("nextValidationVar", "", icon = icon("chevron-right"), 
+                   style = "margin-left: 10px;", class = "btn-sm")
   )
+})
+
+# Navigation pour les diagnostics de modèles
+output$showModelNavigation <- reactive({
+  !is.null(values$modelList) && length(values$modelList) > 1
+})
+outputOptions(output, "showModelNavigation", suspendWhenHidden = FALSE)
+
+output$modelDiagNavigation <- renderUI({
+  req(values$modelList, length(values$modelList) > 1)
   
-  # Téléchargement du QQ-plot
-  output$downloadQQPlot <- downloadHandler(
-    filename = function() {
-      paste0("qqplot_residus_", Sys.Date(), ".png")
-    },
-    content = function(file) {
+  current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total_vars <- length(values$modelList)
+  var_names <- names(values$modelList)
+  
+  div(style = "display: inline-block; margin-bottom: 15px;",
+      actionButton("prevModelVar", "", icon = icon("chevron-left"), 
+                   style = "margin-right: 10px;", class = "btn-sm"),
+      span(paste("Modèle", current_idx, "sur", total_vars, ":", var_names[current_idx]),
+           style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
+      actionButton("nextModelVar", "", icon = icon("chevron-right"), 
+                   style = "margin-left: 10px;", class = "btn-sm")
+  )
+})
+
+# Navigation pour les résidus
+output$showResidNavigation <- reactive({
+  !is.null(values$modelList) && length(values$modelList) > 1
+})
+outputOptions(output, "showResidNavigation", suspendWhenHidden = FALSE)
+
+output$residNavigation <- renderUI({
+  req(values$modelList, length(values$modelList) > 1)
+  
+  current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total_vars <- length(values$modelList)
+  var_names <- names(values$modelList)
+  
+  div(style = "display: inline-block; margin-bottom: 15px;",
+      actionButton("prevResidVar", "", icon = icon("chevron-left"), 
+                   style = "margin-right: 10px;", class = "btn-sm"),
+      span(paste("Variable", current_idx, "sur", total_vars, ":", var_names[current_idx]),
+           style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
+      actionButton("nextResidVar", "", icon = icon("chevron-right"), 
+                   style = "margin-left: 10px;", class = "btn-sm")
+  )
+})
+
+# Gestion des événements de navigation
+observeEvent(input$prevValidationVar, {
+  current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
+  total <- length(input$responseVar)
+  values$currentValidationVar <- if (current > 1) current - 1 else total
+})
+
+observeEvent(input$nextValidationVar, {
+  current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
+  total <- length(input$responseVar)
+  values$currentValidationVar <- if (current < total) current + 1 else 1
+})
+
+observeEvent(input$prevModelVar, {
+  current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total <- length(values$modelList)
+  values$currentModelVar <- if (current > 1) current - 1 else total
+  values$currentModel <- values$modelList[[values$currentModelVar]]
+})
+
+observeEvent(input$nextModelVar, {
+  current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total <- length(values$modelList)
+  values$currentModelVar <- if (current < total) current + 1 else 1
+  values$currentModel <- values$modelList[[values$currentModelVar]]
+})
+
+observeEvent(input$prevResidVar, {
+  current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total <- length(values$modelList)
+  values$currentModelVar <- if (current > 1) current - 1 else total
+  values$currentModel <- values$modelList[[values$currentModelVar]]
+})
+
+observeEvent(input$nextResidVar, {
+  current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
+  total <- length(values$modelList)
+  values$currentModelVar <- if (current < total) current + 1 else 1
+  values$currentModel <- values$modelList[[values$currentModelVar]]
+})
+
+# Affichage des résultats de normalité
+output$normalityResults <- renderPrint({
+  req(values$normalityResults, input$responseVar)
+  current_var <- input$responseVar[values$currentValidationVar]
+  norm <- values$normalityResults[[current_var]]
+  
+  if (is.null(norm)) {
+    cat("Aucun résultat de normalité disponible pour cette variable.\n")
+  } else if ("group1" %in% names(norm)) {
+    cat("Groupe 1 (", norm$group1_name, "): p = ", norm$group1$p.value, "\n")
+    cat("Groupe 2 (", norm$group2_name, "): p = ", norm$group2$p.value, "\n")
+  } else {
+    cat("Résidus : p = ", norm$p.value, "\n")
+  }
+})
+
+output$normalityInterpretation <- renderUI({
+  req(values$normalityResults, input$responseVar)
+  current_var <- input$responseVar[values$currentValidationVar]
+  norm <- values$normalityResults[[current_var]]
+  
+  if (is.null(norm)) {
+    interp_text <- "Aucun résultat de normalité disponible pour cette variable."
+  } else if ("group1" %in% names(norm)) {
+    interp1 <- interpret_normality(norm$group1$p.value)
+    interp2 <- interpret_normality(norm$group2$p.value)
+    interp_text <- paste0("Groupe 1: ", interp1, "<br>Groupe 2: ", interp2)
+  } else {
+    interp_text <- interpret_normality(norm$p.value)
+  }
+  HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+})
+
+# Affichage des résultats d'homogénéité
+output$homogeneityResults <- renderPrint({
+  req(values$homogeneityResults, input$responseVar)
+  current_var <- input$responseVar[values$currentValidationVar]
+  hom <- values$homogeneityResults[[current_var]]
+  
+  if (is.null(hom)) {
+    cat("Aucun résultat d'homogénéité disponible pour cette variable.\n")
+  } else {
+    cat("p = ", hom$`Pr(>F)`[1], "\n")
+  }
+})
+
+output$homogeneityInterpretation <- renderUI({
+  req(values$homogeneityResults, input$responseVar)
+  current_var <- input$responseVar[values$currentValidationVar]
+  hom <- values$homogeneityResults[[current_var]]
+  
+  if (is.null(hom)) {
+    interp_text <- "Aucun résultat d'homogénéité disponible pour cette variable."
+  } else {
+    interp_text <- interpret_homogeneity(hom$`Pr(>F)`[1])
+  }
+  HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+})
+
+# Diagnostics des modèles
+output$modelDiagnostics <- renderPlot({
+  req(values$currentModel)
+  
+  tryCatch({
+    # Vérifier si le modèle a des problèmes de leverage
+    model <- values$currentModel
+    h <- hatvalues(model)
+    
+    # Si tous les leverage sont 0 ou très proche de 0, afficher un message
+    if (all(h < 1e-10) || sum(h > 0) < 3) {
+      par(mfrow = c(1, 1))
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques standards ne sont pas disponibles\nVoir les tests numériques ci-dessous", 
+           cex = 1.2, col = "red")
+      return()
+    }
+    
+    # Essayer les diagnostics standards
+    par(mfrow = c(2, 2))
+    plot(model, which = 1:4)
+    
+  }, error = function(e) {
+    # En cas d'erreur, afficher un message informatif
+    par(mfrow = c(1, 1))
+    plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+    text(1, 1, paste("Erreur dans les diagnostics graphiques:\n", 
+                     substr(e$message, 1, 100), 
+                     "\n\nVoir les tests numériques ci-dessous"), 
+         cex = 1, col = "red")
+  })
+})
+
+output$modelDiagnosticsInterpretation <- renderUI({
+  req(values$currentModel)
+  
+  tryCatch({
+    model <- values$currentModel
+    h <- hatvalues(model)
+    
+    if (all(h < 1e-10) || sum(h > 0) < 3) {
+      interp_text <- "<span style='color: orange;'><strong>⚠ Ajustement parfait ou quasi-parfait détecté.</strong></span><br>
+      Le modèle s'ajuste parfaitement aux données (leverage = 0 pour la plupart des observations).
+      Cela peut indiquer :<br>
+      - Nombre d'observations = nombre de paramètres<br>
+      - Données avec structure particulière<br>
+      - Surparamétrage du modèle<br>
+      Les diagnostics graphiques standards ne sont pas fiables dans ce cas.<br>
+      <strong>Recommandation :</strong> Vérifiez les tests numériques ci-dessous et considérez simplifier le modèle."
+    } else {
+      interp_text <- "Vérifiez les graphiques pour les violations des hypothèses :<br>
+      - <strong>Residuals vs Fitted :</strong> Les résidus doivent être répartis aléatoirement autour de 0<br>
+      - <strong>Normal Q-Q :</strong> Les points doivent suivre la ligne diagonale<br>
+      - <strong>Scale-Location :</strong> La ligne rouge doit être approximativement horizontale<br>
+      - <strong>Residuals vs Leverage :</strong> Identifie les points influents"
+    }
+    
+    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+    
+  }, error = function(e) {
+    HTML("<div class='interpretation-box'><span style='color: red;'>Erreur dans l'interprétation des diagnostics</span></div>")
+  })
+})
+
+# Téléchargement des diagnostics de modèles
+output$downloadModelDiagnostics <- downloadHandler(
+  filename = function() {
+    paste0("diagnostics_modele_", Sys.Date(), ".png")
+  },
+  content = function(file) {
+    tryCatch({
+      model <- values$currentModel
+      h <- hatvalues(model)
+      
+      png(file, width = 3200, height = 2400, res = 300, type = "cairo")
+      
+      if (all(h < 1e-10) || sum(h > 0) < 3) {
+        # Afficher un message si ajustement parfait
+        par(mfrow = c(1, 1))
+        plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+        text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles", 
+             cex = 1.5, col = "red")
+      } else {
+        # Diagnostics standards
+        par(mfrow = c(2, 2))
+        plot(model, which = 1:4)
+      }
+      
+      dev.off()
+    }, error = function(e) {
+      png(file, width = 3200, height = 2400, res = 300, type = "cairo")
+      par(mfrow = c(1, 1))
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, paste("Erreur:", substr(e$message, 1, 50)), cex = 1.2, col = "red")
+      dev.off()
+    })
+  }
+)
+
+# Téléchargement du QQ-plot
+output$downloadQQPlot <- downloadHandler(
+  filename = function() {
+    paste0("qqplot_residus_", Sys.Date(), ".png")
+  },
+  content = function(file) {
+    tryCatch({
       req(values$currentModel)
       residuals_data <- residuals(values$currentModel)
+      residuals_data <- residuals_data[!is.na(residuals_data)]
+      
+      if (length(residuals_data) < 3 || sd(residuals_data) < 1e-10) {
+        # Créer une image avec un message
+        png(file, width = 2000, height = 1600, res = 300, type = "cairo-png")
+        plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+        text(1, 1, "QQ-plot non disponible\n(résidus constants ou insuffisants)", 
+             cex = 1.2, col = "orange")
+        dev.off()
+        return()
+      }
+      
       df <- data.frame(sample = residuals_data)
       
       p <- ggplot(df, aes(sample = sample)) +
@@ -9338,14 +9638,37 @@ server <- function(input, output, session) {
              x = "Quantiles théoriques", 
              y = "Quantiles observés")
       
-      ggsave(file, plot = p, width = 10, height = 8, dpi = 2000, type = "cairo-png")
-    }
-  )
+      ggsave(file, plot = p, width = 10, height = 8, dpi = 300, type = "cairo-png")
+      
+    }, error = function(e) {
+      png(file, width = 2000, height = 1600, res = 300, type = "cairo-png")
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, paste("Erreur:", substr(e$message, 1, 50)), cex = 1, col = "red")
+      dev.off()
+    })
+  }
+)
+
+# QQ-plot des résidus
+output$qqPlotResiduals <- renderPlot({
+  req(values$currentModel)
   
-  # QQ-plot des résidus
-  output$qqPlotResiduals <- renderPlot({
-    req(values$currentModel)
+  tryCatch({
     residuals_data <- residuals(values$currentModel)
+    residuals_data <- residuals_data[!is.na(residuals_data)]
+    
+    if (length(residuals_data) < 3) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "Pas assez de résidus pour le QQ-plot (n < 3)", cex = 1.2, col = "red")
+      return()
+    }
+    
+    if (sd(residuals_data) < 1e-10) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "Résidus constants (ajustement parfait)\nQQ-plot non applicable", cex = 1.2, col = "orange")
+      return()
+    }
+    
     df <- data.frame(sample = residuals_data)
     
     ggplot(df, aes(sample = sample)) +
@@ -9356,1210 +9679,1387 @@ server <- function(input, output, session) {
       labs(title = "QQ-plot des résidus", 
            x = "Quantiles théoriques", 
            y = "Quantiles observés")
+    
+  }, error = function(e) {
+    plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+    text(1, 1, paste("Erreur QQ-plot:", substr(e$message, 1, 50)), cex = 1, col = "red")
   })
+})
+
+output$qqPlotInterpretation <- renderUI({
+  req(values$currentModel)
   
-  output$qqPlotInterpretation <- renderUI({
-    interp_text <- "Les points devraient suivre la ligne droite pour une normalité des résidus."
-    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
-  })
-  
-  # Normalité des résidus
-  output$normalityResult <- renderPrint({
-    req(values$currentModel)
+  tryCatch({
     residuals_data <- residuals(values$currentModel)
-    if (length(residuals_data) >= 3 && length(residuals_data) <= 5000) {
-      shapiro.test(residuals_data)
+    residuals_data <- residuals_data[!is.na(residuals_data)]
+    
+    if (length(residuals_data) < 3) {
+      interp_text <- "<span style='color: red;'>Pas assez de résidus pour évaluer la normalité.</span>"
+    } else if (sd(residuals_data) < 1e-10) {
+      interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Normalité non évaluable.</span>"
     } else {
-      cat("Nombre d'observations insuffisant pour le test de Shapiro-Wilk.\n")
+      interp_text <- "Les points devraient suivre la ligne droite pour une normalité des résidus.<br>
+      <strong>Déviations acceptables :</strong> Légères aux extrémités<br>
+      <strong>Problèmes :</strong> Courbure prononcée, points très éloignés de la ligne"
     }
+    
+    HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+    
+  }, error = function(e) {
+    HTML("<div class='interpretation-box'><span style='color: red;'>Erreur dans l'interprétation du QQ-plot</span></div>")
   })
+})
+
+# Normalité des résidus
+output$normalityResult <- renderPrint({
+  req(values$currentModel)
   
-  output$normalityResidInterpretation <- renderUI({
-    req(values$currentModel)
+  tryCatch({
     residuals_data <- residuals(values$currentModel)
-    if (length(residuals_data) >= 3 && length(residuals_data) <= 5000) {
+    residuals_data <- residuals_data[!is.na(residuals_data)]
+    
+    if (length(residuals_data) < 3) {
+      cat("Nombre d'observations insuffisant pour le test de Shapiro-Wilk (n < 3).\n")
+    } else if (length(residuals_data) > 5000) {
+      cat("Trop d'observations pour le test de Shapiro-Wilk (n > 5000).\n")
+      cat("Utilisez le QQ-plot ci-dessus pour évaluer visuellement la normalité.\n")
+    } else if (sd(residuals_data) < 1e-10) {
+      cat("Résidus constants ou quasi-constants (ajustement parfait).\n")
+      cat("Le test de normalité n'est pas applicable.\n")
+    } else {
+      shapiro.test(residuals_data)
+    }
+  }, error = function(e) {
+    cat("Erreur dans le test de normalité:", e$message, "\n")
+  })
+})
+
+output$normalityResidInterpretation <- renderUI({
+  req(values$currentModel)
+  
+  tryCatch({
+    residuals_data <- residuals(values$currentModel)
+    residuals_data <- residuals_data[!is.na(residuals_data)]
+    
+    if (length(residuals_data) < 3) {
+      interp_text <- "Nombre d'observations insuffisant pour le test de Shapiro-Wilk."
+    } else if (length(residuals_data) > 5000) {
+      interp_text <- "Trop d'observations pour Shapiro-Wilk. Référez-vous au QQ-plot."
+    } else if (sd(residuals_data) < 1e-10) {
+      interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
+    } else {
       norm_test <- shapiro.test(residuals_data)
       interp_text <- interpret_normality_resid(norm_test$p.value)
-    } else {
-      interp_text <- "Nombre d'observations insuffisant pour le test de Shapiro-Wilk."
     }
+    
     HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+  }, error = function(e) {
+    HTML("<div class='interpretation-box'><span style='color: red;'>Erreur dans le test de normalité</span></div>")
   })
+})
+
+# Homogénéité des résidus
+output$leveneResidResult <- renderPrint({
+  req(values$currentModel)
   
-  # Homogénéité des résidus
-  output$leveneResidResult <- renderPrint({
-    req(values$currentModel)
+  tryCatch({
     residuals_data <- residuals(values$currentModel)
     fitted_data <- fitted(values$currentModel)
+    
+    # Vérifier s'il y a une variation dans les valeurs ajustées
+    if (sd(fitted_data) < 1e-10) {
+      cat("Les valeurs ajustées sont constantes (ajustement parfait).\n")
+      cat("Le test d'homogénéité des résidus n'est pas applicable.\n")
+      return()
+    }
+    
+    # Vérifier qu'on a assez de valeurs uniques pour cut()
+    n_unique <- length(unique(fitted_data))
+    if (n_unique < 2) {
+      cat("Pas assez de valeurs uniques dans les prédictions.\n")
+      cat("Le test d'homogénéité n'est pas applicable.\n")
+      return()
+    }
+    
+    # Créer les groupes
     fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
+    
+    # Vérifier que les deux groupes existent
+    if (length(levels(fitted_factor)) < 2 || any(table(fitted_factor) < 2)) {
+      cat("Impossible de créer deux groupes équilibrés.\n")
+      cat("Le test d'homogénéité n'est pas applicable.\n")
+      return()
+    }
+    
     test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
     car::leveneTest(residuals ~ fitted_group, data = test_data)
+    
+  }, error = function(e) {
+    cat("Erreur dans le test d'homogénéité:", e$message, "\n")
   })
+})
+
+output$homogeneityResidInterpretation <- renderUI({
+  req(values$currentModel)
   
-  output$homogeneityResidInterpretation <- renderUI({
-    req(values$currentModel)
+  tryCatch({
     residuals_data <- residuals(values$currentModel)
     fitted_data <- fitted(values$currentModel)
+    
+    # Vérifier les mêmes conditions que ci-dessus
+    if (sd(fitted_data) < 1e-10) {
+      interp_text <- "<span style='color: orange;'>Valeurs ajustées constantes (ajustement parfait). Test non applicable.</span>"
+      return(HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>")))
+    }
+    
+    n_unique <- length(unique(fitted_data))
+    if (n_unique < 2) {
+      interp_text <- "<span style='color: orange;'>Pas assez de variation dans les prédictions. Test non applicable.</span>"
+      return(HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>")))
+    }
+    
     fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
+    
+    if (length(levels(fitted_factor)) < 2 || any(table(fitted_factor) < 2)) {
+      interp_text <- "<span style='color: orange;'>Impossible de créer deux groupes équilibrés. Test non applicable.</span>"
+      return(HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>")))
+    }
+    
     test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
     hom_test <- car::leveneTest(residuals ~ fitted_group, data = test_data)
     interp_text <- interpret_homogeneity_resid(hom_test$`Pr(>F)`[1])
+    
     HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+    
+  }, error = function(e) {
+    HTML("<div class='interpretation-box'><span style='color: red;'>Erreur dans le test d'homogénéité</span></div>")
   })
+})
+
+# Autocorrélation
+output$autocorrResult <- renderPrint({
+  req(values$currentModel)
   
-  # Autocorrélation
-  output$autocorrResult <- renderPrint({
-    req(values$currentModel)
+  tryCatch({
+    residuals_data <- residuals(values$currentModel)
+    
+    if (length(residuals_data) < 3) {
+      cat("Nombre d'observations insuffisant pour le test de Durbin-Watson (n < 3).\n")
+      return()
+    }
+    
+    if (sd(residuals_data) < 1e-10) {
+      cat("Résidus constants (ajustement parfait).\n")
+      cat("Le test d'autocorrélation n'est pas applicable.\n")
+      return()
+    }
+    
     lmtest::dwtest(values$currentModel)
+    
+  }, error = function(e) {
+    cat("Erreur dans le test de Durbin-Watson:", e$message, "\n")
   })
+})
+
+output$autocorrInterpretation <- renderUI({
+  req(values$currentModel)
   
-  output$autocorrInterpretation <- renderUI({
-    req(values$currentModel)
+  tryCatch({
+    residuals_data <- residuals(values$currentModel)
+    
+    if (length(residuals_data) < 3) {
+      interp_text <- "Nombre d'observations insuffisant pour le test de Durbin-Watson."
+      return(HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>")))
+    }
+    
+    if (sd(residuals_data) < 1e-10) {
+      interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
+      return(HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>")))
+    }
+    
     dw_test <- lmtest::dwtest(values$currentModel)
     interp_text <- if (dw_test$p.value > 0.05) {
       "Pas d'autocorrélation significative des résidus (p > 0.05)."
     } else {
       "Autocorrélation significative des résidus (p < 0.05). Vérifiez l'indépendance des observations."
     }
+    
     HTML(paste0("<div class='interpretation-box'>", interp_text, "</div>"))
+    
+  }, error = function(e) {
+    HTML("<div class='interpretation-box'><span style='color: red;'>Erreur dans le test d'autocorrélation</span></div>")
   })
-  
-  # Summary du modèle
-  output$modelSummary <- renderPrint({
-    req(values$currentModel)
-    summary(values$currentModel)
-  })
-  
-  # Télécharger les résultats des tests en Excel
-  output$downloadTestsExcel <- downloadHandler(
-    filename = function() {
-      paste0("resultats_tests_", Sys.Date(), ".xlsx")
-    },
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
+})
+
+# Summary du modèle
+output$modelSummary <- renderPrint({
+  req(values$currentModel)
+  summary(values$currentModel)
+})
+
+# Télécharger les résultats des tests en Excel
+output$downloadTestsExcel <- downloadHandler(
+  filename = function() {
+    paste0("resultats_tests_", Sys.Date(), ".xlsx")
+  },
+  content = function(file) {
+    wb <- openxlsx::createWorkbook()
+    
+    # Feuille des résultats
+    openxlsx::addWorksheet(wb, "Resultats")
+    openxlsx::writeData(wb, "Resultats", values$testResultsDF)
+    
+    # Feuille de validation si disponible
+    if (!is.null(values$normalityResults)) {
+      validation_df <- data.frame(Variable = names(values$normalityResults))
+      validation_df$Normality_p <- sapply(values$normalityResults, function(x) x$p.value %||% NA)
+      validation_df$Homogeneity_p <- sapply(values$homogeneityResults, function(x) x$`Pr(>F)`[1] %||% NA)
       
-      # Feuille des résultats
-      openxlsx::addWorksheet(wb, "Resultats")
-      openxlsx::writeData(wb, "Resultats", values$testResultsDF)
-      
-      # Feuille de validation si disponible
-      if (!is.null(values$normalityResults)) {
-        validation_df <- data.frame(Variable = names(values$normalityResults))
-        validation_df$Normality_p <- sapply(values$normalityResults, function(x) x$p.value %||% NA)
-        validation_df$Homogeneity_p <- sapply(values$homogeneityResults, function(x) x$`Pr(>F)`[1] %||% NA)
-        
-        openxlsx::addWorksheet(wb, "Validation")
-        openxlsx::writeData(wb, "Validation", validation_df)
-      }
-      
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+      openxlsx::addWorksheet(wb, "Validation")
+      openxlsx::writeData(wb, "Validation", validation_df)
     }
-  )
+    
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
   # ---- Comparaisons multiples PostHoc  ----
+
+# Fonction pour calculer le coefficient de variation
+calc_cv <- function(x) {
+  if (length(x) <= 1 || sd(x, na.rm = TRUE) == 0) return(0)
+  return((sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)) * 100)
+}
+
+# ---- Fonction AMÉLIORÉE pour post-hoc des effets simples 
+perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
+  # Filtrer les données pour ce niveau spécifique
+  df_subset <- df[df[[factor2]] == level, ]
   
-  # Fonction pour calculer le coefficient de variation
-  calc_cv <- function(x) {
-    if (length(x) <= 1 || sd(x, na.rm = TRUE) == 0) return(0)
-    return((sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)) * 100)
-  }
+  if (nrow(df_subset) < 3) return(NULL)
   
-  # ---- Fonction AMÉLIORÉE pour post-hoc des effets simples 
-  perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
-    # Filtrer les données pour ce niveau spécifique
-    df_subset <- df[df[[factor2]] == level, ]
+  tryCatch({
+    groups <- NULL
     
-    if (nrow(df_subset) < 3) return(NULL)
-    
-    tryCatch({
-      groups <- NULL
+    if (test_type == "param") {
+      model <- aov(as.formula(paste(var, "~", factor1)), data = df_subset)
       
-      if (test_type == "param") {
-        model <- aov(as.formula(paste(var, "~", factor1)), data = df_subset)
-        
-        if (test_method %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
-          mc_func <- switch(test_method,
-                            "lsd" = agricolae::LSD.test,
-                            "tukey" = agricolae::HSD.test,
-                            "duncan" = agricolae::duncan.test,
-                            "snk" = agricolae::SNK.test,
-                            "scheffe" = agricolae::scheffe.test,
-                            "regw" = agricolae::REGW.test,
-                            "waller" = agricolae::waller.test)
-          mc <- mc_func(model, factor1, group = TRUE)
-          groups <- mc$groups
-          colnames(groups)[1:2] <- c("means", "groups")
-          groups[[factor1]] <- rownames(groups)
-        } else if (test_method == "bonferroni") {
-          emm <- emmeans::emmeans(model, as.formula(paste("~", factor1)))
-          mc <- pairs(emm, adjust = "bonferroni")
-          pmat <- as.matrix(summary(mc)$p.value)
-          if (is.null(dim(pmat))) {
-            groups <- data.frame(groups = rep("a", length(unique(df_subset[[factor1]]))))
-            groups[[factor1]] <- unique(df_subset[[factor1]])
-          } else {
-            pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-            diag(pmat) <- 1
-            groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-            groups <- data.frame(groups = groups_letters)
-            groups[[factor1]] <- names(groups_letters)
-          }
-        } else if (test_method == "dunnett") {
-          emm <- emmeans::emmeans(model, as.formula(paste("~", factor1)))
-          groups_cld <- multcomp::cld(emm, Letters = letters)
-          groups <- as.data.frame(groups_cld)
-          groups <- groups[, c(factor1, ".group")]
-          colnames(groups) <- c(factor1, "groups")
-          groups$groups <- trimws(groups$groups)
-        } else if (test_method == "games") {
-          mc <- PMCMRplus::gamesHowellTest(as.formula(paste(var, "~", factor1)), data = df_subset)
-          pmat <- as.matrix(mc$p.value)
+      if (test_method %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
+        mc_func <- switch(test_method,
+                          "lsd" = agricolae::LSD.test,
+                          "tukey" = agricolae::HSD.test,
+                          "duncan" = agricolae::duncan.test,
+                          "snk" = agricolae::SNK.test,
+                          "scheffe" = agricolae::scheffe.test,
+                          "regw" = agricolae::REGW.test,
+                          "waller" = agricolae::waller.test)
+        mc <- mc_func(model, factor1, group = TRUE)
+        groups <- mc$groups
+        colnames(groups)[1:2] <- c("means", "groups")
+        groups[[factor1]] <- rownames(groups)
+      } else if (test_method == "bonferroni") {
+        emm <- emmeans::emmeans(model, as.formula(paste("~", factor1)))
+        mc <- pairs(emm, adjust = "bonferroni")
+        pmat <- as.matrix(summary(mc)$p.value)
+        if (is.null(dim(pmat))) {
+          groups <- data.frame(groups = rep("a", length(unique(df_subset[[factor1]]))))
+          groups[[factor1]] <- unique(df_subset[[factor1]])
+        } else {
           pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
           diag(pmat) <- 1
           groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
           groups <- data.frame(groups = groups_letters)
           groups[[factor1]] <- names(groups_letters)
         }
-      } else {  # NON-PARAMÉTRIQUE - LOGIQUE AMÉLIORÉE
-        if (test_method == "kruskal") {
-          mc <- agricolae::kruskal(df_subset[[var]], df_subset[[factor1]], group = TRUE)
-          groups <- mc$groups
-          colnames(groups)[1:2] <- c("means", "groups")
-          groups[[factor1]] <- rownames(groups)
-        } else if (test_method == "dunn") {
-          mc <- PMCMRplus::dunnTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
-          groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-          groups <- data.frame(groups = groups_letters)
-          groups[[factor1]] <- names(groups_letters)
-        } else if (test_method == "conover") {
-          mc <- PMCMRplus::kwAllPairsConoverTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
-          groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-          groups <- data.frame(groups = groups_letters)
-          groups[[factor1]] <- names(groups_letters)
-        } else if (test_method == "nemenyi") {
-          mc <- PMCMRplus::kwAllPairsNemenyiTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
-          groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-          groups <- data.frame(groups = groups_letters)
-          groups[[factor1]] <- names(groups_letters)
-        }
+      } else if (test_method == "dunnett") {
+        emm <- emmeans::emmeans(model, as.formula(paste("~", factor1)))
+        groups_cld <- multcomp::cld(emm, Letters = letters)
+        groups <- as.data.frame(groups_cld)
+        groups <- groups[, c(factor1, ".group")]
+        colnames(groups) <- c(factor1, "groups")
+        groups$groups <- trimws(groups$groups)
+      } else if (test_method == "games") {
+        mc <- PMCMRplus::gamesHowellTest(as.formula(paste(var, "~", factor1)), data = df_subset)
+        pmat <- as.matrix(mc$p.value)
+        pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+        diag(pmat) <- 1
+        groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+        groups <- data.frame(groups = groups_letters)
+        groups[[factor1]] <- names(groups_letters)
       }
-      
-      if (is.null(groups)) return(NULL)
-      
-      # Statistiques descriptives
-      desc <- df_subset %>%
-        group_by(across(all_of(factor1))) %>%
-        summarise(
-          Moyenne = mean(.data[[var]], na.rm = TRUE),
-          Ecart_type = sd(.data[[var]], na.rm = TRUE),
-          N = n(),
-          Erreur_type = Ecart_type / sqrt(N),
-          CV = calc_cv(.data[[var]]),
-          .groups = "drop"
-        )
-      
-      res <- merge(desc, groups, by = factor1, all.x = TRUE)
-      res[[factor2]] <- level
-      res$groups[is.na(res$groups)] <- "a"
-      
-      return(res)
-      
-    }, error = function(e) {
-      return(NULL)
-    })
-  }
+    } else {  # NON-PARAMÉTRIQUE - LOGIQUE AMÉLIORÉE
+      if (test_method == "kruskal") {
+        mc <- agricolae::kruskal(df_subset[[var]], df_subset[[factor1]], group = TRUE)
+        groups <- mc$groups
+        colnames(groups)[1:2] <- c("means", "groups")
+        groups[[factor1]] <- rownames(groups)
+      } else if (test_method == "dunn") {
+        mc <- PMCMRplus::dunnTest(df_subset[[var]], df_subset[[factor1]])
+        pmat <- as.matrix(mc$p.value)
+        pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+        diag(pmat) <- 1
+        groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+        groups <- data.frame(groups = groups_letters)
+        groups[[factor1]] <- names(groups_letters)
+      } else if (test_method == "conover") {
+        mc <- PMCMRplus::kwAllPairsConoverTest(df_subset[[var]], df_subset[[factor1]])
+        pmat <- as.matrix(mc$p.value)
+        pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+        diag(pmat) <- 1
+        groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+        groups <- data.frame(groups = groups_letters)
+        groups[[factor1]] <- names(groups_letters)
+      } else if (test_method == "nemenyi") {
+        mc <- PMCMRplus::kwAllPairsNemenyiTest(df_subset[[var]], df_subset[[factor1]])
+        pmat <- as.matrix(mc$p.value)
+        pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+        diag(pmat) <- 1
+        groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+        groups <- data.frame(groups = groups_letters)
+        groups[[factor1]] <- names(groups_letters)
+      }
+    }
+    
+    if (is.null(groups)) return(NULL)
+    
+    # Statistiques descriptives
+    desc <- df_subset %>%
+      group_by(across(all_of(factor1))) %>%
+      summarise(
+        Moyenne = mean(.data[[var]], na.rm = TRUE),
+        Ecart_type = sd(.data[[var]], na.rm = TRUE),
+        N = n(),
+        Erreur_type = Ecart_type / sqrt(N),
+        CV = calc_cv(.data[[var]]),
+        .groups = "drop"
+      )
+    
+    res <- merge(desc, groups, by = factor1, all.x = TRUE)
+    res[[factor2]] <- level
+    res$groups[is.na(res$groups)] <- "a"
+    
+    return(res)
+    
+  }, error = function(e) {
+    return(NULL)
+  })
+}
+
+# ---- Fonction principale d'analyse 
+observeEvent(input$runMultiple, {
+  req(input$multiResponse, input$multiFactor)
   
-  # ---- Fonction principale d'analyse 
-  observeEvent(input$runMultiple, {
-    req(input$multiResponse, input$multiFactor)
-    
-    showNotification("Analyse en cours...", type = "message", duration = NULL, id = "loading")
-    
-    multi_results_list <- list()
-    simple_effects_list <- list()
-    df <- values$filteredData
-    
-    for (var in input$multiResponse) {
-      # -------- EFFETS PRINCIPAUX 
-      for (fvar in input$multiFactor) {
-        tryCatch({
-          if (input$testType == "param") {
-            model <- aov(as.formula(paste(var, "~", fvar)), data = df)
-            
-            if (input$multiTest %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
-              mc_func <- switch(input$multiTest,
-                                "lsd" = agricolae::LSD.test,
-                                "tukey" = agricolae::HSD.test,
-                                "duncan" = agricolae::duncan.test,
-                                "snk" = agricolae::SNK.test,
-                                "scheffe" = agricolae::scheffe.test,
-                                "regw" = agricolae::REGW.test,
-                                "waller" = agricolae::waller.test)
-              mc <- mc_func(model, fvar, group = TRUE)
-              groups <- mc$groups
-              colnames(groups) <- c("means", "groups")
-              groups[[fvar]] <- rownames(groups)
-            } else if (input$multiTest == "bonferroni") {
-              emm <- emmeans::emmeans(model, as.formula(paste("~", fvar)))
-              mc <- pairs(emm, adjust = "bonferroni")
-              pmat <- as.matrix(summary(mc)$p.value)
-              if (is.null(dim(pmat))) {
-                groups <- data.frame(groups = rep("a", length(levels(df[[fvar]]))))
-                groups[[fvar]] <- levels(df[[fvar]])
-              } else {
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
-                groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-                groups <- data.frame(groups = groups_letters)
-                groups[[fvar]] <- names(groups_letters)
-              }
-            } else if (input$multiTest == "dunnett") {
-              emm <- emmeans::emmeans(model, as.formula(paste("~", fvar)))
-              groups_cld <- multcomp::cld(emm, Letters = letters)
-              groups <- as.data.frame(groups_cld)
-              groups <- groups[, c(fvar, ".group")]
-              colnames(groups) <- c(fvar, "groups")
-              groups$groups <- trimws(groups$groups)
-            } else if (input$multiTest == "games") {
-              mc <- PMCMRplus::gamesHowellTest(as.formula(paste(var, "~", fvar)), data = df)
-              pmat <- as.matrix(mc$p.value)
+  showNotification("Analyse en cours...", type = "message", duration = NULL, id = "loading")
+  
+  multi_results_list <- list()
+  simple_effects_list <- list()
+  df <- values$filteredData
+  
+  for (var in input$multiResponse) {
+    # -------- EFFETS PRINCIPAUX 
+    for (fvar in input$multiFactor) {
+      tryCatch({
+        if (input$testType == "param") {
+          model <- aov(as.formula(paste(var, "~", fvar)), data = df)
+          
+          if (input$multiTest %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
+            mc_func <- switch(input$multiTest,
+                              "lsd" = agricolae::LSD.test,
+                              "tukey" = agricolae::HSD.test,
+                              "duncan" = agricolae::duncan.test,
+                              "snk" = agricolae::SNK.test,
+                              "scheffe" = agricolae::scheffe.test,
+                              "regw" = agricolae::REGW.test,
+                              "waller" = agricolae::waller.test)
+            mc <- mc_func(model, fvar, group = TRUE)
+            groups <- mc$groups
+            colnames(groups) <- c("means", "groups")
+            groups[[fvar]] <- rownames(groups)
+          } else if (input$multiTest == "bonferroni") {
+            emm <- emmeans::emmeans(model, as.formula(paste("~", fvar)))
+            mc <- pairs(emm, adjust = "bonferroni")
+            pmat <- as.matrix(summary(mc)$p.value)
+            if (is.null(dim(pmat))) {
+              groups <- data.frame(groups = rep("a", length(levels(df[[fvar]]))))
+              groups[[fvar]] <- levels(df[[fvar]])
+            } else {
               pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
               diag(pmat) <- 1
               groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
               groups <- data.frame(groups = groups_letters)
               groups[[fvar]] <- names(groups_letters)
             }
-          } else {  # NON-PARAMÉTRIQUE
-            if (input$multiTestNonParam == "kruskal") {
+          } else if (input$multiTest == "dunnett") {
+            emm <- emmeans::emmeans(model, as.formula(paste("~", fvar)))
+            groups_cld <- multcomp::cld(emm, Letters = letters)
+            groups <- as.data.frame(groups_cld)
+            groups <- groups[, c(fvar, ".group")]
+            colnames(groups) <- c(fvar, "groups")
+            groups$groups <- trimws(groups$groups)
+          } else if (input$multiTest == "games") {
+            mc <- PMCMRplus::gamesHowellTest(as.formula(paste(var, "~", fvar)), data = df)
+            pmat <- as.matrix(mc$p.value)
+            pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+            diag(pmat) <- 1
+            groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+            groups <- data.frame(groups = groups_letters)
+            groups[[fvar]] <- names(groups_letters)
+          }
+        } else {  # NON-PARAMÉTRIQUE
+          if (input$multiTestNonParam == "kruskal") {
+            mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
+            groups <- mc$groups
+            colnames(groups) <- c("means", "groups")
+            groups[[fvar]] <- rownames(groups)
+          } else if (input$multiTestNonParam == "dunn") {
+            tryCatch({
+              mc <- PMCMRplus::dunnTest(df[[var]], df[[fvar]])
+              pmat <- as.matrix(mc$p.value)
+              pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+              diag(pmat) <- 1
+              groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+              groups <- data.frame(groups = groups_letters)
+              groups[[fvar]] <- names(groups_letters)
+            }, error = function(e) {
               mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
               groups <- mc$groups
               colnames(groups) <- c("means", "groups")
               groups[[fvar]] <- rownames(groups)
-            } else if (input$multiTestNonParam == "dunn") {
-              tryCatch({
-                mc <- PMCMRplus::dunnTest(df[[var]], df[[fvar]])
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
-                groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-                groups <- data.frame(groups = groups_letters)
-                groups[[fvar]] <- names(groups_letters)
-              }, error = function(e) {
-                mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
-                groups <- mc$groups
-                colnames(groups) <- c("means", "groups")
-                groups[[fvar]] <- rownames(groups)
-              })
-            } else if (input$multiTestNonParam == "conover") {
-              tryCatch({
-                mc <- PMCMRplus::kwAllPairsConoverTest(df[[var]], df[[fvar]])
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
-                groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-                groups <- data.frame(groups = groups_letters)
-                groups[[fvar]] <- names(groups_letters)
-              }, error = function(e) {
-                mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
-                groups <- mc$groups
-                colnames(groups) <- c("means", "groups")
-                groups[[fvar]] <- rownames(groups)
-              })
-            } else if (input$multiTestNonParam == "nemenyi") {
-              tryCatch({
-                mc <- PMCMRplus::kwAllPairsNemenyiTest(df[[var]], df[[fvar]])
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
-                groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-                groups <- data.frame(groups = groups_letters)
-                groups[[fvar]] <- names(groups_letters)
-              }, error = function(e) {
-                mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
-                groups <- mc$groups
-                colnames(groups) <- c("means", "groups")
-                groups[[fvar]] <- rownames(groups)
-              })
-            }
+            })
+          } else if (input$multiTestNonParam == "conover") {
+            tryCatch({
+              mc <- PMCMRplus::kwAllPairsConoverTest(df[[var]], df[[fvar]])
+              pmat <- as.matrix(mc$p.value)
+              pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+              diag(pmat) <- 1
+              groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+              groups <- data.frame(groups = groups_letters)
+              groups[[fvar]] <- names(groups_letters)
+            }, error = function(e) {
+              mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
+              groups <- mc$groups
+              colnames(groups) <- c("means", "groups")
+              groups[[fvar]] <- rownames(groups)
+            })
+          } else if (input$multiTestNonParam == "nemenyi") {
+            tryCatch({
+              mc <- PMCMRplus::kwAllPairsNemenyiTest(df[[var]], df[[fvar]])
+              pmat <- as.matrix(mc$p.value)
+              pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
+              diag(pmat) <- 1
+              groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
+              groups <- data.frame(groups = groups_letters)
+              groups[[fvar]] <- names(groups_letters)
+            }, error = function(e) {
+              mc <- agricolae::kruskal(df[[var]], df[[fvar]], group = TRUE)
+              groups <- mc$groups
+              colnames(groups) <- c("means", "groups")
+              groups[[fvar]] <- rownames(groups)
+            })
           }
-          
-          # Statistiques descriptives
-          desc <- df %>%
-            group_by(across(all_of(fvar))) %>%
-            summarise(
-              Moyenne = mean(.data[[var]], na.rm = TRUE),
-              Ecart_type = sd(.data[[var]], na.rm = TRUE),
-              N = n(),
-              Erreur_type = Ecart_type / sqrt(N),
-              CV = calc_cv(.data[[var]]),
-              .groups = "drop"
+        }
+        
+        # Statistiques descriptives
+        desc <- df %>%
+          group_by(across(all_of(fvar))) %>%
+          summarise(
+            Moyenne = mean(.data[[var]], na.rm = TRUE),
+            Ecart_type = sd(.data[[var]], na.rm = TRUE),
+            N = n(),
+            Erreur_type = Ecart_type / sqrt(N),
+            CV = calc_cv(.data[[var]]),
+            .groups = "drop"
+          )
+        
+        if (fvar %in% colnames(groups) && fvar %in% colnames(desc)) {
+          res <- merge(desc, groups, by = fvar, all.x = TRUE)
+          res <- res %>%
+            mutate(
+              Moyenne = round(Moyenne, 2),
+              Ecart_type = round(Ecart_type, 2),
+              Erreur_type = round(Erreur_type, 2),
+              CV = round(CV, 2),
+              `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
+              `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+              Variable = var,
+              Facteur = fvar,
+              Type = "main"
             )
           
-          if (fvar %in% colnames(groups) && fvar %in% colnames(desc)) {
-            res <- merge(desc, groups, by = fvar, all.x = TRUE)
-            res <- res %>%
-              mutate(
-                Moyenne = round(Moyenne, 2),
-                Ecart_type = round(Ecart_type, 2),
-                Erreur_type = round(Erreur_type, 2),
-                CV = round(CV, 2),
-                `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
-                Variable = var,
-                Facteur = fvar,
-                Type = "main"
-              )
+          multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
+        }
+      }, error = function(e) {
+        showNotification(paste("Erreur effet principal:", var, fvar, "-", e$message), type = "error")
+      })
+    }
+    
+    # -------- ANALYSE DES INTERACTIONS ET EFFETS SIMPLES BIDIRECTIONNELS 
+    if (input$posthocInteraction && length(input$multiFactor) > 1) {
+      factor_combinations <- combn(input$multiFactor, 2, simplify = FALSE)
+      
+      for (fcomb in factor_combinations) {
+        fvar1 <- fcomb[1]
+        fvar2 <- fcomb[2]
+        interaction_term <- paste(fvar1, fvar2, sep = ":")
+        formula_str <- paste(var, "~", fvar1, "*", fvar2)
+        
+        tryCatch({
+          df_temp <- df
+          interaction_pvalue <- NA
+          
+          # ---- TEST D'INTERACTION 
+          if (input$testType == "param") {
+            # Test paramétrique classique
+            model <- aov(as.formula(formula_str), data = df_temp)
+            anova_res <- summary(model)[[1]]
+            interaction_row <- paste(fvar1, fvar2, sep = ":")
             
-            multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
+            if (interaction_row %in% rownames(anova_res)) {
+              interaction_pvalue <- anova_res[interaction_row, "Pr(>F)"]
+            }
+          } else {  
+            # ---- TEST NON-PARAMÉTRIQUE AMÉLIORÉ 
+            # Création de la variable combinée pour l'interaction
+            df_temp$interaction_combined <- interaction(df_temp[[fvar1]], df_temp[[fvar2]], 
+                                                        drop = TRUE, sep = ":")
+            
+            # Test de Kruskal-Wallis sur l'interaction combinée
+            kw_interaction <- kruskal.test(df_temp[[var]] ~ df_temp$interaction_combined)
+            interaction_pvalue <- kw_interaction$p.value
+            
+            showNotification(
+              paste0("Test non-paramétrique (Kruskal-Wallis) pour ", fvar1, " × ", fvar2, 
+                     ": p = ", round(interaction_pvalue, 4)),
+              type = "message", duration = 3
+            )
+          }
+          
+          # ---- SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
+          if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
+            showNotification(
+              paste0(" Interaction significative détectée: ", fvar1, " × ", fvar2, 
+                     " (p = ", round(interaction_pvalue, 4), ")\n",
+                     " Décomposition bidirectionnelle en cours..."),
+              type = "warning", duration = 5
+            )
+            
+            # ---- DIRECTION 1: Comparer fvar1 à chaque niveau de fvar2 
+            for (level2 in unique(df[[fvar2]])) {
+              res <- perform_simple_effect_posthoc(
+                df, var, fvar1, fvar2, level2,
+                input$testType, 
+                ifelse(input$testType == "param", input$multiTest, input$multiTestNonParam)
+              )
+              
+              if (!is.null(res)) {
+                res <- res %>%
+                  mutate(
+                    Moyenne = round(Moyenne, 2),
+                    Ecart_type = round(Ecart_type, 2),
+                    Erreur_type = round(Erreur_type, 2),
+                    CV = round(CV, 2),
+                    `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
+                    `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                    Variable = var,
+                    Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
+                    Type = "simple_effect",
+                    Interaction_base = interaction_term,
+                    P_interaction = round(interaction_pvalue, 4),
+                    Direction = paste0(fvar1, " vers ", fvar2)
+                  )
+                
+                simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
+              }
+            }
+            
+            # ---- DIRECTION 2: Comparer fvar2 à chaque niveau de fvar1 
+            for (level1 in unique(df[[fvar1]])) {
+              res <- perform_simple_effect_posthoc(
+                df, var, fvar2, fvar1, level1,
+                input$testType,
+                ifelse(input$testType == "param", input$multiTest, input$multiTestNonParam)
+              )
+              
+              if (!is.null(res)) {
+                res <- res %>%
+                  mutate(
+                    Moyenne = round(Moyenne, 2),
+                    Ecart_type = round(Ecart_type, 2),
+                    Erreur_type = round(Erreur_type, 2),
+                    CV = round(CV, 2),
+                    `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
+                    `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                    Variable = var,
+                    Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
+                    Type = "simple_effect",
+                    Interaction_base = interaction_term,
+                    P_interaction = round(interaction_pvalue, 4),
+                    Direction = paste0(fvar2, " vers ", fvar1)
+                  )
+                
+                simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
+              }
+            }
+            
+            showNotification(
+              paste0(" Décomposition complétée pour ", fvar1, " × ", fvar2),
+              type = "message", duration = 3
+            )
+          } else if (!is.na(interaction_pvalue)) {
+            showNotification(
+              paste0(" Interaction non significative: ", fvar1, " × ", fvar2, 
+                     " (p = ", round(interaction_pvalue, 4), ")"),
+              type = "default", duration = 3
+            )
           }
         }, error = function(e) {
-          showNotification(paste("Erreur effet principal:", var, fvar, "-", e$message), type = "error")
+          showNotification(paste("Erreur interaction:", interaction_term, "-", e$message), type = "error")
         })
       }
-      
-      # -------- ANALYSE DES INTERACTIONS ET EFFETS SIMPLES BIDIRECTIONNELS 
-      if (input$posthocInteraction && length(input$multiFactor) > 1) {
-        factor_combinations <- combn(input$multiFactor, 2, simplify = FALSE)
-        
-        for (fcomb in factor_combinations) {
-          fvar1 <- fcomb[1]
-          fvar2 <- fcomb[2]
-          interaction_term <- paste(fvar1, fvar2, sep = ":")
-          formula_str <- paste(var, "~", fvar1, "*", fvar2)
-          
-          tryCatch({
-            df_temp <- df
-            interaction_pvalue <- NA
-            
-            # ---- TEST D'INTERACTION 
-            if (input$testType == "param") {
-              # Test paramétrique classique
-              model <- aov(as.formula(formula_str), data = df_temp)
-              anova_res <- summary(model)[[1]]
-              interaction_row <- paste(fvar1, fvar2, sep = ":")
-              
-              if (interaction_row %in% rownames(anova_res)) {
-                interaction_pvalue <- anova_res[interaction_row, "Pr(>F)"]
-              }
-            } else {  
-              # ---- TEST NON-PARAMÉTRIQUE AMÉLIORÉ 
-              # Création de la variable combinée pour l'interaction
-              df_temp$interaction_combined <- interaction(df_temp[[fvar1]], df_temp[[fvar2]], 
-                                                          drop = TRUE, sep = ":")
-              
-              # Test de Kruskal-Wallis sur l'interaction combinée
-              kw_interaction <- kruskal.test(df_temp[[var]] ~ df_temp$interaction_combined)
-              interaction_pvalue <- kw_interaction$p.value
-              
-              showNotification(
-                paste0("Test non-paramétrique (Kruskal-Wallis) pour ", fvar1, " × ", fvar2, 
-                       ": p = ", round(interaction_pvalue, 4)),
-                type = "message", duration = 3
-              )
-            }
-            
-            # ---- SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
-            if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
-              showNotification(
-                paste0(" Interaction significative détectée: ", fvar1, " × ", fvar2, 
-                       " (p = ", round(interaction_pvalue, 4), ")\n",
-                       " Décomposition bidirectionnelle en cours..."),
-                type = "warning", duration = 5
-              )
-              
-              # ---- DIRECTION 1: Comparer fvar1 à chaque niveau de fvar2 
-              for (level2 in unique(df[[fvar2]])) {
-                res <- perform_simple_effect_posthoc(
-                  df, var, fvar1, fvar2, level2,
-                  input$testType, 
-                  ifelse(input$testType == "param", input$multiTest, input$multiTestNonParam)
-                )
-                
-                if (!is.null(res)) {
-                  res <- res %>%
-                    mutate(
-                      Moyenne = round(Moyenne, 2),
-                      Ecart_type = round(Ecart_type, 2),
-                      Erreur_type = round(Erreur_type, 2),
-                      CV = round(CV, 2),
-                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
-                      Variable = var,
-                      Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
-                      Type = "simple_effect",
-                      Interaction_base = interaction_term,
-                      P_interaction = round(interaction_pvalue, 4),
-                      Direction = paste0(fvar1, " vers ", fvar2)
-                    )
-                  
-                  simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
-                }
-              }
-              
-              # ---- DIRECTION 2: Comparer fvar2 à chaque niveau de fvar1 
-              for (level1 in unique(df[[fvar1]])) {
-                res <- perform_simple_effect_posthoc(
-                  df, var, fvar2, fvar1, level1,
-                  input$testType,
-                  ifelse(input$testType == "param", input$multiTest, input$multiTestNonParam)
-                )
-                
-                if (!is.null(res)) {
-                  res <- res %>%
-                    mutate(
-                      Moyenne = round(Moyenne, 2),
-                      Ecart_type = round(Ecart_type, 2),
-                      Erreur_type = round(Erreur_type, 2),
-                      CV = round(CV, 2),
-                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
-                      Variable = var,
-                      Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
-                      Type = "simple_effect",
-                      Interaction_base = interaction_term,
-                      P_interaction = round(interaction_pvalue, 4),
-                      Direction = paste0(fvar2, " vers ", fvar1)
-                    )
-                  
-                  simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
-                }
-              }
-              
-              showNotification(
-                paste0(" Décomposition complétée pour ", fvar1, " × ", fvar2),
-                type = "message", duration = 3
-              )
-            } else if (!is.na(interaction_pvalue)) {
-              showNotification(
-                paste0(" Interaction non significative: ", fvar1, " × ", fvar2, 
-                       " (p = ", round(interaction_pvalue, 4), ")"),
-                type = "default", duration = 3
-              )
-            }
-          }, error = function(e) {
-            showNotification(paste("Erreur interaction:", interaction_term, "-", e$message), type = "error")
-          })
-        }
+    }
+  }
+  
+  removeNotification("loading")
+  
+  # ---- ASSEMBLAGE FINAL DES RÉSULTATS 
+  all_results <- c(multi_results_list, simple_effects_list)
+  
+  if (length(all_results) > 0) {
+    all_cols <- unique(unlist(lapply(all_results, colnames)))
+    all_results <- lapply(all_results, function(df) {
+      missing_cols <- setdiff(all_cols, colnames(df))
+      for (col in missing_cols) {
+        df[[col]] <- NA
       }
-    }
-    
-    removeNotification("loading")
-    
-    # ---- ASSEMBLAGE FINAL DES RÉSULTATS 
-    all_results <- c(multi_results_list, simple_effects_list)
-    
-    if (length(all_results) > 0) {
-      all_cols <- unique(unlist(lapply(all_results, colnames)))
-      all_results <- lapply(all_results, function(df) {
-        missing_cols <- setdiff(all_cols, colnames(df))
-        for (col in missing_cols) {
-          df[[col]] <- NA
-        }
-        return(df[, all_cols])
-      })
-      
-      combined_results <- do.call(rbind, all_results)
-      values$allPostHocResults[[length(values$allPostHocResults) + 1]] <- combined_results
-      values$multiResultsMain <- combined_results
-      values$currentVarIndex <- 1
-      
-      # Message récapitulatif amélioré
-      n_main <- sum(combined_results$Type == "main", na.rm = TRUE)
-      n_simple <- sum(combined_results$Type == "simple_effect", na.rm = TRUE)
-      n_interactions <- length(unique(combined_results$Interaction_base[!is.na(combined_results$Interaction_base)]))
-      
-      showNotification(
-        HTML(paste0(
-          "<b> ANALYSE TERMINÉE</b><br/>",
-          "• ", n_main, " effet(s) principal(aux)<br/>",
-          "• ", n_simple, " effet(s) simple(s)<br/>",
-          "• ", n_interactions, " interaction(s) décomposée(s)"
-        )),
-        type = "message", duration = 8
-      )
-    } else {
-      showNotification("Aucun résultat généré", type = "warning")
-    }
-  })
-  
-  # ---- UI Outputs pour Multi-Selection 
-  output$multiResponseSelect <- renderUI({
-    req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    tagList(
-      pickerInput("multiResponse", "Variable(s) réponse:", choices = num_cols, multiple = TRUE, 
-                  options = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
-      div(style = "display: flex; gap: 10px;",
-          actionButton("selectAllMultiResponse", "Tout sélectionner", 
-                       class = "btn-success btn-sm", 
-                       style = "flex: 1; height: 40px;"),
-          actionButton("deselectAllMultiResponse", "Tout désélectionner", 
-                       class = "btn-danger btn-sm",
-                       style = "flex: 1; height: 40px;")
-      )
-    )
-  })
-  
-  observeEvent(input$selectAllMultiResponse, {
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    updatePickerInput(session, "multiResponse", selected = num_cols)
-  })
-  
-  observeEvent(input$deselectAllMultiResponse, {
-    updatePickerInput(session, "multiResponse", selected = character(0))
-  })
-  
-  output$multiFactorSelect <- renderUI({
-    req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    tagList(
-      pickerInput("multiFactor", "Facteur(s):", choices = fac_cols, multiple = TRUE, 
-                  options = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
-      div(style = "display: flex; gap: 10px;",
-          actionButton("selectAllMultiFactors", "Tout sélectionner", 
-                       class = "btn-success btn-sm",
-                       style = "flex: 1; height: 40px;"),
-          actionButton("deselectAllMultiFactors", "Tout désélectionner", 
-                       class = "btn-danger btn-sm",
-                       style = "flex: 1; height: 40px;")
-      )
-    )
-  })
-  
-  observeEvent(input$selectAllMultiFactors, {
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    updatePickerInput(session, "multiFactor", selected = fac_cols)
-  })
-  
-  observeEvent(input$deselectAllMultiFactors, {
-    updatePickerInput(session, "multiFactor", selected = character(0))
-  })
-  
-  # ---- Tables de résultats 
-  output$mainEffectsTable <- renderDT({
-    req(values$multiResultsMain)
-    
-    main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-    
-    if (nrow(main_data) == 0) return(NULL)
-    
-    cols_to_show <- c("Variable", "Facteur", "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N")
-    
-    for (fvar in input$multiFactor) {
-      if (fvar %in% colnames(main_data)) {
-        cols_to_show <- c(cols_to_show, fvar)
-      }
-    }
-    
-    cols_to_show <- unique(cols_to_show)
-    cols_to_show <- cols_to_show[cols_to_show %in% colnames(main_data)]
-    
-    datatable(
-      main_data[, cols_to_show, drop = FALSE],
-      options = list(
-        scrollX = TRUE,
-        pageLength = 15,
-        lengthMenu = c(10, 15, 25, 50),
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
-      ),
-      rownames = FALSE,
-      extensions = 'Buttons',
-      class = 'cell-border stripe'
-    ) %>%
-      formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV"), digits = 2) %>%
-      formatStyle(
-        'groups',
-        backgroundColor = styleEqual(
-          unique(main_data$groups),
-          rainbow(length(unique(main_data$groups)), alpha = 0.3)
-        ),
-        fontWeight = 'bold'
-      )
-  })
-  
-  output$simpleEffectsTable <- renderDT({
-    req(values$multiResultsMain)
-    
-    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-    
-    if (nrow(simple_data) == 0) return(NULL)
-    
-    if (!is.null(input$filterSimpleEffectVar) && input$filterSimpleEffectVar != "Toutes") {
-      simple_data <- simple_data[simple_data$Variable == input$filterSimpleEffectVar, ]
-    }
-    
-    if (!is.null(input$filterSimpleEffectInteraction) && input$filterSimpleEffectInteraction != "Toutes") {
-      simple_data <- simple_data[simple_data$Interaction_base == input$filterSimpleEffectInteraction, ]
-    }
-    
-    cols_to_show <- c("Variable", "Facteur", "Direction", "Interaction_base", "P_interaction", 
-                      "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N")
-    
-    for (fvar in input$multiFactor) {
-      if (fvar %in% colnames(simple_data)) {
-        cols_to_show <- c(cols_to_show, fvar)
-      }
-    }
-    
-    cols_to_show <- unique(cols_to_show)
-    cols_to_show <- cols_to_show[cols_to_show %in% colnames(simple_data)]
-    
-    datatable(
-      simple_data[, cols_to_show, drop = FALSE],
-      options = list(
-        scrollX = TRUE,
-        pageLength = 15,
-        lengthMenu = c(10, 15, 25, 50),
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
-      ),
-      rownames = FALSE,
-      extensions = 'Buttons',
-      class = 'cell-border stripe'
-    ) %>%
-      formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"), digits = 4) %>%
-      formatStyle(
-        'groups',
-        backgroundColor = styleEqual(
-          unique(simple_data$groups),
-          rainbow(length(unique(simple_data$groups)), alpha = 0.3)
-        ),
-        fontWeight = 'bold'
-      ) %>%
-      formatStyle(
-        'P_interaction',
-        backgroundColor = styleInterval(c(0.01, 0.05), c('#e74c3c', '#f39c12', '#95a5a6')),
-        color = 'white',
-        fontWeight = 'bold'
-      )
-  })
-  
-  # ---- Indicateurs 
-  output$showPosthocResults <- reactive({
-    !is.null(values$multiResultsMain) && nrow(values$multiResultsMain) > 0
-  })
-  outputOptions(output, "showPosthocResults", suspendWhenHidden = FALSE)
-  
-  output$showSimpleEffects <- reactive({
-    !is.null(values$multiResultsMain) && 
-      any(values$multiResultsMain$Type == "simple_effect", na.rm = TRUE)
-  })
-  outputOptions(output, "showSimpleEffects", suspendWhenHidden = FALSE)
-  
-  # ---- Résumés 
-  output$analysisSummaryMain <- renderUI({
-    req(values$multiResultsMain)
-    
-    main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-    
-    n_vars <- length(unique(main_data$Variable))
-    n_factors <- length(unique(main_data$Facteur))
-    n_comparisons <- nrow(main_data)
-    
-    div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
-        h5(icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
-        tags$ul(
-          tags$li(strong(n_vars), " variable(s) analysée(s)"),
-          tags$li(strong(n_factors), " facteur(s) testé(s)"),
-          tags$li(strong(n_comparisons), " comparaison(s)")
-        )
-    )
-  })
-  
-  output$simpleEffectsSummary <- renderUI({
-    req(values$multiResultsMain)
-    
-    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-    
-    if (nrow(simple_data) == 0) return(NULL)
-    
-    n_interactions <- length(unique(simple_data$Interaction_base))
-    n_tests <- nrow(simple_data)
-    n_directions <- length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))
-    
-    div(style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-        h5(icon("project-diagram"), " Décomposition des interactions", style = "margin-top: 0;"),
-        tags$ul(
-          tags$li(strong(n_interactions), " interaction(s) significative(s)"),
-          tags$li(strong(n_tests), " test(s) d'effets simples"),
-          tags$li(strong(n_directions), " direction(s) d'analyse")
-        )
-    )
-  })
-  
-  # ---- Filtres dynamiques 
-  observe({
-    req(values$multiResultsMain)
-    
-    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-    
-    if (nrow(simple_data) > 0) {
-      vars <- c("Toutes", unique(simple_data$Variable))
-      interactions <- c("Toutes", unique(simple_data$Interaction_base))
-      
-      updateSelectInput(session, "filterSimpleEffectVar", choices = vars, selected = "Toutes")
-      updateSelectInput(session, "filterSimpleEffectInteraction", choices = interactions, selected = "Toutes")
-    }
-  })
-  
-  # ---- Sélection pour graphiques effets simples 
-  output$selectSimpleEffectPlot <- renderUI({
-    req(values$multiResultsMain)
-    
-    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-    
-    if (nrow(simple_data) == 0) return(NULL)
-    
-    current_var_idx <- values$currentVarIndex %||% 1
-    resp_var <- input$multiResponse[current_var_idx]
-    
-    simple_var_data <- simple_data[simple_data$Variable == resp_var, ]
-    
-    if (nrow(simple_var_data) == 0) {
-      return(div(style = "color: #e74c3c; font-style: italic;", 
-                 "Aucun effet simple pour cette variable"))
-    }
-    
-    factors <- unique(simple_var_data$Facteur)
-    
-    selectInput("selectedSimpleEffect", 
-                "Sélectionner l'effet simple:",
-                choices = factors,
-                width = "100%")
-  })
-  
-  # ---- Rapport complet 
-  output$fullAnalysisReport <- renderUI({
-    req(values$multiResultsMain)
-    
-    main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-    
-    tagList(
-      h4("Vue d'ensemble"),
-      fluidRow(
-        column(6,
-               div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #667eea;",
-                   h5(icon("layer-group"), " Effets principaux"),
-                   p(strong(nrow(main_data)), " comparaisons"),
-                   p(strong(length(unique(main_data$Variable))), " variables"),
-                   p(strong(length(unique(main_data$Facteur))), " facteurs")
-               )
-        ),
-        column(6,
-               div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #e74c3c;",
-                   h5(icon("project-diagram"), " Effets simples"),
-                   p(strong(nrow(simple_data)), " tests"),
-                   p(strong(length(unique(simple_data$Interaction_base))), " interactions décomposées"),
-                   p(strong(length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))), " directions d'analyse")
-               )
-        )
-      ),
-      br(),
-      h4("Détails par variable"),
-      uiOutput("variableDetailedReport")
-    )
-  })
-  
-  output$variableDetailedReport <- renderUI({
-    req(values$multiResultsMain)
-    
-    vars <- unique(values$multiResultsMain$Variable)
-    
-    reports <- lapply(vars, function(v) {
-      var_data <- values$multiResultsMain[values$multiResultsMain$Variable == v, ]
-      main_count <- sum(var_data$Type == "main")
-      simple_count <- sum(var_data$Type == "simple_effect")
-      
-      div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;",
-          strong(v),
-          br(),
-          sprintf("• %d effet(s) principal(aux)", main_count),
-          br(),
-          sprintf("• %d effet(s) simple(s)", simple_count)
-      )
+      return(df[, all_cols])
     })
     
-    do.call(tagList, reports)
-  })
-  
-  # ---- Navigation entre variables 
-  output$showVariableNavigation <- reactive({
-    length(input$multiResponse) > 1
-  })
-  outputOptions(output, "showVariableNavigation", suspendWhenHidden = FALSE)
-  
-  output$variableNavigation <- renderUI({
-    req(length(input$multiResponse) > 1)
-    current_idx <- values$currentVarIndex %||% 1
-    total_vars <- length(input$multiResponse)
+    combined_results <- do.call(rbind, all_results)
+    values$allPostHocResults[[length(values$allPostHocResults) + 1]] <- combined_results
+    values$multiResultsMain <- combined_results
+    values$currentVarIndex <- 1
     
-    div(style = "display: flex; align-items: center; gap: 15px;",
-        actionButton("prevMultiVar", "", 
-                     icon = icon("chevron-left"), 
-                     class = "btn-light btn-lg",
-                     style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;"),
-        div(style = "color: white; font-size: 1.2em; font-weight: bold; text-align: center;",
-            span(style = "display: block; font-size: 0.8em; opacity: 0.8;", 
-                 paste("Variable", current_idx, "/", total_vars)),
-            span(input$multiResponse[current_idx])
-        ),
-        actionButton("nextMultiVar", "", 
-                     icon = icon("chevron-right"), 
-                     class = "btn-light btn-lg",
-                     style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;")
+    # Message récapitulatif amélioré
+    n_main <- sum(combined_results$Type == "main", na.rm = TRUE)
+    n_simple <- sum(combined_results$Type == "simple_effect", na.rm = TRUE)
+    n_interactions <- length(unique(combined_results$Interaction_base[!is.na(combined_results$Interaction_base)]))
+    
+    showNotification(
+      HTML(paste0(
+        "<b> ANALYSE TERMINÉE</b><br/>",
+        "• ", n_main, " effet(s) principal(aux)<br/>",
+        "• ", n_simple, " effet(s) simple(s)<br/>",
+        "• ", n_interactions, " interaction(s) décomposée(s)"
+      )),
+      type = "message", duration = 8
     )
-  })
+  } else {
+    showNotification("Aucun résultat généré", type = "warning")
+  }
+})
+
+# ---- UI Outputs pour Multi-Selection 
+output$multiResponseSelect <- renderUI({
+  req(values$filteredData)
+  num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+  tagList(
+    pickerInput("multiResponse", "Variable(s) réponse:", choices = num_cols, multiple = TRUE, 
+                options = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
+    div(style = "display: flex; gap: 10px;",
+        actionButton("selectAllMultiResponse", "Tout sélectionner", 
+                     class = "btn-success btn-sm", 
+                     style = "flex: 1; height: 40px;"),
+        actionButton("deselectAllMultiResponse", "Tout désélectionner", 
+                     class = "btn-danger btn-sm",
+                     style = "flex: 1; height: 40px;")
+    )
+  )
+})
+
+observeEvent(input$selectAllMultiResponse, {
+  num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+  updatePickerInput(session, "multiResponse", selected = num_cols)
+})
+
+observeEvent(input$deselectAllMultiResponse, {
+  updatePickerInput(session, "multiResponse", selected = character(0))
+})
+
+output$multiFactorSelect <- renderUI({
+  req(values$filteredData)
+  fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+  tagList(
+    pickerInput("multiFactor", "Facteur(s):", choices = fac_cols, multiple = TRUE, 
+                options = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
+    div(style = "display: flex; gap: 10px;",
+        actionButton("selectAllMultiFactors", "Tout sélectionner", 
+                     class = "btn-success btn-sm",
+                     style = "flex: 1; height: 40px;"),
+        actionButton("deselectAllMultiFactors", "Tout désélectionner", 
+                     class = "btn-danger btn-sm",
+                     style = "flex: 1; height: 40px;")
+    )
+  )
+})
+
+observeEvent(input$selectAllMultiFactors, {
+  fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+  updatePickerInput(session, "multiFactor", selected = fac_cols)
+})
+
+observeEvent(input$deselectAllMultiFactors, {
+  updatePickerInput(session, "multiFactor", selected = character(0))
+})
+
+# ---- Tables de résultats 
+output$mainEffectsTable <- renderDT({
+  req(values$multiResultsMain)
   
-  observeEvent(input$prevMultiVar, {
-    values$currentVarIndex <- if (values$currentVarIndex > 1) 
-      values$currentVarIndex - 1 else length(input$multiResponse)
-  })
+  main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
   
-  observeEvent(input$nextMultiVar, {
-    values$currentVarIndex <- if (values$currentVarIndex < length(input$multiResponse)) 
-      values$currentVarIndex + 1 else 1
-  })
+  if (nrow(main_data) == 0) return(NULL)
   
-  # ---- Graphiques 
-  output$multiPlot <- renderPlotly({
-    req(input$multiResponse, input$multiFactor, values$multiResultsMain)
-    
-    current_var_idx <- values$currentVarIndex %||% 1
-    resp_var <- input$multiResponse[current_var_idx]
-    
-    if (input$plotDisplayType == "main") {
-      fvar <- input$multiFactor[1]
-      plot_data <- values$filteredData
-      agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
-                                       values$multiResultsMain$Facteur == fvar &
-                                       values$multiResultsMain$Type == "main", ]
-    } else {
-      req(input$selectedSimpleEffect)
-      
-      parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
-      main_factor <- parts[1]
-      condition <- parts[2]
-      
-      cond_parts <- strsplit(condition, "=")[[1]]
-      cond_factor <- cond_parts[1]
-      cond_level <- cond_parts[2]
-      
-      plot_data <- values$filteredData[values$filteredData[[cond_factor]] == cond_level, ]
-      
-      agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
-                                       values$multiResultsMain$Facteur == input$selectedSimpleEffect &
-                                       values$multiResultsMain$Type == "simple_effect", ]
-      
-      fvar <- main_factor
+  cols_to_show <- c("Variable", "Facteur", "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
+  
+  for (fvar in input$multiFactor) {
+    if (fvar %in% colnames(main_data)) {
+      cols_to_show <- c(cols_to_show, fvar)
     }
-    
-    if (nrow(agg) == 0) {
-      showNotification("Aucune donnée disponible pour le graphique", type = "warning")
-      return(NULL)
+  }
+  
+  cols_to_show <- unique(cols_to_show)
+  cols_to_show <- cols_to_show[cols_to_show %in% colnames(main_data)]
+  
+  datatable(
+    main_data[, cols_to_show, drop = FALSE],
+    options = list(
+      scrollX = TRUE,
+      pageLength = 15,
+      lengthMenu = c(10, 15, 25, 50),
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel')
+    ),
+    rownames = FALSE,
+    extensions = 'Buttons',
+    class = 'cell-border stripe'
+  ) %>%
+    formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV"), digits = 2) %>%
+    formatStyle(
+      'groups',
+      backgroundColor = styleEqual(
+        unique(main_data$groups),
+        rainbow(length(unique(main_data$groups)), alpha = 0.3)
+      ),
+      fontWeight = 'bold'
+    )
+})
+
+output$simpleEffectsTable <- renderDT({
+  req(values$multiResultsMain)
+  
+  simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+  
+  if (nrow(simple_data) == 0) return(NULL)
+  
+  if (!is.null(input$filterSimpleEffectVar) && input$filterSimpleEffectVar != "Toutes") {
+    simple_data <- simple_data[simple_data$Variable == input$filterSimpleEffectVar, ]
+  }
+  
+  if (!is.null(input$filterSimpleEffectInteraction) && input$filterSimpleEffectInteraction != "Toutes") {
+    simple_data <- simple_data[simple_data$Interaction_base == input$filterSimpleEffectInteraction, ]
+  }
+  
+  cols_to_show <- c("Variable", "Facteur", "Direction", "Interaction_base", "P_interaction", 
+                    "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
+  
+  for (fvar in input$multiFactor) {
+    if (fvar %in% colnames(simple_data)) {
+      cols_to_show <- c(cols_to_show, fvar)
     }
-    
-    base_theme <- theme_minimal() +
-      theme(
-        plot.title = element_text(size = input$titleSize, face = "bold", hjust = 0.5),
-        axis.title = element_text(size = input$axisTitleSize),
-        axis.text = element_text(size = input$axisTextSize),
-        axis.text.x = if (input$rotateXLabels) element_text(angle = 45, hjust = 1) else element_text(),
-        legend.position = if (input$colorByGroups) "right" else "none",
-        panel.grid.major = element_line(color = "gray90"),
-        panel.grid.minor = element_blank(),
-        panel.background = element_rect(fill = "white", color = NA)
+  }
+  
+  cols_to_show <- unique(cols_to_show)
+  cols_to_show <- cols_to_show[cols_to_show %in% colnames(simple_data)]
+  
+  datatable(
+    simple_data[, cols_to_show, drop = FALSE],
+    options = list(
+      scrollX = TRUE,
+      pageLength = 15,
+      lengthMenu = c(10, 15, 25, 50),
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel')
+    ),
+    rownames = FALSE,
+    extensions = 'Buttons',
+    class = 'cell-border stripe'
+  ) %>%
+    formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"), digits = 4) %>%
+    formatStyle(
+      'groups',
+      backgroundColor = styleEqual(
+        unique(simple_data$groups),
+        rainbow(length(unique(simple_data$groups)), alpha = 0.3)
+      ),
+      fontWeight = 'bold'
+    ) %>%
+    formatStyle(
+      'P_interaction',
+      backgroundColor = styleInterval(c(0.01, 0.05), c('#e74c3c', '#f39c12', '#95a5a6')),
+      color = 'white',
+      fontWeight = 'bold'
+    )
+})
+
+# ---- Indicateurs 
+output$showPosthocResults <- reactive({
+  !is.null(values$multiResultsMain) && nrow(values$multiResultsMain) > 0
+})
+outputOptions(output, "showPosthocResults", suspendWhenHidden = FALSE)
+
+output$showSimpleEffects <- reactive({
+  !is.null(values$multiResultsMain) && 
+    any(values$multiResultsMain$Type == "simple_effect", na.rm = TRUE)
+})
+outputOptions(output, "showSimpleEffects", suspendWhenHidden = FALSE)
+
+# ---- Résumés 
+output$analysisSummaryMain <- renderUI({
+  req(values$multiResultsMain)
+  
+  main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
+  
+  n_vars <- length(unique(main_data$Variable))
+  n_factors <- length(unique(main_data$Facteur))
+  n_comparisons <- nrow(main_data)
+  
+  div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
+      h5(icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
+      tags$ul(
+        tags$li(strong(n_vars), " variable(s) analysée(s)"),
+        tags$li(strong(n_factors), " facteur(s) testé(s)"),
+        tags$li(strong(n_comparisons), " comparaison(s)")
       )
+  )
+})
+
+output$simpleEffectsSummary <- renderUI({
+  req(values$multiResultsMain)
+  
+  simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+  
+  if (nrow(simple_data) == 0) return(NULL)
+  
+  n_interactions <- length(unique(simple_data$Interaction_base))
+  n_tests <- nrow(simple_data)
+  n_directions <- length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))
+  
+  div(style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+      h5(icon("project-diagram"), " Décomposition des interactions", style = "margin-top: 0;"),
+      tags$ul(
+        tags$li(strong(n_interactions), " interaction(s) significative(s)"),
+        tags$li(strong(n_tests), " test(s) d'effets simples"),
+        tags$li(strong(n_directions), " direction(s) d'analyse")
+      )
+  )
+})
+
+# ---- Filtres dynamiques 
+observe({
+  req(values$multiResultsMain)
+  
+  simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+  
+  if (nrow(simple_data) > 0) {
+    vars <- c("Toutes", unique(simple_data$Variable))
+    interactions <- c("Toutes", unique(simple_data$Interaction_base))
     
-    plot_title <- if (!is.null(input$customTitle) && input$customTitle != "") {
-      input$customTitle
+    updateSelectInput(session, "filterSimpleEffectVar", choices = vars, selected = "Toutes")
+    updateSelectInput(session, "filterSimpleEffectInteraction", choices = interactions, selected = "Toutes")
+  }
+})
+
+# ---- Sélection pour graphiques effets simples 
+output$selectSimpleEffectPlot <- renderUI({
+  req(values$multiResultsMain)
+  
+  simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+  
+  if (nrow(simple_data) == 0) return(NULL)
+  
+  current_var_idx <- values$currentVarIndex %||% 1
+  resp_var <- input$multiResponse[current_var_idx]
+  
+  simple_var_data <- simple_data[simple_data$Variable == resp_var, ]
+  
+  if (nrow(simple_var_data) == 0) {
+    return(div(style = "color: #e74c3c; font-style: italic;", 
+               "Aucun effet simple pour cette variable"))
+  }
+  
+  factors <- unique(simple_var_data$Facteur)
+  
+  selectInput("selectedSimpleEffect", 
+              "Sélectionner l'effet simple:",
+              choices = factors,
+              width = "100%")
+})
+
+# ---- Rapport complet 
+output$fullAnalysisReport <- renderUI({
+  req(values$multiResultsMain)
+  
+  main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
+  simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+  
+  tagList(
+    h4("Vue d'ensemble"),
+    fluidRow(
+      column(6,
+             div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #667eea;",
+                 h5(icon("layer-group"), " Effets principaux"),
+                 p(strong(nrow(main_data)), " comparaisons"),
+                 p(strong(length(unique(main_data$Variable))), " variables"),
+                 p(strong(length(unique(main_data$Facteur))), " facteurs")
+             )
+      ),
+      column(6,
+             div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #e74c3c;",
+                 h5(icon("project-diagram"), " Effets simples"),
+                 p(strong(nrow(simple_data)), " tests"),
+                 p(strong(length(unique(simple_data$Interaction_base))), " interactions décomposées"),
+                 p(strong(length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))), " directions d'analyse")
+             )
+      )
+    ),
+    br(),
+    h4("Détails par variable"),
+    uiOutput("variableDetailedReport")
+  )
+})
+
+output$variableDetailedReport <- renderUI({
+  req(values$multiResultsMain)
+  
+  vars <- unique(values$multiResultsMain$Variable)
+  
+  reports <- lapply(vars, function(v) {
+    var_data <- values$multiResultsMain[values$multiResultsMain$Variable == v, ]
+    main_count <- sum(var_data$Type == "main")
+    simple_count <- sum(var_data$Type == "simple_effect")
+    
+    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;",
+        strong(v),
+        br(),
+        sprintf("• %d effet(s) principal(aux)", main_count),
+        br(),
+        sprintf("• %d effet(s) simple(s)", simple_count)
+    )
+  })
+  
+  do.call(tagList, reports)
+})
+
+# ---- Navigation entre variables 
+output$showVariableNavigation <- reactive({
+  length(input$multiResponse) > 1
+})
+outputOptions(output, "showVariableNavigation", suspendWhenHidden = FALSE)
+
+output$variableNavigation <- renderUI({
+  req(length(input$multiResponse) > 1)
+  current_idx <- values$currentVarIndex %||% 1
+  total_vars <- length(input$multiResponse)
+  
+  div(style = "display: flex; align-items: center; gap: 15px;",
+      actionButton("prevMultiVar", "", 
+                   icon = icon("chevron-left"), 
+                   class = "btn-light btn-lg",
+                   style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;"),
+      div(style = "color: white; font-size: 1.2em; font-weight: bold; text-align: center;",
+          span(style = "display: block; font-size: 0.8em; opacity: 0.8;", 
+               paste("Variable", current_idx, "/", total_vars)),
+          span(input$multiResponse[current_idx])
+      ),
+      actionButton("nextMultiVar", "", 
+                   icon = icon("chevron-right"), 
+                   class = "btn-light btn-lg",
+                   style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;")
+  )
+})
+
+observeEvent(input$prevMultiVar, {
+  values$currentVarIndex <- if (values$currentVarIndex > 1) 
+    values$currentVarIndex - 1 else length(input$multiResponse)
+})
+
+observeEvent(input$nextMultiVar, {
+  values$currentVarIndex <- if (values$currentVarIndex < length(input$multiResponse)) 
+    values$currentVarIndex + 1 else 1
+})
+
+# ---- Graphiques 
+output$multiPlot <- renderPlotly({
+  req(input$multiResponse, input$multiFactor, values$multiResultsMain)
+  
+  current_var_idx <- values$currentVarIndex %||% 1
+  resp_var <- input$multiResponse[current_var_idx]
+  
+  if (input$plotDisplayType == "main") {
+    fvar <- input$multiFactor[1]
+    plot_data <- values$filteredData
+    agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
+                                     values$multiResultsMain$Facteur == fvar &
+                                     values$multiResultsMain$Type == "main", ]
+  } else {
+    req(input$selectedSimpleEffect)
+    
+    parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
+    main_factor <- parts[1]
+    condition <- parts[2]
+    
+    cond_parts <- strsplit(condition, "=")[[1]]
+    cond_factor <- cond_parts[1]
+    cond_level <- cond_parts[2]
+    
+    plot_data <- values$filteredData[values$filteredData[[cond_factor]] == cond_level, ]
+    
+    agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
+                                     values$multiResultsMain$Facteur == input$selectedSimpleEffect &
+                                     values$multiResultsMain$Type == "simple_effect", ]
+    
+    fvar <- main_factor
+  }
+  
+  if (nrow(agg) == 0) {
+    showNotification("Aucune donnée disponible pour le graphique", type = "warning")
+    return(NULL)
+  }
+  
+  base_theme <- theme_minimal() +
+    theme(
+      plot.title = element_text(size = input$titleSize, face = "bold", hjust = 0.5),
+      axis.title = element_text(size = input$axisTitleSize),
+      axis.text = element_text(size = input$axisTextSize),
+      axis.text.x = if (input$rotateXLabels) element_text(angle = 45, hjust = 1) else element_text(),
+      legend.position = if (input$colorByGroups) "right" else "none",
+      panel.grid.major = element_line(color = "gray90"),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "white", color = NA)
+    )
+  
+  plot_title <- if (!is.null(input$customTitle) && input$customTitle != "") {
+    input$customTitle
+  } else {
+    if (input$plotDisplayType == "main") {
+      paste("Effet principal:", resp_var, "par", fvar)
     } else {
-      if (input$plotDisplayType == "main") {
-        paste("Effet principal:", resp_var, "par", fvar)
-      } else {
-        parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
-        paste("Effet simple:", resp_var, "-", parts[1], "à", parts[2])
-      }
+      parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
+      paste("Effet simple:", resp_var, "-", parts[1], "à", parts[2])
+    }
+  }
+  
+  base_labels <- labs(
+    title = plot_title,
+    x = input$customXLabel %||% fvar,
+    y = input$customYLabel %||% resp_var
+  )
+  
+  legend_title <- ifelse(is.null(input$customLegendTitle) || input$customLegendTitle == "", 
+                         "Groupes statistiques", input$customLegendTitle)
+  
+  if (input$plotType == "box") {
+    agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
+      (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
+    
+    if (input$colorByGroups) {
+      plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
+      p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
+        geom_boxplot(alpha = 0.7) +
+        scale_fill_discrete(name = legend_title)
+    } else {
+      p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
+        geom_boxplot(alpha = 0.7) +
+        theme(legend.position = "none")
     }
     
-    base_labels <- labs(
-      title = plot_title,
-      x = input$customXLabel %||% fvar,
-      y = input$customYLabel %||% resp_var
-    )
+    p <- p + base_theme + base_labels
     
-    legend_title <- ifelse(is.null(input$customLegendTitle) || input$customLegendTitle == "", 
-                           "Groupes statistiques", input$customLegendTitle)
+    if (!input$colorByGroups) {
+      p <- p + geom_text(data = agg, 
+                         aes_string(x = fvar, y = "y_position_groups", label = "groups"),
+                         size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
+    }
     
-    if (input$plotType == "box") {
-      agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
-        (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
+  } else if (input$plotType == "violin") {
+    agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
+      (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
+    
+    if (input$colorByGroups) {
+      plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
+      p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
+        geom_violin(alpha = 0.7) +
+        geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+        scale_fill_discrete(name = legend_title)
+    } else {
+      p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
+        geom_violin(alpha = 0.7) +
+        geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+        theme(legend.position = "none")
+    }
+    
+    p <- p + base_theme + base_labels
+    
+    if (!input$colorByGroups) {
+      p <- p + geom_text(data = agg, 
+                         aes_string(x = fvar, y = "y_position_groups", label = "groups"),
+                         size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
+    }
+    
+  } else if (input$plotType == "point") {
+    if (input$colorByGroups) {
+      p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups", color = "groups")) +
+        geom_point(size = 4, shape = 21, stroke = 2) +
+        scale_fill_discrete(name = legend_title) +
+        scale_color_discrete(name = legend_title)
+    } else {
+      p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar, color = fvar)) +
+        geom_point(size = 4, shape = 21, stroke = 2) +
+        theme(legend.position = "none")
+    }
+    
+    p <- p + base_theme + base_labels
+    
+    if (input$errorType == "se") {
+      p <- p + geom_errorbar(aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
+                             width = 0.2, color = "black")
+    } else if (input$errorType == "sd") {
+      p <- p + geom_errorbar(aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
+                             width = 0.2, color = "black")
+    } else if (input$errorType == "ci") {
+      ci_margin <- 1.96 * agg$Erreur_type
+      p <- p + geom_errorbar(aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
+                             width = 0.2, color = "black")
+    }
+    
+    if (!input$colorByGroups) {
+      y_text_position <- max(agg$Moyenne + 
+                               if(input$errorType == "se") agg$Erreur_type 
+                             else if(input$errorType == "sd") agg$Ecart_type 
+                             else if(input$errorType == "ci") 1.96 * agg$Erreur_type
+                             else 0, na.rm = TRUE) * 1.05
       
-      if (input$colorByGroups) {
-        plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
-        p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
-          geom_boxplot(alpha = 0.7) +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
-          geom_boxplot(alpha = 0.7) +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (!input$colorByGroups) {
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_position_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
-      
-    } else if (input$plotType == "violin") {
-      agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
-        (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
-      
-      if (input$colorByGroups) {
-        plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
-        p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
-          geom_violin(alpha = 0.7) +
-          geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
-          geom_violin(alpha = 0.7) +
-          geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (!input$colorByGroups) {
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_position_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
-      
-    } else if (input$plotType == "point") {
-      if (input$colorByGroups) {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups", color = "groups")) +
-          geom_point(size = 4, shape = 21, stroke = 2) +
-          scale_fill_discrete(name = legend_title) +
-          scale_color_discrete(name = legend_title)
-      } else {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar, color = fvar)) +
-          geom_point(size = 4, shape = 21, stroke = 2) +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
+      agg$y_text_position <- y_text_position
+      p <- p + geom_text(data = agg, aes_string(x = fvar, y = "y_text_position", label = "groups"),
+                         size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
+    }
+    
+  } else if (input$plotType == "hist") {
+    if (input$colorByGroups) {
+      p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups")) +
+        geom_col(alpha = 0.7, color = "black") +
+        scale_fill_discrete(name = legend_title)
+    } else {
+      p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar)) +
+        geom_col(alpha = 0.7, color = "black") +
+        theme(legend.position = "none")
+    }
+    
+    p <- p + base_theme + base_labels
+    
+    if (input$errorType != "none") {
       if (input$errorType == "se") {
-        p <- p + geom_errorbar(aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
+        p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
                                width = 0.2, color = "black")
       } else if (input$errorType == "sd") {
-        p <- p + geom_errorbar(aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
+        p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
                                width = 0.2, color = "black")
       } else if (input$errorType == "ci") {
         ci_margin <- 1.96 * agg$Erreur_type
-        p <- p + geom_errorbar(aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
+        p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
                                width = 0.2, color = "black")
       }
-      
-      if (!input$colorByGroups) {
-        y_text_position <- max(agg$Moyenne + 
-                                 if(input$errorType == "se") agg$Erreur_type 
-                               else if(input$errorType == "sd") agg$Ecart_type 
-                               else if(input$errorType == "ci") 1.96 * agg$Erreur_type
-                               else 0, na.rm = TRUE) * 1.05
-        
-        agg$y_text_position <- y_text_position
-        p <- p + geom_text(data = agg, aes_string(x = fvar, y = "y_text_position", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
-      
-    } else if (input$plotType == "hist") {
-      if (input$colorByGroups) {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups")) +
-          geom_col(alpha = 0.7, color = "black") +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar)) +
-          geom_col(alpha = 0.7, color = "black") +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (input$errorType != "none") {
-        if (input$errorType == "se") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
-                                 width = 0.2, color = "black")
-        } else if (input$errorType == "sd") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
-                                 width = 0.2, color = "black")
-        } else if (input$errorType == "ci") {
-          ci_margin <- 1.96 * agg$Erreur_type
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
-                                 width = 0.2, color = "black")
-        }
-      }
-      
+    }
+    
+    p <- p + geom_text(data = agg, 
+                       aes_string(x = fvar, y = "Moyenne/2", label = "round(Moyenne, 2)"),
+                       size = 4, fontface = "bold", color = "white", inherit.aes = FALSE)
+    
+    if (!input$colorByGroups) {
+      agg$y_text_pos_groups <- agg$Moyenne * 0.8
       p <- p + geom_text(data = agg, 
-                         aes_string(x = fvar, y = "Moyenne/2", label = "round(Moyenne, 2)"),
-                         size = 4, fontface = "bold", color = "white", inherit.aes = FALSE)
-      
-      if (!input$colorByGroups) {
-        agg$y_text_pos_groups <- agg$Moyenne * 0.8
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_text_pos_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
+                         aes_string(x = fvar, y = "y_text_pos_groups", label = "groups"),
+                         size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
     }
-    
-    if (input$boxColor != "default" && !input$colorByGroups) {
-      p <- p + scale_fill_brewer(palette = input$boxColor) +
-        scale_color_brewer(palette = input$boxColor)
-    }
-    
-    values$currentPlot <- p
-    ggplotly(p) %>%
-      layout(showlegend = if (input$colorByGroups) TRUE else FALSE)
-  })
+  }
   
-  output$plotTitle <- renderUI({
-    req(input$multiResponse, values$currentVarIndex)
-    
-    current_var_idx <- values$currentVarIndex %||% 1
-    current_var <- input$multiResponse[current_var_idx]
-    
-    type_text <- if (input$plotDisplayType == "main") "Effets principaux" else "Effets simples"
-    
-    paste(type_text, "-", current_var)
-  })
+  if (input$boxColor != "default" && !input$colorByGroups) {
+    p <- p + scale_fill_brewer(palette = input$boxColor) +
+      scale_color_brewer(palette = input$boxColor)
+  }
   
-  # ---- Téléchargements 
-  output$downloadMainEffects <- downloadHandler(
-    filename = function() { paste0("effets_principaux_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-      wb <- openxlsx::createWorkbook()
+  values$currentPlot <- p
+  ggplotly(p) %>%
+    layout(showlegend = if (input$colorByGroups) TRUE else FALSE)
+})
+
+output$plotTitle <- renderUI({
+  req(input$multiResponse, values$currentVarIndex)
+  
+  current_var_idx <- values$currentVarIndex %||% 1
+  current_var <- input$multiResponse[current_var_idx]
+  
+  type_text <- if (input$plotDisplayType == "main") "Effets principaux" else "Effets simples"
+  
+  paste(type_text, "-", current_var)
+})
+
+# ---- Téléchargements 
+output$downloadMainEffects <- downloadHandler(
+  filename = function() { paste0("effets_principaux_", Sys.Date(), ".xlsx") },
+  content = function(file) {
+    req(values$multiResultsMain)
+    main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Effets_principaux")
+    openxlsx::writeData(wb, "Effets_principaux", main_data)
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+
+output$downloadSimpleEffects <- downloadHandler(
+  filename = function() { paste0("effets_simples_", Sys.Date(), ".xlsx") },
+  content = function(file) {
+    req(values$multiResultsMain)
+    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Effets_simples")
+    openxlsx::writeData(wb, "Effets_simples", simple_data)
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+
+output$downloadAllResults <- downloadHandler(
+  filename = function() { paste0("analyse_complete_", Sys.Date(), ".xlsx") },
+  content = function(file) {
+    req(values$multiResultsMain)
+    wb <- openxlsx::createWorkbook()
+    
+    main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
+    simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
+    
+    if (nrow(main_data) > 0) {
       openxlsx::addWorksheet(wb, "Effets_principaux")
       openxlsx::writeData(wb, "Effets_principaux", main_data)
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     }
-  )
-  
-  output$downloadSimpleEffects <- downloadHandler(
-    filename = function() { paste0("effets_simples_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-      wb <- openxlsx::createWorkbook()
+    
+    if (nrow(simple_data) > 0) {
       openxlsx::addWorksheet(wb, "Effets_simples")
       openxlsx::writeData(wb, "Effets_simples", simple_data)
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     }
-  )
-  
-  output$downloadAllResults <- downloadHandler(
-    filename = function() { paste0("analyse_complete_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      wb <- openxlsx::createWorkbook()
-      
-      main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-      simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-      
-      if (nrow(main_data) > 0) {
-        openxlsx::addWorksheet(wb, "Effets_principaux")
-        openxlsx::writeData(wb, "Effets_principaux", main_data)
-      }
-      
-      if (nrow(simple_data) > 0) {
-        openxlsx::addWorksheet(wb, "Effets_simples")
-        openxlsx::writeData(wb, "Effets_simples", simple_data)
-      }
-      
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+    
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+
+output$downloadMultiPlot <- downloadHandler(
+  filename = function() { paste0("graphique_posthoc_", Sys.Date(), ".png") },
+  content = function(file) {
+    if (!is.null(values$currentPlot)) {
+      ggsave(file, plot = values$currentPlot, width = input$plotWidth, 
+             height = input$plotHeight, dpi = input$plotDPI)
     }
-  )
-  
-  output$downloadMultiPlot <- downloadHandler(
-    filename = function() { paste0("graphique_posthoc_", Sys.Date(), ".png") },
-    content = function(file) {
-      if (!is.null(values$currentPlot)) {
-        ggsave(file, plot = values$currentPlot, width = input$plotWidth, 
-               height = input$plotHeight, dpi = input$plotDPI)
-      }
+  }
+)
+
+output$downloadPlot <- downloadHandler(
+  filename = function() { paste0("graphique_posthoc_", Sys.Date(), ".png") },
+  content = function(file) {
+    if (!is.null(values$currentPlot)) {
+      ggsave(file, plot = values$currentPlot, width = input$plotWidth, 
+             height = input$plotHeight, dpi = input$plotDPI)
     }
-  )
-  
-  output$downloadPlot <- downloadHandler(
-    filename = function() { paste0("graphique_posthoc_", Sys.Date(), ".png") },
-    content = function(file) {
-      if (!is.null(values$currentPlot)) {
-        ggsave(file, plot = values$currentPlot, width = input$plotWidth, 
-               height = input$plotHeight, dpi = input$plotDPI)
-      }
-    }
-  )
-  
-  output$downloadSummaryStats <- downloadHandler(
-    filename = function() { paste0("statistiques_resumees_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      
-      summary_stats <- values$multiResultsMain %>%
-        group_by(Variable, Facteur, Type) %>%
-        summarise(
-          Nb_groupes = n(),
-          Moyenne_generale = round(mean(Moyenne, na.rm = TRUE), 2),
-          CV_moyen = round(mean(CV, na.rm = TRUE), 2),
-          Ecart_type_moyen = round(mean(Ecart_type, na.rm = TRUE), 2),
-          .groups = "drop"
-        )
-      
-      var_summary <- values$multiResultsMain %>%
-        group_by(Variable) %>%
-        summarise(
-          Nb_facteurs_testes = n_distinct(Facteur),
-          Nb_total_groupes = n(),
-          Moyenne_min = round(min(Moyenne, na.rm = TRUE), 2),
-          Moyenne_max = round(max(Moyenne, na.rm = TRUE), 2),
-          CV_min = round(min(CV, na.rm = TRUE), 2),
-          CV_max = round(max(CV, na.rm = TRUE), 2),
-          .groups = "drop"
-        )
-      
-      wb <- openxlsx::createWorkbook()
-      openxlsx::addWorksheet(wb, "Resume_par_facteur")
-      openxlsx::writeData(wb, "Resume_par_facteur", summary_stats)
-      openxlsx::addWorksheet(wb, "Resume_par_variable")
-      openxlsx::writeData(wb, "Resume_par_variable", var_summary)
-      openxlsx::addWorksheet(wb, "Donnees_completes")
-      openxlsx::writeData(wb, "Donnees_completes", values$multiResultsMain)
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
-  
-  output$downloadFullReport <- downloadHandler(
-    filename = function() { paste0("rapport_complet_", Sys.Date(), ".pdf") },
-    content = function(file) {
-      showNotification("Génération du PDF - Fonctionnalité nécessite rmarkdown", 
-                       type = "warning", duration = 5)
-    }
-  )
+  }
+)
+
+output$downloadSummaryStats <- downloadHandler(
+  filename = function() { paste0("statistiques_resumees_", Sys.Date(), ".xlsx") },
+  content = function(file) {
+    req(values$multiResultsMain)
+    
+    summary_stats <- values$multiResultsMain %>%
+      group_by(Variable, Facteur, Type) %>%
+      summarise(
+        Nb_groupes = n(),
+        Moyenne_generale = round(mean(Moyenne, na.rm = TRUE), 2),
+        CV_moyen = round(mean(CV, na.rm = TRUE), 2),
+        Ecart_type_moyen = round(mean(Ecart_type, na.rm = TRUE), 2),
+        .groups = "drop"
+      )
+    
+    var_summary <- values$multiResultsMain %>%
+      group_by(Variable) %>%
+      summarise(
+        Nb_facteurs_testes = n_distinct(Facteur),
+        Nb_total_groupes = n(),
+        Moyenne_min = round(min(Moyenne, na.rm = TRUE), 2),
+        Moyenne_max = round(max(Moyenne, na.rm = TRUE), 2),
+        CV_min = round(min(CV, na.rm = TRUE), 2),
+        CV_max = round(max(CV, na.rm = TRUE), 2),
+        .groups = "drop"
+      )
+    
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Resume_par_facteur")
+    openxlsx::writeData(wb, "Resume_par_facteur", summary_stats)
+    openxlsx::addWorksheet(wb, "Resume_par_variable")
+    openxlsx::writeData(wb, "Resume_par_variable", var_summary)
+    openxlsx::addWorksheet(wb, "Donnees_completes")
+    openxlsx::writeData(wb, "Donnees_completes", values$multiResultsMain)
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+
+output$downloadFullReport <- downloadHandler(
+  filename = function() { paste0("rapport_complet_", Sys.Date(), ".pdf") },
+  content = function(file) {
+    showNotification("Génération du PDF - Fonctionnalité nécessite rmarkdown", 
+                     type = "warning", duration = 5)
+  }
+)
   # ---- Analyses multivariees ----
+  
+  # Supprimer les warnings de deprecation de ggplot2 et lifecycle
+  options(lifecycle_verbosity = "quiet")
+  suppressMessages(suppressWarnings(library(ggplot2)))
+  
+  # Fonction helper pour ecrire CSV avec encodage UTF-8
+  write_csv_utf8 <- function(data, file, ...) {
+    write.csv(data, file, row.names = FALSE, fileEncoding = "UTF-8", ...)
+  }
+  
+  # FONCTION POUR CALCULER LES DIMENSIONS AUTOMATIQUES SELON LE DPI
+  calculate_dimensions_from_dpi <- function(dpi, base_width_cm = 20, base_height_cm = 15) {
+    # Définir les dimensions standard pour différents usages selon le DPI
+    if (dpi <= 100) {
+      # Écran/Web - dimensions plus grandes pour compensation
+      width <- base_width_cm * 1.2
+      height <- base_height_cm * 1.2
+    } else if (dpi <= 150) {
+      # Présentation - dimensions standard
+      width <- base_width_cm
+      height <- base_height_cm
+    } else if (dpi <= 300) {
+      # Impression standard - dimensions standards
+      width <- base_width_cm
+      height <- base_height_cm
+    } else {
+      # Haute résolution/Publication - dimensions légèrement réduites
+      width <- base_width_cm * 0.9
+      height <- base_height_cm * 0.9
+    }
+    
+    return(list(width = width, height = height))
+  }
   
   # Fonction helper pour telecharger les graphiques avec options avancees
   createPlotDownloadHandler <- function(plot_func, default_name) {
@@ -10725,37 +11225,45 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     
     tryCatch({
+      # Valeurs propres
       eigenvalues_df <- as.data.frame(get_eigenvalue(res.pca))
-      eigenvalues_df$Dimension <- rownames(eigenvalues_df)
-      eigenvalues_df <- eigenvalues_df[, c("Dimension", "eigenvalue", "variance.percent", "cumulative.variance.percent")]
+      eigenvalues_df <- cbind(Dimension = rownames(eigenvalues_df), eigenvalues_df)
+      rownames(eigenvalues_df) <- NULL
       
+      # Coordonnees individus
       ind_coords_df <- as.data.frame(res.pca$ind$coord)
-      ind_coords_df$Individual <- rownames(ind_coords_df)
-      ind_coords_df <- ind_coords_df[, c("Individual", names(res.pca$ind$coord))]
+      ind_coords_df <- cbind(Individual = rownames(ind_coords_df), ind_coords_df)
+      rownames(ind_coords_df) <- NULL
       
+      # Contributions individus
       ind_contrib_df <- as.data.frame(res.pca$ind$contrib)
-      ind_contrib_df$Individual <- rownames(ind_contrib_df)
-      ind_contrib_df <- ind_contrib_df[, c("Individual", names(res.pca$ind$contrib))]
+      ind_contrib_df <- cbind(Individual = rownames(ind_contrib_df), ind_contrib_df)
+      rownames(ind_contrib_df) <- NULL
       
+      # Cos2 individus
       ind_cos2_df <- as.data.frame(res.pca$ind$cos2)
-      ind_cos2_df$Individual <- rownames(ind_cos2_df)
-      ind_cos2_df <- ind_cos2_df[, c("Individual", names(res.pca$ind$cos2))]
+      ind_cos2_df <- cbind(Individual = rownames(ind_cos2_df), ind_cos2_df)
+      rownames(ind_cos2_df) <- NULL
       
+      # Coordonnees variables
       var_coords_df <- as.data.frame(res.pca$var$coord)
-      var_coords_df$Variable <- rownames(var_coords_df)
-      var_coords_df <- var_coords_df[, c("Variable", names(res.pca$var$coord))]
+      var_coords_df <- cbind(Variable = rownames(var_coords_df), var_coords_df)
+      rownames(var_coords_df) <- NULL
       
+      # Contributions variables
       var_contrib_df <- as.data.frame(res.pca$var$contrib)
-      var_contrib_df$Variable <- rownames(var_contrib_df)
-      var_contrib_df <- var_contrib_df[, c("Variable", names(res.pca$var$contrib))]
+      var_contrib_df <- cbind(Variable = rownames(var_contrib_df), var_contrib_df)
+      rownames(var_contrib_df) <- NULL
       
+      # Cos2 variables
       var_cos2_df <- as.data.frame(res.pca$var$cos2)
-      var_cos2_df$Variable <- rownames(var_cos2_df)
-      var_cos2_df <- var_cos2_df[, c("Variable", names(res.pca$var$cos2))]
+      var_cos2_df <- cbind(Variable = rownames(var_cos2_df), var_cos2_df)
+      rownames(var_cos2_df) <- NULL
       
+      # Correlations variables
       var_cor_df <- as.data.frame(res.pca$var$cor)
-      var_cor_df$Variable <- rownames(var_cor_df)
-      var_cor_df <- var_cor_df[, c("Variable", names(res.pca$var$cor))]
+      var_cor_df <- cbind(Variable = rownames(var_cor_df), var_cor_df)
+      rownames(var_cor_df) <- NULL
       
       return(list(
         eigenvalues = eigenvalues_df,
@@ -10767,20 +11275,60 @@ server <- function(input, output, session) {
         var_cos2 = var_cos2_df,
         var_cor = var_cor_df
       ))
+      
     }, error = function(e) {
+      showNotification(paste("Erreur dataframes ACP:", e$message), type = "error")
       return(NULL)
     })
   })
   
-  output$pcaSummary <- renderPrint({
+  # Stocker les dataframes de l'ACP dans values$ pour un acces fiable
+  observe({
     req(pcaResultReactive())
-    summary(pcaResultReactive())
+    tryCatch({
+      dfs <- pcaDataframes()
+      if (!is.null(dfs)) {
+        values$pcaDataframes <- dfs
+        showNotification("Dataframes ACP mis en cache", type = "message", duration = 2)
+      }
+    }, error = function(e) {
+      showNotification(paste("Erreur stockage ACP:", e$message), type = "warning")
+    })
   })
   
-  # Fonction pour creer le graphique ACP
+  # Fonction pour creer le plot PCA
   createPcaPlot <- function() {
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
+    
+    plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
+      input$pcaPlotTitle
+    } else {
+      "ACP - Analyse en Composantes Principales"
+    }
+    
+    if (input$pcaPlotType == "var") {
+      p <- fviz_pca_var(res.pca,
+                        col.var = "contrib",
+                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                        repel = TRUE,
+                        ggtheme = theme_minimal(),
+                        title = plot_title)
+    } else if (input$pcaPlotType == "ind") {
+      p <- fviz_pca_ind(res.pca,
+                        col.ind = "contrib",
+                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                        repel = TRUE,
+                        ggtheme = theme_minimal(),
+                        title = plot_title)
+    } else {
+      p <- fviz_pca_biplot(res.pca,
+                           repel = TRUE,
+                           col.var = "#2E9FDF",
+                           col.ind = "#696969",
+                           ggtheme = theme_minimal(),
+                           title = plot_title)
+    }
     
     eigenvals <- get_eigenvalue(res.pca)
     pc1_var <- round(eigenvals[1, "variance.percent"], 1)
@@ -10798,86 +11346,14 @@ server <- function(input, output, session) {
       paste0("PC2 (", pc2_var, "%)")
     }
     
-    plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
-      input$pcaPlotTitle
-    } else {
-      "ACP - Analyse en Composantes Principales"
-    }
-    
-    plot_type <- ifelse(is.null(input$pcaPlotType), "var", input$pcaPlotType)
-    
-    if (plot_type == "var") {
-      p <- fviz_pca_var(res.pca, 
-                        col.var = "cos2",
-                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                        repel = TRUE,
-                        title = plot_title) +
-        labs(x = x_label, y = y_label)
-      
-    } else if (plot_type == "ind") {
-      has_ind_sup <- !is.null(res.pca$ind.sup)
-      
-      if (has_ind_sup) {
-        n_active <- nrow(res.pca$ind$coord)
-        col_vector <- rep("Active", n_active)
-        
-        p <- fviz_pca_ind(res.pca,
-                          geom.ind = c("point", "text"),
-                          col.ind = col_vector,
-                          palette = c("Active" = "#00AFBB"),
-                          addEllipses = FALSE,
-                          repel = TRUE,
-                          title = plot_title,
-                          legend.title = "Type") +
-          labs(x = x_label, y = y_label)
-      } else {
-        p <- fviz_pca_ind(res.pca, 
-                          col.ind = "contrib",
-                          gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                          repel = TRUE,
-                          title = plot_title) +
-          labs(x = x_label, y = y_label)
-      }
-      
-    } else {
-      has_ind_sup <- !is.null(res.pca$ind.sup)
-      
-      if (has_ind_sup) {
-        n_active <- nrow(res.pca$ind$coord)
-        col_vector <- rep("Active", n_active)
-        
-        p <- fviz_pca_biplot(res.pca,
-                             geom.ind = "point",
-                             col.ind = col_vector,
-                             palette = c("Active" = "#00AFBB"),
-                             col.var = "#FC4E07",
-                             repel = TRUE,
-                             addEllipses = FALSE,
-                             title = plot_title,
-                             legend.title = "Type") +
-          labs(x = x_label, y = y_label)
-      } else {
-        p <- fviz_pca_biplot(res.pca, 
-                             repel = TRUE,
-                             col.var = "#FC4E07", 
-                             col.ind = "#00AFBB",
-                             label = "all",
-                             title = plot_title) +
-          labs(x = x_label, y = y_label)
-      }
-    }
+    p <- p + labs(x = x_label, y = y_label)
     
     if (!is.null(input$pcaCenterAxes) && input$pcaCenterAxes) {
-      if (plot_type == "var") {
+      if (input$pcaPlotType == "var") {
         coords <- res.pca$var$coord[, 1:2]
-      } else if (plot_type == "ind") {
-        coords <- res.pca$ind$coord[, 1:2]
       } else {
-        coords_ind <- res.pca$ind$coord[, 1:2]
-        coords_var <- res.pca$var$coord[, 1:2]
-        coords <- rbind(coords_ind, coords_var)
+        coords <- res.pca$ind$coord[, 1:2]
       }
-      
       max_range <- max(abs(range(coords, na.rm = TRUE)))
       p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
     }
@@ -10888,23 +11364,53 @@ server <- function(input, output, session) {
   output$pcaPlot <- renderPlotly({
     p <- createPcaPlot()
     suppressWarnings({
-      plotly_obj <- ggplotly(p) %>% 
-        layout(showlegend = TRUE) %>%
-        config(displayModeBar = TRUE)
+      ggplotly(p) %>% layout(showlegend = TRUE)
     })
-    plotly_obj
   })
   
-  # Telechargement graphique ACP avec options avancees
+  output$pcaSummary <- renderPrint({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    
+    cat("=== ANALYSE EN COMPOSANTES PRINCIPALES (ACP) ===\n\n")
+    
+    eigenvals <- get_eigenvalue(res.pca)
+    cat("Variance expliquee par les composantes principales:\n")
+    print(round(eigenvals, 2))
+    cat("\n")
+    
+    cat("Contribution des variables aux composantes principales:\n")
+    print(round(res.pca$var$contrib, 2))
+    cat("\n")
+    
+    cat("Qualite de representation (cos2) des variables:\n")
+    print(round(res.pca$var$cos2, 2))
+  })
+  
+  # Telechargement graphique ACP avec dimensions automatiques
   output$downloadPcaPlot <- downloadHandler(
     filename = function() {
       ext <- input$pcaPlot_format
-      paste0("pca_plot_", Sys.Date(), ".", ext)
+      paste0("acp_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      width <- input$pcaPlot_width
-      height <- input$pcaPlot_height
       dpi <- input$pcaPlot_dpi
+      
+      # Calculer dimensions automatiques si pas de valeurs personnalisées
+      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
+      
+      # Utiliser les valeurs de l'utilisateur si fournies, sinon auto
+      width <- if (!is.null(input$pcaPlot_width) && input$pcaPlot_width > 0) {
+        input$pcaPlot_width
+      } else {
+        auto_dims$width
+      }
+      
+      height <- if (!is.null(input$pcaPlot_height) && input$pcaPlot_height > 0) {
+        input$pcaPlot_height
+      } else {
+        auto_dims$height
+      }
       
       p <- createPcaPlot()
       ggsave(file, plot = p, device = input$pcaPlot_format, 
@@ -10915,93 +11421,127 @@ server <- function(input, output, session) {
   # Telechargement donnees ACP - Excel
   output$downloadPcaDataXlsx <- downloadHandler(
     filename = function() {
-      paste0("pca_resultats_", Sys.Date(), ".xlsx")
+      paste0("acp_resultats_", Sys.Date(), ".xlsx")
     },
+    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     content = function(file) {
-      req(pcaDataframes())
-      dfs <- pcaDataframes()
+      # Utiliser pcaDataframes() ou values$pcaDataframes
+      dfs <- if (!is.null(values$pcaDataframes)) {
+        values$pcaDataframes
+      } else {
+        pcaDataframes()
+      }
       
-      wb <- createWorkbook()
+      if (is.null(dfs)) {
+        showNotification("Erreur : aucune donnee ACP disponible pour le telechargement", type = "error")
+        return(NULL)
+      }
       
-      addWorksheet(wb, "Valeurs_propres")
-      writeData(wb, "Valeurs_propres", dfs$eigenvalues)
-      
-      addWorksheet(wb, "Ind_coordonnees")
-      writeData(wb, "Ind_coordonnees", dfs$ind_coords)
-      
-      addWorksheet(wb, "Ind_contributions")
-      writeData(wb, "Ind_contributions", dfs$ind_contrib)
-      
-      addWorksheet(wb, "Ind_cos2")
-      writeData(wb, "Ind_cos2", dfs$ind_cos2)
-      
-      addWorksheet(wb, "Var_coordonnees")
-      writeData(wb, "Var_coordonnees", dfs$var_coords)
-      
-      addWorksheet(wb, "Var_contributions")
-      writeData(wb, "Var_contributions", dfs$var_contrib)
-      
-      addWorksheet(wb, "Var_cos2")
-      writeData(wb, "Var_cos2", dfs$var_cos2)
-      
-      addWorksheet(wb, "Var_correlations")
-      writeData(wb, "Var_correlations", dfs$var_cor)
-      
-      saveWorkbook(wb, file, overwrite = TRUE)
+      tryCatch({
+        wb <- createWorkbook()
+        
+        addWorksheet(wb, "Valeurs_propres")
+        writeData(wb, "Valeurs_propres", dfs$eigenvalues)
+        
+        addWorksheet(wb, "Coordonnees_individus")
+        writeData(wb, "Coordonnees_individus", dfs$ind_coords)
+        
+        addWorksheet(wb, "Contributions_individus")
+        writeData(wb, "Contributions_individus", dfs$ind_contrib)
+        
+        addWorksheet(wb, "Cos2_individus")
+        writeData(wb, "Cos2_individus", dfs$ind_cos2)
+        
+        addWorksheet(wb, "Coordonnees_variables")
+        writeData(wb, "Coordonnees_variables", dfs$var_coords)
+        
+        addWorksheet(wb, "Contributions_variables")
+        writeData(wb, "Contributions_variables", dfs$var_contrib)
+        
+        addWorksheet(wb, "Cos2_variables")
+        writeData(wb, "Cos2_variables", dfs$var_cos2)
+        
+        addWorksheet(wb, "Correlations_variables")
+        writeData(wb, "Correlations_variables", dfs$var_cor)
+        
+        saveWorkbook(wb, file, overwrite = TRUE)
+        showNotification("Fichier Excel ACP telecharge avec succes!", type = "message")
+      }, error = function(e) {
+        showNotification(paste("Erreur lors du telechargement Excel :", e$message), type = "error")
+      })
     }
   )
   
   # Telechargement donnees ACP - CSV
   output$downloadPcaDataCsv <- downloadHandler(
     filename = function() {
-      paste0("pca_resultats_", Sys.Date(), ".zip")
+      paste0("acp_resultats_", Sys.Date(), ".zip")
     },
+    contentType = "application/zip",
     content = function(file) {
-      req(pcaDataframes())
-      dfs <- pcaDataframes()
+      # Utiliser pcaDataframes() ou values$pcaDataframes
+      dfs <- if (!is.null(values$pcaDataframes)) {
+        values$pcaDataframes
+      } else {
+        pcaDataframes()
+      }
       
-      temp_dir <- tempdir()
-      csv_files <- c()
+      if (is.null(dfs)) {
+        showNotification("Erreur : aucune donnee ACP disponible pour le telechargement", type = "error")
+        return(NULL)
+      }
       
-      write.csv(dfs$eigenvalues, file.path(temp_dir, "valeurs_propres.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "valeurs_propres.csv")
-      
-      write.csv(dfs$ind_coords, file.path(temp_dir, "ind_coordonnees.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "ind_coordonnees.csv")
-      
-      write.csv(dfs$ind_contrib, file.path(temp_dir, "ind_contributions.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "ind_contributions.csv")
-      
-      write.csv(dfs$ind_cos2, file.path(temp_dir, "ind_cos2.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "ind_cos2.csv")
-      
-      write.csv(dfs$var_coords, file.path(temp_dir, "var_coordonnees.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "var_coordonnees.csv")
-      
-      write.csv(dfs$var_contrib, file.path(temp_dir, "var_contributions.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "var_contributions.csv")
-      
-      write.csv(dfs$var_cos2, file.path(temp_dir, "var_cos2.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "var_cos2.csv")
-      
-      write.csv(dfs$var_cor, file.path(temp_dir, "var_correlations.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "var_correlations.csv")
-      
-      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+      tryCatch({
+        temp_dir <- tempdir()
+        csv_files <- c()
+        
+        # Nettoyer les fichiers CSV precedents dans tempdir
+        old_files <- list.files(temp_dir, pattern = "\\.csv$", full.names = TRUE)
+        if (length(old_files) > 0) {
+          file.remove(old_files)
+        }
+        
+        write_csv_utf8(dfs$eigenvalues, file.path(temp_dir, "valeurs_propres.csv"))
+        csv_files <- c(csv_files, "valeurs_propres.csv")
+        
+        write_csv_utf8(dfs$ind_coords, file.path(temp_dir, "coordonnees_individus.csv"))
+        csv_files <- c(csv_files, "coordonnees_individus.csv")
+        
+        write_csv_utf8(dfs$ind_contrib, file.path(temp_dir, "contributions_individus.csv"))
+        csv_files <- c(csv_files, "contributions_individus.csv")
+        
+        write_csv_utf8(dfs$ind_cos2, file.path(temp_dir, "cos2_individus.csv"))
+        csv_files <- c(csv_files, "cos2_individus.csv")
+        
+        write_csv_utf8(dfs$var_coords, file.path(temp_dir, "coordonnees_variables.csv"))
+        csv_files <- c(csv_files, "coordonnees_variables.csv")
+        
+        write_csv_utf8(dfs$var_contrib, file.path(temp_dir, "contributions_variables.csv"))
+        csv_files <- c(csv_files, "contributions_variables.csv")
+        
+        write_csv_utf8(dfs$var_cos2, file.path(temp_dir, "cos2_variables.csv"))
+        csv_files <- c(csv_files, "cos2_variables.csv")
+        
+        write_csv_utf8(dfs$var_cor, file.path(temp_dir, "correlations_variables.csv"))
+        csv_files <- c(csv_files, "correlations_variables.csv")
+        
+        zip(file, file.path(temp_dir, csv_files), flags = "-j")
+        showNotification("Fichiers CSV ACP telecharges avec succes!", type = "message")
+      }, error = function(e) {
+        showNotification(paste("Erreur lors du telechargement CSV :", e$message), type = "error")
+      })
     }
   )
   
   
-  # SECTION 2: HCPC (Classification Hierarchique)
+  # SECTION 2: HCPC (Classification Hierarchique sur Composantes Principales)
   
   hcpcResultReactive <- reactive({
-    req(pcaResultReactive())
-    input$hcpcClusters
+    req(pcaResultReactive(), input$hcpcClusters)
     
     tryCatch({
-      res.hcpc <- HCPC(pcaResultReactive(),
-                       nb.clust = ifelse(is.null(input$hcpcClusters), 3, input$hcpcClusters),
-                       graph = FALSE)
+      res.pca <- pcaResultReactive()
+      res.hcpc <- HCPC(res.pca, nb.clust = input$hcpcClusters, graph = FALSE)
       return(res.hcpc)
     }, error = function(e) {
       showNotification(paste("Erreur HCPC :", e$message), type = "error")
@@ -11016,82 +11556,178 @@ server <- function(input, output, session) {
     }
   })
   
+  # DATAFRAMES DES RESULTATS HCPC - CORRECTION ROBUSTE
   hcpcDataframes <- reactive({
     req(hcpcResultReactive())
     res.hcpc <- hcpcResultReactive()
     
     tryCatch({
+      # Fonction helper pour valider un element de resultat HCPC
+      is_valid_hcpc_element <- function(elem) {
+        # Retourne TRUE si l'element est valide pour traitement
+        if (is.null(elem)) return(FALSE)
+        
+        # Verifier si c'est un dataframe ou peut etre converti
+        if (!is.data.frame(elem)) {
+          # Tenter conversion si c'est une matrice
+          if (is.matrix(elem)) {
+            elem <- as.data.frame(elem)
+          } else {
+            return(FALSE)
+          }
+        }
+        
+        # Verifier qu'il y a des lignes
+        if (nrow(elem) == 0) return(FALSE)
+        
+        return(TRUE)
+      }
+      
+      # Affectation des clusters
       cluster_assign_df <- data.frame(
         Individual = rownames(res.hcpc$data.clust),
-        Cluster = res.hcpc$data.clust$clust,
+        Cluster = as.character(res.hcpc$data.clust$clust),
         stringsAsFactors = FALSE
       )
       
-      desc_var_list <- list()
-      if (!is.null(res.hcpc$desc.var$quanti)) {
-        for (i in 1:length(res.hcpc$desc.var$quanti)) {
-          if (!is.null(res.hcpc$desc.var$quanti[[i]])) {
-            df <- as.data.frame(res.hcpc$desc.var$quanti[[i]])
-            df$Variable <- rownames(df)
-            df$Cluster <- i
-            df <- df[, c("Cluster", "Variable", setdiff(names(df), c("Cluster", "Variable")))]
-            desc_var_list[[i]] <- df
+      # Description variables par cluster
+      desc_var_df <- NULL
+      if (!is.null(res.hcpc$desc.var) && !is.null(res.hcpc$desc.var$quanti)) {
+        desc_var_list <- list()
+        for (i in seq_along(res.hcpc$desc.var$quanti)) {
+          elem <- res.hcpc$desc.var$quanti[[i]]
+          
+          if (is_valid_hcpc_element(elem)) {
+            df <- as.data.frame(elem)
+            df <- cbind(Cluster = i, Variable = rownames(df), df, stringsAsFactors = FALSE)
+            rownames(df) <- NULL
+            desc_var_list[[length(desc_var_list) + 1]] <- df
           }
         }
-      }
-      desc_var_df <- if (length(desc_var_list) > 0) do.call(rbind, desc_var_list) else NULL
-      
-      desc_axes_list <- list()
-      if (!is.null(res.hcpc$desc.axes$quanti)) {
-        for (i in 1:length(res.hcpc$desc.axes$quanti)) {
-          if (!is.null(res.hcpc$desc.axes$quanti[[i]])) {
-            df <- as.data.frame(res.hcpc$desc.axes$quanti[[i]])
-            df$Axe <- rownames(df)
-            df$Cluster <- i
-            df <- df[, c("Cluster", "Axe", setdiff(names(df), c("Cluster", "Axe")))]
-            desc_axes_list[[i]] <- df
-          }
+        if (length(desc_var_list) > 0) {
+          desc_var_df <- do.call(rbind, desc_var_list)
         }
       }
-      desc_axes_df <- if (length(desc_axes_list) > 0) do.call(rbind, desc_axes_list) else NULL
       
-      parangons_list <- list()
-      if (!is.null(res.hcpc$desc.ind$para)) {
-        for (i in 1:length(res.hcpc$desc.ind$para)) {
-          if (!is.null(res.hcpc$desc.ind$para[[i]])) {
-            df <- as.data.frame(res.hcpc$desc.ind$para[[i]])
-            df$Individual <- rownames(df)
-            df$Cluster <- i
-            df <- df[, c("Cluster", "Individual", setdiff(names(df), c("Cluster", "Individual")))]
-            parangons_list[[i]] <- df
+      # Description axes par cluster
+      desc_axes_df <- NULL
+      if (!is.null(res.hcpc$desc.axes) && !is.null(res.hcpc$desc.axes$quanti)) {
+        desc_axes_list <- list()
+        for (i in seq_along(res.hcpc$desc.axes$quanti)) {
+          elem <- res.hcpc$desc.axes$quanti[[i]]
+          
+          if (is_valid_hcpc_element(elem)) {
+            df <- as.data.frame(elem)
+            df <- cbind(Cluster = i, Axe = rownames(df), df, stringsAsFactors = FALSE)
+            rownames(df) <- NULL
+            desc_axes_list[[length(desc_axes_list) + 1]] <- df
           }
         }
-      }
-      parangons_df <- if (length(parangons_list) > 0) do.call(rbind, parangons_list) else NULL
-      
-      dist_list <- list()
-      if (!is.null(res.hcpc$desc.ind$dist)) {
-        for (i in 1:length(res.hcpc$desc.ind$dist)) {
-          if (!is.null(res.hcpc$desc.ind$dist[[i]])) {
-            df <- as.data.frame(res.hcpc$desc.ind$dist[[i]])
-            df$Individual <- rownames(df)
-            df$Cluster <- i
-            df <- df[, c("Cluster", "Individual", setdiff(names(df), c("Cluster", "Individual")))]
-            dist_list[[i]] <- df
-          }
+        if (length(desc_axes_list) > 0) {
+          desc_axes_df <- do.call(rbind, desc_axes_list)
         }
       }
-      dist_df <- if (length(dist_list) > 0) do.call(rbind, dist_list) else NULL
       
-      return(list(
+      # Parangons (individus typiques)
+      parangons_df <- NULL
+      if (!is.null(res.hcpc$desc.ind) && !is.null(res.hcpc$desc.ind$para)) {
+        parangons_list <- list()
+        for (i in seq_along(res.hcpc$desc.ind$para)) {
+          elem <- res.hcpc$desc.ind$para[[i]]
+          
+          if (is_valid_hcpc_element(elem)) {
+            df <- as.data.frame(elem)
+            df <- cbind(Cluster = i, Individual = rownames(df), df, stringsAsFactors = FALSE)
+            rownames(df) <- NULL
+            parangons_list[[length(parangons_list) + 1]] <- df
+          }
+        }
+        if (length(parangons_list) > 0) {
+          parangons_df <- do.call(rbind, parangons_list)
+        }
+      }
+      
+      # Individus distants
+      dist_df <- NULL
+      if (!is.null(res.hcpc$desc.ind) && !is.null(res.hcpc$desc.ind$dist)) {
+        dist_list <- list()
+        for (i in seq_along(res.hcpc$desc.ind$dist)) {
+          elem <- res.hcpc$desc.ind$dist[[i]]
+          
+          if (is_valid_hcpc_element(elem)) {
+            df <- as.data.frame(elem)
+            df <- cbind(Cluster = i, Individual = rownames(df), df, stringsAsFactors = FALSE)
+            rownames(df) <- NULL
+            dist_list[[length(dist_list) + 1]] <- df
+          }
+        }
+        if (length(dist_list) > 0) {
+          dist_df <- do.call(rbind, dist_list)
+        }
+      }
+      
+      result <- list(
         cluster_assignment = cluster_assign_df,
         desc_variables = desc_var_df,
         desc_axes = desc_axes_df,
         parangons = parangons_df,
         distant_individuals = dist_df
-      ))
+      )
+      
+      # Log pour debugging
+      cat("\n=== HCPC Dataframes Creation ===\n")
+      cat("Cluster assignment rows:", nrow(cluster_assign_df), "\n")
+      cat("Desc variables:", if(is.null(desc_var_df)) "NULL" else paste(nrow(desc_var_df), "rows"), "\n")
+      cat("Desc axes:", if(is.null(desc_axes_df)) "NULL" else paste(nrow(desc_axes_df), "rows"), "\n")
+      cat("Parangons:", if(is.null(parangons_df)) "NULL" else paste(nrow(parangons_df), "rows"), "\n")
+      cat("Distant individuals:", if(is.null(dist_df)) "NULL" else paste(nrow(dist_df), "rows"), "\n")
+      cat("================================\n\n")
+      
+      return(result)
+      
     }, error = function(e) {
+      cat("\n!!! ERREUR HCPC DATAFRAMES !!!\n")
+      cat("Message:", e$message, "\n")
+      cat("Call:", paste(deparse(e$call), collapse = "\n"), "\n")
+      showNotification(paste("Erreur creation dataframes HCPC :", e$message), type = "error", duration = 10)
       return(NULL)
+    })
+  })
+  
+  # Stocker les dataframes de HCPC dans values$ pour un acces fiable
+  observe({
+    req(hcpcResultReactive())
+    
+    # Attendre un peu pour laisser le temps au reactive de s'exécuter complètement
+    isolate({
+      tryCatch({
+        dfs <- hcpcDataframes()
+        
+        if (!is.null(dfs)) {
+          # Vérifier qu'au moins cluster_assignment existe
+          if (!is.null(dfs$cluster_assignment) && nrow(dfs$cluster_assignment) > 0) {
+            values$hcpcDataframes <- dfs
+            
+            # Message de succès détaillé
+            n_clusters <- length(unique(dfs$cluster_assignment$Cluster))
+            n_individus <- nrow(dfs$cluster_assignment)
+            
+            msg <- paste0("HCPC: ", n_individus, " individus classés en ", n_clusters, " clusters")
+            showNotification(msg, type = "message", duration = 3)
+            
+            cat("\n[SUCCESS] HCPC dataframes stockés dans values$\n")
+          } else {
+            showNotification("Avertissement: HCPC dataframes créés mais vides", type = "warning", duration = 5)
+            cat("\n[WARNING] HCPC dataframes vides\n")
+          }
+        } else {
+          showNotification("Erreur: Impossible de créer les dataframes HCPC", type = "error", duration = 5)
+          cat("\n[ERROR] HCPC dataframes = NULL\n")
+        }
+      }, error = function(e) {
+        cat("\n[ERROR] Exception dans observe HCPC:", e$message, "\n")
+        showNotification(paste("Erreur stockage HCPC:", e$message), type = "error", duration = 5)
+      })
     })
   })
   
@@ -11162,12 +11798,16 @@ server <- function(input, output, session) {
   
   output$hcpcDendPlot <- renderPlotly({
     p_dend <- createHcpcDendPlot()
-    ggplotly(p_dend) %>% layout(margin = list(b = 100))
+    suppressWarnings({
+      ggplotly(p_dend) %>% layout(margin = list(b = 100))
+    })
   })
   
   output$hcpcClusterPlot <- renderPlotly({
     p_cluster <- createHcpcClusterPlot()
-    ggplotly(p_cluster) %>% layout(showlegend = TRUE)
+    suppressWarnings({
+      ggplotly(p_cluster) %>% layout(showlegend = TRUE)
+    })
   })
   
   output$hcpcSummary <- renderPrint({
@@ -11226,16 +11866,29 @@ server <- function(input, output, session) {
     }
   })
   
-  # Telechargement graphique HCPC Dendrogramme
+  # Telechargement graphique HCPC Dendrogramme avec dimensions automatiques
   output$downloadHcpcDendPlot <- downloadHandler(
     filename = function() {
       ext <- input$hcpcDend_format
       paste0("hcpc_dendrogramme_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      width <- input$hcpcDend_width
-      height <- input$hcpcDend_height
       dpi <- input$hcpcDend_dpi
+      
+      # Calculer dimensions automatiques
+      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 30, base_height_cm = 20)
+      
+      width <- if (!is.null(input$hcpcDend_width) && input$hcpcDend_width > 0) {
+        input$hcpcDend_width
+      } else {
+        auto_dims$width
+      }
+      
+      height <- if (!is.null(input$hcpcDend_height) && input$hcpcDend_height > 0) {
+        input$hcpcDend_height
+      } else {
+        auto_dims$height
+      }
       
       p_dend <- createHcpcDendPlot()
       ggsave(file, plot = p_dend, device = input$hcpcDend_format, 
@@ -11243,16 +11896,29 @@ server <- function(input, output, session) {
     }
   )
   
-  # Telechargement graphique HCPC Cluster
+  # Telechargement graphique HCPC Cluster avec dimensions automatiques
   output$downloadHcpcClusterPlot <- downloadHandler(
     filename = function() {
       ext <- input$hcpcCluster_format
       paste0("hcpc_clusters_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      width <- input$hcpcCluster_width
-      height <- input$hcpcCluster_height
       dpi <- input$hcpcCluster_dpi
+      
+      # Calculer dimensions automatiques
+      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
+      
+      width <- if (!is.null(input$hcpcCluster_width) && input$hcpcCluster_width > 0) {
+        input$hcpcCluster_width
+      } else {
+        auto_dims$width
+      }
+      
+      height <- if (!is.null(input$hcpcCluster_height) && input$hcpcCluster_height > 0) {
+        input$hcpcCluster_height
+      } else {
+        auto_dims$height
+      }
       
       p_cluster <- createHcpcClusterPlot()
       ggsave(file, plot = p_cluster, device = input$hcpcCluster_format, 
@@ -11260,80 +11926,166 @@ server <- function(input, output, session) {
     }
   )
   
-  # Telechargement donnees HCPC - Excel
+  # Telechargement donnees HCPC - Excel CORRIGE
   output$downloadHcpcDataXlsx <- downloadHandler(
     filename = function() {
       paste0("hcpc_resultats_", Sys.Date(), ".xlsx")
     },
     content = function(file) {
-      req(hcpcDataframes())
-      dfs <- hcpcDataframes()
-      
-      wb <- createWorkbook()
-      
-      addWorksheet(wb, "Affectation_clusters")
-      writeData(wb, "Affectation_clusters", dfs$cluster_assignment)
-      
-      if (!is.null(dfs$desc_variables)) {
-        addWorksheet(wb, "Desc_variables")
-        writeData(wb, "Desc_variables", dfs$desc_variables)
+      # S'assurer que l'extension est .xlsx
+      if (!grepl("\\.xlsx$", file, ignore.case = TRUE)) {
+        file <- paste0(tools::file_path_sans_ext(file), ".xlsx")
       }
       
-      if (!is.null(dfs$desc_axes)) {
-        addWorksheet(wb, "Desc_axes")
-        writeData(wb, "Desc_axes", dfs$desc_axes)
+      # Utiliser hcpcDataframes() ou values$hcpcDataframes
+      dfs <- if (!is.null(values$hcpcDataframes)) {
+        values$hcpcDataframes
+      } else {
+        hcpcDataframes()
       }
       
-      if (!is.null(dfs$parangons)) {
-        addWorksheet(wb, "Parangons")
-        writeData(wb, "Parangons", dfs$parangons)
+      if (is.null(dfs)) {
+        showNotification("Erreur : aucune donnee HCPC disponible pour le telechargement", type = "error", duration = 10)
+        return(NULL)
       }
       
-      if (!is.null(dfs$distant_individuals)) {
-        addWorksheet(wb, "Individus_eloignes")
-        writeData(wb, "Individus_eloignes", dfs$distant_individuals)
+      # Verifier que cluster_assignment existe et n'est pas vide
+      if (is.null(dfs$cluster_assignment) || nrow(dfs$cluster_assignment) == 0) {
+        showNotification("Erreur : donnees HCPC vides ou invalides", type = "error", duration = 10)
+        return(NULL)
       }
       
-      saveWorkbook(wb, file, overwrite = TRUE)
+      tryCatch({
+        wb <- createWorkbook()
+        
+        # Ajouter cluster assignment (toujours present)
+        addWorksheet(wb, "Affectation_clusters")
+        writeData(wb, "Affectation_clusters", dfs$cluster_assignment)
+        
+        # Ajouter les autres feuilles seulement si elles existent
+        if (!is.null(dfs$desc_variables) && nrow(dfs$desc_variables) > 0) {
+          addWorksheet(wb, "Desc_variables")
+          writeData(wb, "Desc_variables", dfs$desc_variables)
+        }
+        
+        if (!is.null(dfs$desc_axes) && nrow(dfs$desc_axes) > 0) {
+          addWorksheet(wb, "Desc_axes")
+          writeData(wb, "Desc_axes", dfs$desc_axes)
+        }
+        
+        if (!is.null(dfs$parangons) && nrow(dfs$parangons) > 0) {
+          addWorksheet(wb, "Parangons")
+          writeData(wb, "Parangons", dfs$parangons)
+        }
+        
+        if (!is.null(dfs$distant_individuals) && nrow(dfs$distant_individuals) > 0) {
+          addWorksheet(wb, "Individus_eloignes")
+          writeData(wb, "Individus_eloignes", dfs$distant_individuals)
+        }
+        
+        # Sauvegarder avec overwrite
+        saveWorkbook(wb, file, overwrite = TRUE)
+        
+        # Verifier que le fichier existe
+        if (file.exists(file)) {
+          cat("Fichier Excel HCPC cree:", file, "taille:", file.size(file), "bytes\n")
+          showNotification("Fichier Excel HCPC telecharge avec succes!", type = "message", duration = 3)
+        } else {
+          showNotification("Erreur : fichier non cree", type = "error", duration = 10)
+        }
+        
+      }, error = function(e) {
+        cat("ERREUR Excel HCPC:", e$message, "\n")
+        showNotification(paste("Erreur lors du telechargement Excel :", e$message), type = "error", duration = 10)
+      })
     }
   )
   
-  # Telechargement donnees HCPC - CSV
+  # Telechargement donnees HCPC - CSV CORRIGE
   output$downloadHcpcDataCsv <- downloadHandler(
     filename = function() {
       paste0("hcpc_resultats_", Sys.Date(), ".zip")
     },
     content = function(file) {
-      req(hcpcDataframes())
-      dfs <- hcpcDataframes()
-      
-      temp_dir <- tempdir()
-      csv_files <- c()
-      
-      write.csv(dfs$cluster_assignment, file.path(temp_dir, "affectation_clusters.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "affectation_clusters.csv")
-      
-      if (!is.null(dfs$desc_variables)) {
-        write.csv(dfs$desc_variables, file.path(temp_dir, "desc_variables.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "desc_variables.csv")
+      # S'assurer que l'extension est .zip
+      if (!grepl("\\.zip$", file, ignore.case = TRUE)) {
+        file <- paste0(tools::file_path_sans_ext(file), ".zip")
       }
       
-      if (!is.null(dfs$desc_axes)) {
-        write.csv(dfs$desc_axes, file.path(temp_dir, "desc_axes.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "desc_axes.csv")
+      # Utiliser hcpcDataframes() ou values$hcpcDataframes
+      dfs <- if (!is.null(values$hcpcDataframes)) {
+        values$hcpcDataframes
+      } else {
+        hcpcDataframes()
       }
       
-      if (!is.null(dfs$parangons)) {
-        write.csv(dfs$parangons, file.path(temp_dir, "parangons.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "parangons.csv")
+      if (is.null(dfs)) {
+        showNotification("Erreur : aucune donnee HCPC disponible pour le telechargement", type = "error", duration = 10)
+        return(NULL)
       }
       
-      if (!is.null(dfs$distant_individuals)) {
-        write.csv(dfs$distant_individuals, file.path(temp_dir, "individus_eloignes.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "individus_eloignes.csv")
+      # Verifier que cluster_assignment existe et n'est pas vide
+      if (is.null(dfs$cluster_assignment) || nrow(dfs$cluster_assignment) == 0) {
+        showNotification("Erreur : donnees HCPC vides ou invalides", type = "error", duration = 10)
+        return(NULL)
       }
       
-      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+      tryCatch({
+        temp_dir <- tempdir()
+        csv_files <- c()
+        
+        # Nettoyer les fichiers CSV precedents dans tempdir
+        old_files <- list.files(temp_dir, pattern = "^(affectation|desc|parangons|individus).*\\.csv$", full.names = TRUE)
+        if (length(old_files) > 0) {
+          file.remove(old_files)
+        }
+        
+        # Toujours inclure cluster assignment
+        csv_path <- file.path(temp_dir, "affectation_clusters.csv")
+        write_csv_utf8(dfs$cluster_assignment, csv_path)
+        csv_files <- c(csv_files, "affectation_clusters.csv")
+        
+        # Ajouter les autres fichiers s'ils existent
+        if (!is.null(dfs$desc_variables) && nrow(dfs$desc_variables) > 0) {
+          csv_path <- file.path(temp_dir, "desc_variables.csv")
+          write_csv_utf8(dfs$desc_variables, csv_path)
+          csv_files <- c(csv_files, "desc_variables.csv")
+        }
+        
+        if (!is.null(dfs$desc_axes) && nrow(dfs$desc_axes) > 0) {
+          csv_path <- file.path(temp_dir, "desc_axes.csv")
+          write_csv_utf8(dfs$desc_axes, csv_path)
+          csv_files <- c(csv_files, "desc_axes.csv")
+        }
+        
+        if (!is.null(dfs$parangons) && nrow(dfs$parangons) > 0) {
+          csv_path <- file.path(temp_dir, "parangons.csv")
+          write_csv_utf8(dfs$parangons, csv_path)
+          csv_files <- c(csv_files, "parangons.csv")
+        }
+        
+        if (!is.null(dfs$distant_individuals) && nrow(dfs$distant_individuals) > 0) {
+          csv_path <- file.path(temp_dir, "individus_eloignes.csv")
+          write_csv_utf8(dfs$distant_individuals, csv_path)
+          csv_files <- c(csv_files, "individus_eloignes.csv")
+        }
+        
+        # Créer le ZIP
+        zip(file, file.path(temp_dir, csv_files), flags = "-j")
+        
+        # Vérifier que le fichier existe
+        if (file.exists(file)) {
+          cat("Fichier ZIP HCPC cree:", file, "avec", length(csv_files), "fichiers CSV\n")
+          showNotification(paste0("Fichiers CSV HCPC (", length(csv_files), " fichiers) telecharges avec succes!"), 
+                           type = "message", duration = 3)
+        } else {
+          showNotification("Erreur : fichier ZIP non cree", type = "error", duration = 10)
+        }
+        
+      }, error = function(e) {
+        cat("ERREUR CSV HCPC:", e$message, "\n")
+        showNotification(paste("Erreur lors du telechargement CSV :", e$message), type = "error", duration = 10)
+      })
     }
   )
   
@@ -11342,12 +12094,28 @@ server <- function(input, output, session) {
   
   output$afdFactorSelect <- renderUI({
     req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    if (length(fac_cols) == 0) return(NULL)
     
-    selectInput("afdFactor", "Variable categorielle (groupes):",
-                choices = fac_cols)
+    # Identifier toutes les colonnes facteurs ET caractères
+    fac_cols <- names(values$filteredData)[sapply(values$filteredData, function(x) is.factor(x) || is.character(x))]
+    
+    # Si aucune colonne facteur/caractère, afficher un message
+    if (length(fac_cols) == 0) {
+      return(
+        div(style = "padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;",
+            p(style = "margin: 0; color: #721c24;",
+              icon("exclamation-triangle"), 
+              " Aucune variable catégorielle détectée. Vérifiez que vos données contiennent des variables de type facteur ou texte.")
+        )
+      )
+    }
+    
+    selectInput("afdFactor", 
+                label = div(icon("bullseye"), " Variable catégorielle (groupes):"),
+                choices = fac_cols,
+                selected = fac_cols[1])  # Sélectionner automatiquement la première
   })
+  
+  
   
   output$afdVarSelect <- renderUI({
     req(values$filteredData)
@@ -11364,12 +12132,40 @@ server <- function(input, output, session) {
     )
   })
   
+  output$afdQualiSupSelect <- renderUI({
+    req(values$filteredData, input$afdFactor)
+    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+    
+    # Exclure le facteur discriminant et le groupe de moyennes
+    fac_cols <- fac_cols[fac_cols != input$afdFactor]
+    if (!is.null(input$afdMeansGroup)) {
+      fac_cols <- fac_cols[fac_cols != input$afdMeansGroup]
+    }
+    
+    if (length(fac_cols) == 0) return(NULL)
+    
+    pickerInput(
+      inputId = "afdQualiSup",
+      label = "Variables categorielles supplementaires (optionnel):",
+      choices = fac_cols,
+      multiple = TRUE,
+      options = list(`actions-box` = TRUE)
+    )
+  })
+  
   output$afdMeansGroupSelect <- renderUI({
     req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+    
+    # Exclure le facteur discriminant des choix
+    if (!is.null(input$afdFactor)) {
+      fac_cols <- fac_cols[fac_cols != input$afdFactor]
+    }
+    
     if (length(fac_cols) == 0) return(NULL)
     
-    selectInput("afdMeansGroup", "Variable de groupement pour les moyennes:", 
+    selectInput("afdMeansGroup", 
+                "Variable de groupement pour les moyennes:", 
                 choices = fac_cols)
   })
   
@@ -11380,27 +12176,32 @@ server <- function(input, output, session) {
     input$afdUseMeans
     input$afdMeansGroup
     input$afdCrossValidation
+    input$afdQualiSup  # Ajouter cette ligne
     
     tryCatch({
       if (!is.null(input$afdUseMeans) && input$afdUseMeans && !is.null(input$afdMeansGroup)) {
-        # Calculer les moyennes uniquement sur les variables quantitatives
         afd_data_numeric <- calculate_group_means(values$filteredData, 
                                                   input$afdVars, 
                                                   input$afdMeansGroup)
-        
-        # Ajouter la variable de groupement comme facteur avec les noms des groupes
         afd_data <- afd_data_numeric
         afd_data[[input$afdFactor]] <- factor(rownames(afd_data_numeric))
       } else {
-        afd_data <- values$filteredData[, c(input$afdVars, input$afdFactor), drop = FALSE]
+        # Inclure les variables quali sup si pas de moyennes
+        cols_to_select <- c(input$afdVars, input$afdFactor)
+        if (!is.null(input$afdQualiSup) && length(input$afdQualiSup) > 0) {
+          cols_to_select <- c(cols_to_select, input$afdQualiSup)
+        }
+        afd_data <- values$filteredData[, cols_to_select, drop = FALSE]
       }
       
-      afd_formula <- as.formula(paste(input$afdFactor, "~", paste(input$afdVars, collapse = " + ")))
+      # Reste du code inchangé...
+      factor_safe <- paste0("`", input$afdFactor, "`")
+      vars_safe <- paste0("`", input$afdVars, "`", collapse = " + ")
+      afd_formula <- as.formula(paste(factor_safe, "~", vars_safe))
       
       afd_result <- lda(afd_formula, data = afd_data)
       afd_predict <- predict(afd_result, afd_data[, input$afdVars, drop = FALSE])
       
-      # Validation croisée uniquement si pas de moyennes
       cv_results <- NULL
       if (!is.null(input$afdCrossValidation) && input$afdCrossValidation && 
           (!input$afdUseMeans || is.null(input$afdUseMeans))) {
@@ -11436,7 +12237,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # CORRECTION : Renommage de 'loadings' en 'coefficients' pour inclure les coefficients discriminants
+  # Renommage de 'loadings' en 'coefficients' pour inclure les coefficients discriminants
   afdDataframes <- reactive({
     req(afdResultReactive())
     afd_res <- afdResultReactive()
@@ -11445,53 +12246,75 @@ server <- function(input, output, session) {
     afd_data <- afd_res$data
     
     tryCatch({
+      # Coordonnees individus
       ind_coords_df <- as.data.frame(afd_predict$x)
-      ind_coords_df$Individual <- rownames(ind_coords_df)
-      ind_coords_df$Groupe_reel <- afd_data[[input$afdFactor]]
-      ind_coords_df$Groupe_predit <- afd_predict$class
-      ind_coords_df <- ind_coords_df[, c("Individual", "Groupe_reel", "Groupe_predit", 
-                                         setdiff(names(ind_coords_df), c("Individual", "Groupe_reel", "Groupe_predit")))]
+      ind_coords_df <- cbind(
+        Individual = rownames(ind_coords_df),
+        Groupe_reel = as.character(afd_data[[input$afdFactor]]),
+        Groupe_predit = as.character(afd_predict$class),
+        ind_coords_df,
+        stringsAsFactors = FALSE
+      )
+      rownames(ind_coords_df) <- NULL
       
-      # Coefficients des fonctions discriminantes (loadings)
+      # Coefficients des fonctions discriminantes
       loadings_df <- as.data.frame(afd_result$scaling)
-      loadings_df$Variable <- rownames(loadings_df)
-      loadings_df <- loadings_df[, c("Variable", setdiff(names(loadings_df), "Variable"))]
+      loadings_df <- cbind(Variable = rownames(loadings_df), loadings_df)
+      rownames(loadings_df) <- NULL
       
+      # Matrice de structure
       X_std <- scale(afd_data[, input$afdVars])
       scores <- as.matrix(X_std) %*% afd_result$scaling
       structure_matrix <- cor(X_std, scores)
       structure_df <- as.data.frame(structure_matrix)
-      structure_df$Variable <- rownames(structure_df)
-      structure_df <- structure_df[, c("Variable", setdiff(names(structure_df), "Variable"))]
+      structure_df <- cbind(Variable = rownames(structure_df), structure_df)
+      rownames(structure_df) <- NULL
       
-      f_tests_df <- data.frame(Variable = input$afdVars)
+      # Tests F univaries avec protection des noms de variables
+      f_tests_df <- data.frame(Variable = input$afdVars, stringsAsFactors = FALSE)
       for (var in input$afdVars) {
-        aov_result <- aov(as.formula(paste(var, "~", input$afdFactor)), data = afd_data)
-        f_stat <- summary(aov_result)[[1]][1, "F value"]
-        p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
-        f_tests_df[f_tests_df$Variable == var, "F_statistic"] <- round(f_stat, 4)
-        f_tests_df[f_tests_df$Variable == var, "p_value"] <- round(p_val, 4)
+        # Utiliser backticks pour proteger les noms avec caracteres speciaux
+        var_safe <- paste0("`", var, "`")
+        factor_safe <- paste0("`", input$afdFactor, "`")
+        formula_str <- paste(var_safe, "~", factor_safe)
+        
+        tryCatch({
+          aov_result <- aov(as.formula(formula_str), data = afd_data)
+          f_stat <- summary(aov_result)[[1]][1, "F value"]
+          p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
+          f_tests_df[f_tests_df$Variable == var, "F_statistic"] <- round(f_stat, 4)
+          f_tests_df[f_tests_df$Variable == var, "p_value"] <- round(p_val, 4)
+        }, error = function(e) {
+          # En cas d'erreur, mettre NA
+          f_tests_df[f_tests_df$Variable == var, "F_statistic"] <- NA
+          f_tests_df[f_tests_df$Variable == var, "p_value"] <- NA
+        })
       }
       
+      # Matrice de confusion
       confusion_matrix <- table(Reel = afd_data[[input$afdFactor]], 
                                 Predit = afd_predict$class)
       confusion_df <- as.data.frame.matrix(confusion_matrix)
-      confusion_df$Groupe_reel <- rownames(confusion_df)
-      confusion_df <- confusion_df[, c("Groupe_reel", setdiff(names(confusion_df), "Groupe_reel"))]
+      confusion_df <- cbind(Groupe_reel = rownames(confusion_df), confusion_df)
+      rownames(confusion_df) <- NULL
       
+      # Taux de classification
       accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
       group_acc_df <- data.frame(
         Groupe = rownames(confusion_matrix),
-        Taux_classification = numeric(nrow(confusion_matrix))
+        Taux_classification = numeric(nrow(confusion_matrix)),
+        stringsAsFactors = FALSE
       )
       for (i in 1:nrow(confusion_matrix)) {
         group_acc_df$Taux_classification[i] <- round(confusion_matrix[i,i] / sum(confusion_matrix[i,]) * 100, 2)
       }
       
+      # Centroides
       centroids_df <- as.data.frame(afd_result$means)
-      centroids_df$Groupe <- rownames(centroids_df)
-      centroids_df <- centroids_df[, c("Groupe", setdiff(names(centroids_df), "Groupe"))]
+      centroids_df <- cbind(Groupe = rownames(centroids_df), centroids_df)
+      rownames(centroids_df) <- NULL
       
+      # Variance expliquee
       eigenvals <- afd_result$svd^2
       prop_var <- eigenvals / sum(eigenvals) * 100
       can_cor <- sqrt(eigenvals / (1 + eigenvals))
@@ -11501,22 +12324,25 @@ server <- function(input, output, session) {
         Valeur_propre = eigenvals,
         Variance_expliquee = round(prop_var, 2),
         Variance_cumulee = round(cumsum(prop_var), 2),
-        Correlation_canonique = round(can_cor, 4)
+        Correlation_canonique = round(can_cor, 4),
+        stringsAsFactors = FALSE
       )
       
+      # Validation croisee (si disponible)
       cv_confusion_df <- NULL
       cv_accuracy_df <- NULL
       if (!is.null(afd_res$cv_results)) {
         cv_confusion <- table(Reel = afd_data[[input$afdFactor]], 
                               Predit = afd_res$cv_results$predictions)
         cv_confusion_df <- as.data.frame.matrix(cv_confusion)
-        cv_confusion_df$Groupe_reel <- rownames(cv_confusion_df)
-        cv_confusion_df <- cv_confusion_df[, c("Groupe_reel", setdiff(names(cv_confusion_df), "Groupe_reel"))]
+        cv_confusion_df <- cbind(Groupe_reel = rownames(cv_confusion_df), cv_confusion_df)
+        rownames(cv_confusion_df) <- NULL
         
         cv_accuracy <- sum(diag(cv_confusion)) / sum(cv_confusion)
         cv_accuracy_df <- data.frame(
-          Metrique = c("Taux_classification_global"),
-          Valeur = round(cv_accuracy * 100, 2)
+          Metrique = "Taux_classification_global",
+          Valeur = round(cv_accuracy * 100, 2),
+          stringsAsFactors = FALSE
         )
       }
       
@@ -11533,26 +12359,53 @@ server <- function(input, output, session) {
         cv_accuracy = cv_accuracy_df
       ))
     }, error = function(e) {
+      showNotification(paste("Erreur dataframes AFD:", e$message), type = "error")
       return(NULL)
+    })
+  })
+  
+  # Stocker les dataframes de l'AFD dans values$ pour un acces fiable
+  observe({
+    req(afdResultReactive())
+    
+    # Attendre un peu pour laisser le temps au reactive de s'exécuter complètement
+    isolate({
+      tryCatch({
+        dfs <- afdDataframes()
+        
+        if (!is.null(dfs)) {
+          # Vérifier qu'au moins ind_coords existe
+          if (!is.null(dfs$ind_coords) && nrow(dfs$ind_coords) > 0) {
+            values$afdDataframes <- dfs
+            
+            # Message de succès détaillé
+            n_individus <- nrow(dfs$ind_coords)
+            n_groupes <- length(unique(dfs$ind_coords$Groupe_reel))
+            
+            msg <- paste0("AFD: ", n_individus, " individus, ", n_groupes, " groupes")
+            showNotification(msg, type = "message", duration = 3)
+            
+            cat("\n[SUCCESS] AFD dataframes stockés dans values$\n")
+          } else {
+            showNotification("Avertissement: AFD dataframes créés mais vides", type = "warning", duration = 5)
+            cat("\n[WARNING] AFD dataframes vides\n")
+          }
+        } else {
+          showNotification("Erreur: Impossible de créer les dataframes AFD", type = "error", duration = 5)
+          cat("\n[ERROR] AFD dataframes = NULL\n")
+        }
+      }, error = function(e) {
+        cat("\n[ERROR] Exception dans observe AFD:", e$message, "\n")
+        showNotification(paste("Erreur stockage AFD:", e$message), type = "error", duration = 5)
+      })
     })
   })
   
   createAfdIndPlot <- function() {
     req(afdResultReactive())
     afd_res <- afdResultReactive()
-    afd_result <- afd_res$model
     afd_predict <- afd_res$predictions
     afd_data <- afd_res$data
-    
-    eigenvals <- afd_result$svd^2
-    prop_var <- eigenvals / sum(eigenvals) * 100
-    
-    afd_plot_data <- data.frame(
-      LD1 = afd_predict$x[,1], 
-      LD2 = if(ncol(afd_predict$x) > 1) afd_predict$x[,2] else 0,
-      Group = afd_data[[input$afdFactor]], 
-      Individual = rownames(afd_data)
-    )
     
     ind_title <- if (!is.null(input$afdIndTitle) && input$afdIndTitle != "") {
       input$afdIndTitle
@@ -11560,31 +12413,36 @@ server <- function(input, output, session) {
       "AFD - Projection des individus"
     }
     
+    afd_df <- as.data.frame(afd_predict$x)
+    afd_df$Groupe <- afd_data[[input$afdFactor]]
+    afd_df$Individual <- rownames(afd_data)
+    
     x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
       input$afdIndXLabel
     } else {
-      if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
+      "LD1"
     }
     
     y_label <- if (!is.null(input$afdIndYLabel) && input$afdIndYLabel != "") {
       input$afdIndYLabel
     } else {
-      if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
+      if (ncol(afd_predict$x) > 1) "LD2" else "Densite"
     }
     
-    p_ind <- ggplot(afd_plot_data, aes(x = LD1, y = LD2, color = Group)) +
-      geom_point() +
-      stat_ellipse() +
-      geom_text_repel(aes(label = Individual)) +
-      geom_hline(yintercept = 0) +
-      geom_vline(xintercept = 0) +
+    p_ind <- ggplot(afd_df, aes_string(x = "LD1", y = if(ncol(afd_predict$x) > 1) "LD2" else NULL, 
+                                       color = "Groupe", label = "Individual")) +
+      geom_point(size = 3, alpha = 0.7) +
+      geom_text(vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+      theme_minimal() +
       labs(title = ind_title, x = x_label, y = y_label) +
-      theme_minimal()
+      scale_color_brewer(palette = "Set1")
     
     if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
-      coords <- afd_plot_data[, c("LD1", "LD2")]
-      max_range <- max(abs(range(coords, na.rm = TRUE)))
-      p_ind <- p_ind + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+      max_range <- max(abs(range(afd_predict$x, na.rm = TRUE)))
+      p_ind <- p_ind + xlim(-max_range, max_range)
+      if (ncol(afd_predict$x) > 1) {
+        p_ind <- p_ind + ylim(-max_range, max_range)
+      }
     }
     
     return(p_ind)
@@ -11594,16 +12452,7 @@ server <- function(input, output, session) {
     req(afdResultReactive())
     afd_res <- afdResultReactive()
     afd_result <- afd_res$model
-    
-    loadings <- afd_result$scaling
-    var_contrib <- data.frame(
-      Variable = rownames(loadings), 
-      LD1 = loadings[,1], 
-      LD2 = if(ncol(loadings) > 1) loadings[,2] else 0
-    )
-    
-    eigenvals <- afd_result$svd^2
-    prop_var <- eigenvals / sum(eigenvals) * 100
+    afd_data <- afd_res$data
     
     var_title <- if (!is.null(input$afdVarTitle) && input$afdVarTitle != "") {
       input$afdVarTitle
@@ -11611,30 +12460,39 @@ server <- function(input, output, session) {
       "AFD - Contribution des variables"
     }
     
+    X_std <- scale(afd_data[, input$afdVars])
+    scores <- as.matrix(X_std) %*% afd_result$scaling
+    structure_matrix <- cor(X_std, scores)
+    
+    var_df <- as.data.frame(structure_matrix)
+    var_df$Variable <- rownames(structure_matrix)
+    
     x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
       input$afdVarXLabel
     } else {
-      if (length(prop_var) >= 1) paste0("LD1 (", round(prop_var[1], 2), "%)") else "LD1"
+      "LD1"
     }
     
     y_label <- if (!is.null(input$afdVarYLabel) && input$afdVarYLabel != "") {
       input$afdVarYLabel
     } else {
-      if (length(prop_var) >= 2) paste0("LD2 (", round(prop_var[2], 2), "%)") else "LD2"
+      if (ncol(structure_matrix) > 1) "LD2" else "Correlation"
     }
     
-    p_var <- ggplot(var_contrib, aes(x = LD1, y = LD2)) +
-      geom_segment(aes(x = 0, y = 0, xend = LD1, yend = LD2), arrow = arrow()) +
-      geom_text_repel(aes(label = Variable)) +
-      geom_hline(yintercept = 0) +
-      geom_vline(xintercept = 0) +
-      labs(title = var_title, x = x_label, y = y_label) +
-      theme_minimal()
+    p_var <- ggplot(var_df, aes_string(x = "LD1", y = if(ncol(structure_matrix) > 1) "LD2" else NULL, 
+                                       label = "Variable")) +
+      geom_segment(aes_string(xend = "LD1", yend = if(ncol(structure_matrix) > 1) "LD2" else NULL), 
+                   x = 0, y = 0, arrow = arrow(length = unit(0.3, "cm")), color = "blue", size = 1) +
+      geom_text(vjust = -0.5, hjust = 0.5, size = 4) +
+      theme_minimal() +
+      labs(title = var_title, x = x_label, y = y_label)
     
     if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
-      coords <- var_contrib[, c("LD1", "LD2")]
-      max_range <- max(abs(range(coords, na.rm = TRUE)))
-      p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+      max_range <- max(abs(range(structure_matrix, na.rm = TRUE)))
+      p_var <- p_var + xlim(-max_range, max_range)
+      if (ncol(structure_matrix) > 1) {
+        p_var <- p_var + ylim(-max_range, max_range)
+      }
     }
     
     return(p_var)
@@ -11642,12 +12500,16 @@ server <- function(input, output, session) {
   
   output$afdIndPlot <- renderPlotly({
     p_ind <- createAfdIndPlot()
-    ggplotly(p_ind) %>% layout(showlegend = TRUE)
+    suppressWarnings({
+      ggplotly(p_ind) %>% layout(showlegend = TRUE)
+    })
   })
   
   output$afdVarPlot <- renderPlotly({
     p_var <- createAfdVarPlot()
-    ggplotly(p_var) %>% layout(showlegend = TRUE)
+    suppressWarnings({
+      ggplotly(p_var) %>% layout(showlegend = FALSE)
+    })
   })
   
   output$afdSummary <- renderPrint({
@@ -11659,19 +12521,24 @@ server <- function(input, output, session) {
     
     cat("=== ANALYSE FACTORIELLE DISCRIMINANTE (AFD) ===\n\n")
     
-    cat("1. VARIANCE EXPLIQUEE\n")
-    cat("----------------------\n")
+    cat("1. VARIANCE EXPLIQUEE PAR LES FONCTIONS DISCRIMINANTES\n")
+    cat("------------------------------------------------------\n")
     eigenvals <- afd_result$svd^2
     prop_var <- eigenvals / sum(eigenvals) * 100
     can_cor <- sqrt(eigenvals / (1 + eigenvals))
     
-    cat("\nCorrelations canoniques:\n")
-    print(round(can_cor, 4))
+    var_table <- data.frame(
+      Fonction = paste0("LD", 1:length(eigenvals)),
+      Valeur_propre = round(eigenvals, 4),
+      Variance = paste0(round(prop_var, 2), "%"),
+      Variance_cumulee = paste0(round(cumsum(prop_var), 2), "%"),
+      Correlation_canonique = round(can_cor, 4)
+    )
+    print(var_table)
     
-    cat("\n2. POIDS DES VARIABLES\n")
-    cat("----------------------\n")
-    cat("Coefficients des fonctions discriminantes:\n")
-    print(round(afd_result$scaling, 4))
+    cat("\n2. COEFFICIENTS DES FONCTIONS DISCRIMINANTES\n")
+    cat("--------------------------------------------\n")
+    print(round(afd_result$scaling, 2))
     
     X_std <- scale(afd_data[, input$afdVars])
     scores <- as.matrix(X_std) %*% afd_result$scaling
@@ -11682,7 +12549,9 @@ server <- function(input, output, session) {
     cat("\nTests F univaries:\n")
     f_tests <- data.frame(Variable = input$afdVars)
     for (var in input$afdVars) {
-      aov_result <- aov(as.formula(paste(var, "~", input$afdFactor)), data = afd_data)
+      var_safe <- paste0("`", var, "`")
+      factor_safe <- paste0("`", input$afdFactor, "`")
+      aov_result <- aov(as.formula(paste(var_safe, "~", factor_safe)), data = afd_data)
       f_stat <- summary(aov_result)[[1]][1, "F value"]
       p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
       f_tests[f_tests$Variable == var, "F_statistic"] <- round(f_stat, 4)
@@ -11725,23 +12594,36 @@ server <- function(input, output, session) {
     
     cat("\n5. CENTROIDES DES GROUPES\n")
     cat("-------------------------\n")
-    print(round(afd_result$means, 4))
+    print(round(afd_result$means, 2))
     
     cat("\n6. PROBABILITES A PRIORI\n")
     cat("------------------------\n")
-    print(round(afd_result$prior, 4))
+    print(round(afd_result$prior, 2))
   })
   
-  # Telechargement graphique AFD Individus
+  # Telechargement graphique AFD Individus avec dimensions automatiques
   output$downloadAfdIndPlot <- downloadHandler(
     filename = function() {
       ext <- input$afdInd_format
       paste0("afd_individus_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      width <- input$afdInd_width
-      height <- input$afdInd_height
       dpi <- input$afdInd_dpi
+      
+      # Calculer dimensions automatiques
+      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
+      
+      width <- if (!is.null(input$afdInd_width) && input$afdInd_width > 0) {
+        input$afdInd_width
+      } else {
+        auto_dims$width
+      }
+      
+      height <- if (!is.null(input$afdInd_height) && input$afdInd_height > 0) {
+        input$afdInd_height
+      } else {
+        auto_dims$height
+      }
       
       p_ind <- createAfdIndPlot()
       ggsave(file, plot = p_ind, device = input$afdInd_format, 
@@ -11749,16 +12631,29 @@ server <- function(input, output, session) {
     }
   )
   
-  # Telechargement graphique AFD Variables
+  # Telechargement graphique AFD Variables avec dimensions automatiques
   output$downloadAfdVarPlot <- downloadHandler(
     filename = function() {
       ext <- input$afdVar_format
       paste0("afd_variables_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      width <- input$afdVar_width
-      height <- input$afdVar_height
       dpi <- input$afdVar_dpi
+      
+      # Calculer dimensions automatiques
+      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
+      
+      width <- if (!is.null(input$afdVar_width) && input$afdVar_width > 0) {
+        input$afdVar_width
+      } else {
+        auto_dims$width
+      }
+      
+      height <- if (!is.null(input$afdVar_height) && input$afdVar_height > 0) {
+        input$afdVar_height
+      } else {
+        auto_dims$height
+      }
       
       p_var <- createAfdVarPlot()
       ggsave(file, plot = p_var, device = input$afdVar_format, 
@@ -11766,100 +12661,165 @@ server <- function(input, output, session) {
     }
   )
   
-  # CORRECTION : Telechargement donnees AFD - Excel avec nom correct
+  # Telechargement donnees AFD - Excel avec nom correct
   output$downloadAfdDataXlsx <- downloadHandler(
     filename = function() {
-      paste0("afd_resultats_", Sys.Date(), ".xlsx")
+      "afd_resultats.xlsx"  # Nom fixe sans date pour éviter problèmes
     },
+    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     content = function(file) {
-      req(afdDataframes())
-      dfs <- afdDataframes()
-      
-      wb <- createWorkbook()
-      
-      addWorksheet(wb, "Coordonnees_individus")
-      writeData(wb, "Coordonnees_individus", dfs$ind_coords)
-      
-      addWorksheet(wb, "Coefficients_discriminants")
-      writeData(wb, "Coefficients_discriminants", dfs$coefficients)
-      
-      addWorksheet(wb, "Matrice_structure")
-      writeData(wb, "Matrice_structure", dfs$structure_matrix)
-      
-      addWorksheet(wb, "Tests_F")
-      writeData(wb, "Tests_F", dfs$f_tests)
-      
-      addWorksheet(wb, "Matrice_confusion")
-      writeData(wb, "Matrice_confusion", dfs$confusion_matrix)
-      
-      addWorksheet(wb, "Taux_classification")
-      writeData(wb, "Taux_classification", dfs$classification_rates)
-      
-      addWorksheet(wb, "Centroides")
-      writeData(wb, "Centroides", dfs$centroids)
-      
-      addWorksheet(wb, "Variance_expliquee")
-      writeData(wb, "Variance_expliquee", dfs$variance_explained)
-      
-      if (!is.null(dfs$cv_confusion)) {
-        addWorksheet(wb, "CV_confusion")
-        writeData(wb, "CV_confusion", dfs$cv_confusion)
-        
-        addWorksheet(wb, "CV_taux")
-        writeData(wb, "CV_taux", dfs$cv_accuracy)
+      dfs <- if (!is.null(values$afdDataframes)) {
+        values$afdDataframes
+      } else {
+        afdDataframes()
       }
       
-      saveWorkbook(wb, file, overwrite = TRUE)
+      if (is.null(dfs) || is.null(dfs$ind_coords) || nrow(dfs$ind_coords) == 0) {
+        showNotification("Erreur : aucune donnee AFD disponible", type = "error", duration = 10)
+        return(NULL)
+      }
+      
+      tryCatch({
+        wb <- createWorkbook()
+        
+        addWorksheet(wb, "Coordonnees_individus")
+        writeData(wb, "Coordonnees_individus", dfs$ind_coords)
+        
+        addWorksheet(wb, "Coefficients_discriminants")
+        writeData(wb, "Coefficients_discriminants", dfs$coefficients)
+        
+        addWorksheet(wb, "Matrice_structure")
+        writeData(wb, "Matrice_structure", dfs$structure_matrix)
+        
+        addWorksheet(wb, "Tests_F")
+        writeData(wb, "Tests_F", dfs$f_tests)
+        
+        addWorksheet(wb, "Matrice_confusion")
+        writeData(wb, "Matrice_confusion", dfs$confusion_matrix)
+        
+        addWorksheet(wb, "Taux_classification")
+        writeData(wb, "Taux_classification", dfs$classification_rates)
+        
+        addWorksheet(wb, "Centroides")
+        writeData(wb, "Centroides", dfs$centroids)
+        
+        addWorksheet(wb, "Variance_expliquee")
+        writeData(wb, "Variance_expliquee", dfs$variance_explained)
+        
+        if (!is.null(dfs$cv_confusion) && nrow(dfs$cv_confusion) > 0) {
+          addWorksheet(wb, "CV_confusion")
+          writeData(wb, "CV_confusion", dfs$cv_confusion)
+          
+          if (!is.null(dfs$cv_accuracy)) {
+            addWorksheet(wb, "CV_taux")
+            writeData(wb, "CV_taux", dfs$cv_accuracy)
+          }
+        }
+        
+        saveWorkbook(wb, file, overwrite = TRUE)
+        
+        showNotification("Fichier Excel AFD telecharge avec succes!", type = "message", duration = 3)
+        
+      }, error = function(e) {
+        showNotification(paste("Erreur Excel AFD:", e$message), type = "error", duration = 10)
+      })
     }
   )
   
-  # CORRECTION : Telechargement donnees AFD - CSV avec nom correct
+  # Telechargement donnees AFD - CSV avec nom correct
   output$downloadAfdDataCsv <- downloadHandler(
     filename = function() {
-      paste0("afd_resultats_", Sys.Date(), ".zip")
+      "afd_resultats.zip"  # Nom fixe sans date
     },
+    contentType = "application/zip",
     content = function(file) {
-      req(afdDataframes())
-      dfs <- afdDataframes()
-      
-      temp_dir <- tempdir()
-      csv_files <- c()
-      
-      write.csv(dfs$ind_coords, file.path(temp_dir, "coordonnees_individus.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "coordonnees_individus.csv")
-      
-      write.csv(dfs$coefficients, file.path(temp_dir, "coefficients_discriminants.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "coefficients_discriminants.csv")
-      
-      write.csv(dfs$structure_matrix, file.path(temp_dir, "matrice_structure.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "matrice_structure.csv")
-      
-      write.csv(dfs$f_tests, file.path(temp_dir, "tests_F.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "tests_F.csv")
-      
-      write.csv(dfs$confusion_matrix, file.path(temp_dir, "matrice_confusion.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "matrice_confusion.csv")
-      
-      write.csv(dfs$classification_rates, file.path(temp_dir, "taux_classification.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "taux_classification.csv")
-      
-      write.csv(dfs$centroids, file.path(temp_dir, "centroides.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "centroides.csv")
-      
-      write.csv(dfs$variance_explained, file.path(temp_dir, "variance_expliquee.csv"), row.names = FALSE)
-      csv_files <- c(csv_files, "variance_expliquee.csv")
-      
-      if (!is.null(dfs$cv_confusion)) {
-        write.csv(dfs$cv_confusion, file.path(temp_dir, "cv_confusion.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "cv_confusion.csv")
-        
-        write.csv(dfs$cv_accuracy, file.path(temp_dir, "cv_taux.csv"), row.names = FALSE)
-        csv_files <- c(csv_files, "cv_taux.csv")
+      dfs <- if (!is.null(values$afdDataframes)) {
+        values$afdDataframes
+      } else {
+        afdDataframes()
       }
       
-      zip(file, file.path(temp_dir, csv_files), flags = "-j")
+      if (is.null(dfs) || is.null(dfs$ind_coords) || nrow(dfs$ind_coords) == 0) {
+        showNotification("Erreur : aucune donnee AFD disponible", type = "error", duration = 10)
+        return(NULL)
+      }
+      
+      tryCatch({
+        temp_dir <- tempdir()
+        csv_files <- c()
+        
+        # Nettoyer les anciens fichiers
+        old_files <- list.files(temp_dir, pattern = "^afd_.*\\.csv$", full.names = TRUE)
+        if (length(old_files) > 0) file.remove(old_files)
+        
+        # Créer les CSV
+        write_csv_utf8(dfs$ind_coords, file.path(temp_dir, "afd_coordonnees_individus.csv"))
+        csv_files <- c(csv_files, "afd_coordonnees_individus.csv")
+        
+        write_csv_utf8(dfs$coefficients, file.path(temp_dir, "afd_coefficients_discriminants.csv"))
+        csv_files <- c(csv_files, "afd_coefficients_discriminants.csv")
+        
+        write_csv_utf8(dfs$structure_matrix, file.path(temp_dir, "afd_matrice_structure.csv"))
+        csv_files <- c(csv_files, "afd_matrice_structure.csv")
+        
+        write_csv_utf8(dfs$f_tests, file.path(temp_dir, "afd_tests_F.csv"))
+        csv_files <- c(csv_files, "afd_tests_F.csv")
+        
+        write_csv_utf8(dfs$confusion_matrix, file.path(temp_dir, "afd_matrice_confusion.csv"))
+        csv_files <- c(csv_files, "afd_matrice_confusion.csv")
+        
+        write_csv_utf8(dfs$classification_rates, file.path(temp_dir, "afd_taux_classification.csv"))
+        csv_files <- c(csv_files, "afd_taux_classification.csv")
+        
+        write_csv_utf8(dfs$centroids, file.path(temp_dir, "afd_centroides.csv"))
+        csv_files <- c(csv_files, "afd_centroides.csv")
+        
+        write_csv_utf8(dfs$variance_explained, file.path(temp_dir, "afd_variance_expliquee.csv"))
+        csv_files <- c(csv_files, "afd_variance_expliquee.csv")
+        
+        if (!is.null(dfs$cv_confusion) && nrow(dfs$cv_confusion) > 0) {
+          write_csv_utf8(dfs$cv_confusion, file.path(temp_dir, "afd_cv_confusion.csv"))
+          csv_files <- c(csv_files, "afd_cv_confusion.csv")
+          
+          if (!is.null(dfs$cv_accuracy)) {
+            write_csv_utf8(dfs$cv_accuracy, file.path(temp_dir, "afd_cv_taux.csv"))
+            csv_files <- c(csv_files, "afd_cv_taux.csv")
+          }
+        }
+        
+        zip(file, file.path(temp_dir, csv_files), flags = "-j")
+        
+        showNotification(paste0("CSV AFD telecharges (", length(csv_files), " fichiers)"), 
+                         type = "message", duration = 3)
+        
+      }, error = function(e) {
+        showNotification(paste("Erreur CSV AFD:", e$message), type = "error", duration = 10)
+      })
     }
   )
+  # AFD - Selecteur de variables categorielles pour la prediction
+  output$afdPredictVarsSelect <- renderUI({
+    req(values$filteredData, input$afdFactor)
+    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+    
+    # Exclure le facteur discriminant des choix
+    fac_cols <- fac_cols[fac_cols != input$afdFactor]
+    
+    # Exclure aussi le groupe de moyennes si utilise
+    if (!is.null(input$afdMeansGroup) && input$afdUseMeans) {
+      fac_cols <- fac_cols[fac_cols != input$afdMeansGroup]
+    }
+    
+    if (length(fac_cols) == 0) return(NULL)
+    
+    pickerInput(
+      inputId = "afdPredictVars",
+      label = "Variables categorielles pour la prediction (optionnel):",
+      choices = fac_cols,
+      multiple = TRUE,
+      options = list(`actions-box` = TRUE)
+    )
+  })
   # ---- Seuils d'efficacité ----
   
   # Valeurs réactives pour l'analyse des seuils
