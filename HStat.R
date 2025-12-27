@@ -216,7 +216,6 @@ ui <- dashboardPage(
       menuItem("Comparaisons multiples PostHoc", tabName = "multiple", icon = icon("sort-amount-down")),
       menuItem("Analyses multivariées", tabName = "multivariate", icon = icon("project-diagram")),
       menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("chart-bar")),
-      menuItem("Rapport de synthèse des analyses", tabName = "report", icon = icon("file-alt")),
       hr(),
       actionButton("helpBtn", "Aide", icon = icon("question-circle"), class = "btn-info"),
       actionButton("resetBtn", "Réinitialiser", icon = icon("redo"), class = "btn-warning")
@@ -1786,7 +1785,7 @@ ui <- dashboardPage(
               
               # Section Graphiques
               fluidRow(
-                # Graphique principal
+                # Graphique principal 
                 box(title = tagList(icon("chart-line"), "Graphique principal"), 
                     status = "success", width = 6, solidHeader = TRUE, collapsible = TRUE,
                     
@@ -1804,68 +1803,11 @@ ui <- dashboardPage(
                     
                     hr(style = "border-top: 2px solid #27ae60; margin: 20px 0;"),
                     
-                    # Paramètres d'export
-                    div(style = "background-color: #eafaf1; padding: 20px; border-radius: 8px; border: 1px solid #27ae60;",
-                        tags$h5(
-                          icon("download"), 
-                          "Paramètres d'exportation",
-                          style = "font-weight: bold; color: #27ae60; margin-top: 0; margin-bottom: 15px;"
-                        ),
-                        
-                        fluidRow(
-                          column(6,
-                                 numericInput("mainPlotWidth", 
-                                              "Largeur (pixels) :", 
-                                              value = 800, min = 400, max = 4000, step = 50,
-                                              width = "100%")),
-                          column(6,
-                                 numericInput("mainPlotHeight", 
-                                              "Hauteur (pixels) :", 
-                                              value = 600, min = 400, max = 4000, step = 50,
-                                              width = "100%"))
-                        ),
-                        
-                        fluidRow(
-                          column(6,
-                                 numericInput("mainPlotDPI", 
-                                              "Résolution (DPI) :", 
-                                              value = 300, min = 72, max = 600, step = 50,
-                                              width = "100%")),
-                          column(6,
-                                 selectInput("mainPlotFormat", 
-                                             "Format d'export :", 
-                                             choices = c(
-                                               "PNG (recommandé)" = "png", 
-                                               "JPEG" = "jpeg",
-                                               "TIFF (haute qualité)" = "tiff",
-                                               "PDF (vectoriel)" = "pdf",
-                                               "SVG (vectoriel web)" = "svg",
-                                               "EPS (publication)" = "eps",
-                                               "BMP" = "bmp"
-                                             ),
-                                             selected = "png",
-                                             width = "100%"))
-                        ),
-                        
-                        div(class = "alert alert-info", style = "margin-top: 15px; margin-bottom: 15px;",
-                            icon("info-circle"),
-                            tags$strong(" Guide des formats:"),
-                            tags$ul(style = "margin-bottom: 0;",
-                                    tags$li(tags$strong("PNG/TIFF:"), " Meilleure qualité pour impression"),
-                                    tags$li(tags$strong("PDF/SVG/EPS:"), " Qualité vectorielle, redimensionnable"),
-                                    tags$li(tags$strong("JPEG:"), " Fichier plus léger, pour web")
-                            )
-                        ),
-                        
-                        downloadButton("downloadPlot", 
-                                       "Télécharger le graphique", 
-                                       class = "btn-success btn-lg btn-block", 
-                                       icon = icon("download"),
-                                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 10px; background: linear-gradient(to right, #27ae60, #219653); box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
-                    )
+                    # Paramètres d'export - Rendu conditionnel
+                    uiOutput("plotDownloadSection")
                 ),
                 
-                # Graphique en secteurs
+                # Graphique en secteurs 
                 box(title = tagList(icon("chart-pie"), "Graphique en secteurs"), 
                     status = "info", width = 6, solidHeader = TRUE, collapsible = TRUE,
                     
@@ -1907,61 +1849,8 @@ ui <- dashboardPage(
                     
                     hr(style = "border-top: 2px solid #3498db; margin: 20px 0;"),
                     
-                    # Paramètres d'export
-                    div(style = "background-color: #ebf5fb; padding: 20px; border-radius: 8px; border: 1px solid #3498db;",
-                        tags$h5(
-                          icon("download"), 
-                          "Paramètres d'exportation",
-                          style = "font-weight: bold; color: #3498db; margin-top: 0; margin-bottom: 15px;"
-                        ),
-                        
-                        fluidRow(
-                          column(6,
-                                 numericInput("piePlotWidth", 
-                                              "Largeur (pixels) :", 
-                                              value = 800, min = 400, max = 4000, step = 50,
-                                              width = "100%")),
-                          column(6,
-                                 numericInput("piePlotHeight", 
-                                              "Hauteur (pixels) :", 
-                                              value = 800, min = 400, max = 4000, step = 50,
-                                              width = "100%"))
-                        ),
-                        
-                        fluidRow(
-                          column(6,
-                                 numericInput("piePlotDPI", 
-                                              "Résolution (DPI) :", 
-                                              value = 300, min = 72, max = 600, step = 50,
-                                              width = "100%")),
-                          column(6,
-                                 selectInput("piePlotFormat", 
-                                             "Format d'export :", 
-                                             choices = c(
-                                               "PNG (recommandé)" = "png", 
-                                               "JPEG" = "jpeg",
-                                               "TIFF (haute qualité)" = "tiff",
-                                               "PDF (vectoriel)" = "pdf",
-                                               "SVG (vectoriel web)" = "svg",
-                                               "EPS (publication)" = "eps",
-                                               "BMP" = "bmp"
-                                             ),
-                                             selected = "png",
-                                             width = "100%"))
-                        ),
-                        
-                        div(class = "alert alert-warning", style = "margin-top: 15px; margin-bottom: 15px;",
-                            icon("lightbulb"),
-                            tags$strong(" Conseil:"), 
-                            " Pour un graphique circulaire optimal, utilisez la même largeur et hauteur (format carré)"
-                        ),
-                        
-                        downloadButton("downloadPiePlot", 
-                                       "Télécharger le graphique", 
-                                       class = "btn-info btn-lg btn-block", 
-                                       icon = icon("download"),
-                                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
-                    )
+                    # Paramètres d'export - Rendu conditionnel
+                    uiOutput("pieDownloadSection")
                 )
               )
       ),
@@ -3414,6 +3303,7 @@ ui <- dashboardPage(
       ),
       
       # ---- Analyses multivariees ----
+      
       tabItem(tabName = "multivariate",
               # ACP
               fluidRow(
@@ -3438,6 +3328,22 @@ ui <- dashboardPage(
                                  choices = c("Variables" = "var", "Individus" = "ind", "Biplot" = "biplot"),
                                  selected = "var", inline = TRUE),
                     numericInput("pcaComponents", "Nombre de composantes:", value = 5, min = 2, max = 10),
+                    
+                    # Sélection des axes de l'ACP
+                    div(style = "background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px; margin: 10px 0;",
+                        h5(style = "margin-top: 0; color: #1976d2;", icon("chart-line"), " Sélection des axes à représenter"),
+                        fluidRow(
+                          column(6,
+                                 uiOutput("pcaAxisXSelect")
+                          ),
+                          column(6,
+                                 uiOutput("pcaAxisYSelect")
+                          )
+                        ),
+                        p(style = "margin: 5px 0 0 0; font-size: 11px; color: #1565c0; font-style: italic;",
+                          icon("info-circle"), " Choisissez les axes à afficher sur votre graphique")
+                    ),
+                    
                     hr(),
                     # Option d'arrondi pour les résultats ACP
                     div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; margin: 10px 0;",
@@ -3473,13 +3379,13 @@ ui <- dashboardPage(
                       )
                     ),
                     p(style = "font-size: 11px; color: #666; font-style: italic;",
-                      icon("magic"), " Les dimensions (largeur x hauteur) sont calculees automatiquement en fonction du DPI selectionne."),
+                      icon("magic"), " Les dimensions (largeur x hauteur) sont calculées automatiquement en fonction du DPI sélectionné."),
                     hr(),
                     div(style = "text-align: center;",
                         downloadButton("downloadPcaPlot", "Télécharger graphique", class = "btn-info", style = "margin: 5px;"),
                         br(), br(),
-                        downloadButton("downloadPcaDataXlsx", "Télécharger donnees (Excel)", class = "btn-success", style = "margin: 5px;"),
-                        downloadButton("downloadPcaDataCsv", "Télécharger donnees (CSV)", class = "btn-success", style = "margin: 5px;")
+                        downloadButton("downloadPcaDataXlsx", "Télécharger données (Excel)", class = "btn-success", style = "margin: 5px;"),
+                        downloadButton("downloadPcaDataCsv", "Télécharger données (CSV)", class = "btn-success", style = "margin: 5px;")
                     )
                 ),
                 box(title = "Visualisation ACP", status = "info", width = 6, solidHeader = TRUE,
@@ -3502,13 +3408,29 @@ ui <- dashboardPage(
                       ),
                       column(8,
                              div(style = "text-align: center; margin-top: 25px;",
-                                 downloadButton("downloadHcpcDataXlsx", "Télécharger donnees (Excel)", 
+                                 downloadButton("downloadHcpcDataXlsx", "Télécharger données (Excel)", 
                                                 class = "btn-success", style = "margin: 5px;"),
-                                 downloadButton("downloadHcpcDataCsv", "Télécharger donnees (CSV)", 
+                                 downloadButton("downloadHcpcDataCsv", "Télécharger données (CSV)", 
                                                 class = "btn-success", style = "margin: 5px;")
                              )
                       )
                     ),
+                    
+                    # Sélection des axes pour HCPC
+                    div(style = "background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 10px; margin: 10px 0;",
+                        h5(style = "margin-top: 0; color: #2e7d32;", icon("chart-line"), " Sélection des axes à représenter"),
+                        fluidRow(
+                          column(6,
+                                 uiOutput("hcpcAxisXSelect")
+                          ),
+                          column(6,
+                                 uiOutput("hcpcAxisYSelect")
+                          )
+                        ),
+                        p(style = "margin: 5px 0 0 0; font-size: 11px; color: #1b5e20; font-style: italic;",
+                          icon("info-circle"), " Ces axes s'appliquent à la carte des clusters")
+                    ),
+                    
                     hr(),
                     # Option d'arrondi pour les résultats HCPC
                     div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; margin: 10px 0;",
@@ -3536,7 +3458,7 @@ ui <- dashboardPage(
                              hr(),
                              h5("Options Téléchargement carte clusters:"),
                              p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
-                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
+                               icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("hcpcCluster_format", "Format:",
@@ -3552,11 +3474,11 @@ ui <- dashboardPage(
                              textInput("hcpcDendTitle", "Titre dendrogramme:", 
                                        value = "Dendrogramme HCPC"),
                              p(style = "font-style: italic; color: #666;", 
-                               "Le dendrogramme n'est pas centre sur (0,0)"),
+                               "Le dendrogramme n'est pas centré sur (0,0)"),
                              hr(),
                              h5("Options Téléchargement dendrogramme:"),
                              p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
-                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
+                               icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("hcpcDend_format", "Format:",
@@ -3642,28 +3564,44 @@ ui <- dashboardPage(
                       uiOutput("afdMeansGroupSelect"),
                       p(style = "margin: 5px 0 10px 0; font-size: 11px; color: #6c757d;",
                         icon("lightbulb"), 
-                        " Conseil: Utilisez la meme variable que le facteur de discrimination pour une AFD sur moyennes de groupes."),
+                        " Conseil: Utilisez la même variable que le facteur de discrimination pour une AFD sur moyennes de groupes."),
                       actionButton("afdRefresh", "Actualiser l'AFD", 
                                    icon = icon("sync"), 
                                    class = "btn-info btn-sm",
                                    style = "margin-bottom: 10px;")
                     ),
+                    
+                    # Sélection des axes pour AFD
+                    div(style = "background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px; margin: 10px 0;",
+                        h5(style = "margin-top: 0; color: #1976d2;", icon("chart-line"), " Sélection des axes à représenter"),
+                        fluidRow(
+                          column(6,
+                                 uiOutput("afdAxisXSelect")
+                          ),
+                          column(6,
+                                 uiOutput("afdAxisYSelect")
+                          )
+                        ),
+                        p(style = "margin: 5px 0 0 0; font-size: 11px; color: #1565c0; font-style: italic;",
+                          icon("info-circle"), " Choisissez les fonctions discriminantes à afficher")
+                    ),
+                    
                     uiOutput("afdPredictVarsSelect"),
                     div(style = "background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 10px; margin: 10px 0;",
                         p(style = "margin: 0; font-size: 12px; color: #0c5460;",
                           icon("info-circle"), 
-                          HTML(" <strong>Variables de prediction:</strong> Selectionnez des variables categorielles supplementaires pour enrichir la prediction du modele."))
+                          HTML(" <strong>Variables de prédiction:</strong> Sélectionnez des variables catégorielles supplémentaires pour enrichir la prédiction du modèle."))
                     ),
                     uiOutput("afdQualiSupSelect"),
                     conditionalPanel(
                       condition = "input.afdUseMeans == false || input.afdUseMeans == null",
                       div(style = "background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0;",
                           checkboxInput("afdCrossValidation", 
-                                        HTML("<strong>Activer la validation croisee (Leave-One-Out)</strong>"), 
+                                        HTML("<strong>Activer la validation croisée (Leave-One-Out)</strong>"), 
                                         FALSE),
                           p(style = "margin: 5px 0 0 25px; font-size: 12px; color: #856404;",
                             icon("exclamation-triangle"), 
-                            " ATTENTION: La validation croisee peut etre tres longue sur de grands jeux de donnees.")
+                            " ATTENTION: La validation croisée peut être très longue sur de grands jeux de données.")
                       )
                     ),
                     conditionalPanel(
@@ -3671,7 +3609,7 @@ ui <- dashboardPage(
                       div(style = "background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 10px; margin: 15px 0;",
                           p(style = "margin: 0; font-size: 12px; color: #721c24;",
                             icon("info-circle"), 
-                            HTML(" <strong>Note:</strong> La validation croisee Leave-One-Out n'est pas disponible avec les moyennes par groupe (nombre d'observations insuffisant)."))
+                            HTML(" <strong>Note:</strong> La validation croisée Leave-One-Out n'est pas disponible avec les moyennes par groupe (nombre d'observations insuffisant)."))
                       )
                     ),
                     hr(),
@@ -3701,7 +3639,7 @@ ui <- dashboardPage(
                              hr(),
                              h5("Options Téléchargement projection individus:"),
                              p(style = "font-size: 11px; color: #337ab7; font-style: italic;",
-                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
+                               icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("afdInd_format", "Format:",
@@ -3722,7 +3660,7 @@ ui <- dashboardPage(
                              hr(),
                              h5("Options Téléchargement contribution variables:"),
                              p(style = "font-size: 11px; color: #337ab7; font-style: italic;",
-                               icon("magic"), " Dimensions calculees automatiquement selon le DPI"),
+                               icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
                                       selectInput("afdVar_format", "Format:",
@@ -3737,9 +3675,9 @@ ui <- dashboardPage(
                     ),
                     hr(),
                     div(style = "text-align: center;",
-                        downloadButton("downloadAfdDataXlsx", "Télécharger donnees (Excel)", 
+                        downloadButton("downloadAfdDataXlsx", "Télécharger données (Excel)", 
                                        class = "btn-success", style = "margin: 5px;"),
-                        downloadButton("downloadAfdDataCsv", "Télécharger donnees (CSV)", 
+                        downloadButton("downloadAfdDataCsv", "Télécharger données (CSV)", 
                                        class = "btn-success", style = "margin: 5px;")
                     ),
                     hr(),
@@ -3770,7 +3708,7 @@ ui <- dashboardPage(
                     br(),
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #d9534f; color: white;",
-                            h4(class = "box-title", "Resultats detailles de l'AFD", style = "color: white; font-weight: bold;")
+                            h4(class = "box-title", "Résultats détaillés de l'AFD", style = "color: white; font-weight: bold;")
                         ),
                         div(class = "box-body", style = "background-color: #f9f9f9;",
                             div(style = "max-height: 700px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
@@ -4270,26 +4208,8 @@ ui <- dashboardPage(
                                    style = "font-size: 16px; font-weight: bold; padding: 12px 24px;")
                 )
               )
-      ),
-      
-      # ---- Rapport ----
-      tabItem(tabName = "report",
-              fluidRow(
-                box(title = "Génération de rapport", status = "success", width = 12, solidHeader = TRUE,
-                    textInput("reportTitle", "Titre du rapport:", value = "Analyse Statistique"),
-                    textInput("reportAuthor", "Auteur:", value = ""),
-                    selectInput("reportFormat", "Format du rapport:",
-                                choices = c("HTML" = "html_document", "PDF" = "pdf_document", "Word" = "word_document")),
-                    actionButton("generateReport", "Générer le rapport", class = "btn-success", icon = icon("file-pdf")),
-                    downloadButton("downloadReport", "Télécharger le rapport", class = "btn-info")
-                )
-              ),
-              fluidRow(
-                box(title = "Aperçu du rapport", status = "info", width = 12, solidHeader = TRUE,
-                    uiOutput("reportPreview")
-                )
-              )
       )
+      
     )
   )
 )
@@ -6096,9 +6016,9 @@ server <- function(input, output, session) {
   output$crosstabTests <- renderPrint({
     if (!is.null(crosstab_values$chi_test)) {
       if (is.list(crosstab_values$chi_test)) {
-        cat("══════════════════════════════════════\n")
+        cat("╔═══════════════════════════════════╗\n")
         cat("       TEST DU CHI-DEUX (χ²)          \n")
-        cat("══════════════════════════════════════\n\n")
+        cat("╚═══════════════════════════════════╝\n\n")
         cat("Statistique X2 :", round(crosstab_values$chi_test$statistic, 4), "\n")
         cat("Degres de liberte :", crosstab_values$chi_test$parameter, "\n") 
         cat("p-value :", format.pval(crosstab_values$chi_test$p.value, digits = 4), "\n")
@@ -6107,27 +6027,27 @@ server <- function(input, output, session) {
                    "[SIGNIFICATIF] Association SIGNIFICATIVE (p < 0.05)", 
                    "[NON SIGNIFICATIF] Pas d'association significative (p >= 0.05)"), "\n\n")
       } else {
-        cat("══════════════════════════════════════\n")
+        cat("╔═══════════════════════════════════╗\n")
         cat("       TEST DU CHI-DEUX (χ²)          \n")
-        cat("══════════════════════════════════════\n\n")
+        cat("╚═══════════════════════════════════╝\n\n")
         cat(crosstab_values$chi_test, "\n\n")
       }
     }
     
     if (!is.null(crosstab_values$fisher_test)) {
       if (is.list(crosstab_values$fisher_test)) {
-        cat("══════════════════════════════════════\n")
+        cat("╔═══════════════════════════════════╗\n")
         cat("     TEST EXACT DE FISHER             \n")
-        cat("══════════════════════════════════════\n\n")
+        cat("╚═══════════════════════════════════╝\n\n")
         cat("p-value :", format.pval(crosstab_values$fisher_test$p.value, digits = 4), "\n")
         cat("\nInterpretation : ", 
             ifelse(crosstab_values$fisher_test$p.value < 0.05, 
                    "[SIGNIFICATIF] Association SIGNIFICATIVE (p < 0.05)", 
                    "[NON SIGNIFICATIF] Pas d'association significative (p >= 0.05)"), "\n\n")
       } else {
-        cat("══════════════════════════════════════\n")
+        cat("╔═══════════════════════════════════╗\n")
         cat("     TEST EXACT DE FISHER             \n")
-        cat("══════════════════════════════════════\n\n")
+        cat("╚═══════════════════════════════════╝\n\n")
         cat(crosstab_values$fisher_test, "\n\n")
       }
     }
@@ -6324,6 +6244,47 @@ server <- function(input, output, session) {
     print(p)
   })
   
+  # Rendu conditionnel de la section de téléchargement du graphique principal - NOUVEAU
+  output$plotDownloadSection <- renderUI({
+    req(crosstab_values$current_plot)
+    
+    div(style = "background-color: #eafaf1; padding: 20px; border-radius: 8px; border: 1px solid #27ae60;",
+        tags$h5(
+          icon("download"), 
+          "Paramètres d'exportation",
+          style = "font-weight: bold; color: #27ae60; margin-top: 0; margin-bottom: 15px;"
+        ),
+        
+        fluidRow(
+          column(6,
+                 numericInput("mainPlotDPI", 
+                              "Résolution (DPI) :", 
+                              value = 300, min = 72, max = 600, step = 50,
+                              width = "100%")),
+          column(6,
+                 selectInput("mainPlotFormat", 
+                             "Format d'export :", 
+                             choices = c(
+                               "PNG (recommandé)" = "png", 
+                               "JPEG" = "jpeg",
+                               "TIFF (haute qualité)" = "tiff",
+                               "PDF (vectoriel)" = "pdf",
+                               "SVG (vectoriel web)" = "svg",
+                               "EPS (publication)" = "eps",
+                               "BMP" = "bmp"
+                             ),
+                             selected = "png",
+                             width = "100%"))
+        ),
+        
+        downloadButton("downloadPlot", 
+                       "Télécharger le graphique", 
+                       class = "btn-success btn-lg btn-block", 
+                       icon = icon("download"),
+                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 15px; background: linear-gradient(to right, #27ae60, #219653); box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
+    )
+  })
+  
   # Generation du graphique en secteurs
   output$crosstabPiePlot <- renderPlot({
     req(crosstab_values$contingency_table, input$pieVariable)
@@ -6376,6 +6337,47 @@ server <- function(input, output, session) {
     
     crosstab_values$current_pie_plot <- p
     print(p)
+  })
+  
+  # Rendu conditionnel de la section de téléchargement du graphique en secteurs - NOUVEAU
+  output$pieDownloadSection <- renderUI({
+    req(crosstab_values$current_pie_plot)
+    
+    div(style = "background-color: #ebf5fb; padding: 20px; border-radius: 8px; border: 1px solid #3498db;",
+        tags$h5(
+          icon("download"), 
+          "Paramètres d'exportation",
+          style = "font-weight: bold; color: #3498db; margin-top: 0; margin-bottom: 15px;"
+        ),
+        
+        fluidRow(
+          column(6,
+                 numericInput("piePlotDPI", 
+                              "Résolution (DPI) :", 
+                              value = 300, min = 72, max = 600, step = 50,
+                              width = "100%")),
+          column(6,
+                 selectInput("piePlotFormat", 
+                             "Format d'export :", 
+                             choices = c(
+                               "PNG (recommandé)" = "png", 
+                               "JPEG" = "jpeg",
+                               "TIFF (haute qualité)" = "tiff",
+                               "PDF (vectoriel)" = "pdf",
+                               "SVG (vectoriel web)" = "svg",
+                               "EPS (publication)" = "eps",
+                               "BMP" = "bmp"
+                             ),
+                             selected = "png",
+                             width = "100%"))
+        ),
+        
+        downloadButton("downloadPiePlot", 
+                       "Télécharger le graphique", 
+                       class = "btn-info btn-lg btn-block", 
+                       icon = icon("download"),
+                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
+    )
   })
   
   # Téléchargement des tableaux - Effectifs
@@ -6601,13 +6603,14 @@ server <- function(input, output, session) {
     content = function(file) {
       req(crosstab_values$current_plot)
       
-      width_px <- if(!is.null(input$mainPlotWidth)) input$mainPlotWidth else 800
-      height_px <- if(!is.null(input$mainPlotHeight)) input$mainPlotHeight else 600
+      # Calcul automatique des dimensions basé sur le DPI
       dpi <- if(!is.null(input$mainPlotDPI)) input$mainPlotDPI else 300
       format <- if(!is.null(input$mainPlotFormat)) input$mainPlotFormat else "png"
       
-      width_in <- width_px / dpi
-      height_in <- height_px / dpi
+      # Dimensions en pouces (standard pour une bonne qualité d'impression)
+      # 10x7.5 pouces = ratio 4:3, adapté pour la plupart des graphiques
+      width_in <- 10
+      height_in <- 7.5
       
       tryCatch({
         if (format %in% c("png", "tiff", "bmp")) {
@@ -6635,9 +6638,12 @@ server <- function(input, output, session) {
                  device = format)
         }
         
+        width_px <- round(width_in * dpi)
+        height_px <- round(height_in * dpi)
+        
         showNotification(
           paste0("Graphique téléchargé avec succès! (", width_px, "x", height_px, 
-                 "px, ", dpi, " DPI, ", toupper(format), ")"), 
+                 " px, ", dpi, " DPI, ", toupper(format), ")"), 
           type = "message", 
           duration = 5
         )
@@ -6661,13 +6667,13 @@ server <- function(input, output, session) {
     content = function(file) {
       req(crosstab_values$current_pie_plot)
       
-      width_px <- if(!is.null(input$piePlotWidth)) input$piePlotWidth else 800
-      height_px <- if(!is.null(input$piePlotHeight)) input$piePlotHeight else 800
+      # Calcul automatique des dimensions basé sur le DPI
       dpi <- if(!is.null(input$piePlotDPI)) input$piePlotDPI else 300
       format <- if(!is.null(input$piePlotFormat)) input$piePlotFormat else "png"
       
-      width_in <- width_px / dpi
-      height_in <- height_px / dpi
+      # Dimensions carrées pour le graphique en secteurs (8x8 pouces)
+      width_in <- 8
+      height_in <- 8
       
       tryCatch({
         if (format %in% c("png", "tiff", "bmp")) {
@@ -6695,9 +6701,12 @@ server <- function(input, output, session) {
                  device = format)
         }
         
+        width_px <- round(width_in * dpi)
+        height_px <- round(height_in * dpi)
+        
         showNotification(
           paste0("Graphique secteurs téléchargé avec succès! (", width_px, "x", height_px, 
-                 "px, ", dpi, " DPI, ", toupper(format), ")"), 
+                 " px, ", dpi, " DPI, ", toupper(format), ")"), 
           type = "message", 
           duration = 5
         )
@@ -9553,16 +9562,32 @@ server <- function(input, output, session) {
           return()
         }
         
-        df <- data.frame(sample = residuals_data)
+        # Calculer les quantiles théoriques et observés
+        n <- length(residuals_data)
+        theoretical_quantiles <- qnorm(ppoints(n))
+        sample_quantiles <- sort(residuals_data)
         
-        p <- ggplot(df, aes(sample = sample)) +
-          qqplotr::stat_qq_band(distribution = "norm", bandType = "pointwise", alpha = 0.2) +
-          qqplotr::stat_qq_line(distribution = "norm") +
-          qqplotr::stat_qq_point(distribution = "norm") +
+        # Calculer les bandes de confiance (approximation)
+        se <- (sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
+        upper_band <- theoretical_quantiles + 1.96 * se
+        lower_band <- theoretical_quantiles - 1.96 * se
+        
+        df <- data.frame(
+          theoretical = theoretical_quantiles,
+          sample = sample_quantiles,
+          upper = upper_band,
+          lower = lower_band
+        )
+        
+        p <- ggplot(df, aes(x = theoretical, y = sample)) +
+          geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
+          geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+          geom_point(shape = 1, size = 2) +
           theme_minimal() +
           labs(title = "QQ-plot des résidus", 
                x = "Quantiles théoriques", 
-               y = "Quantiles observés")
+               y = "Quantiles observés") +
+          theme(plot.title = element_text(hjust = 0.5))
         
         ggsave(file, plot = p, width = 10, height = 8, dpi = 300, type = "cairo-png")
         
@@ -9595,16 +9620,32 @@ server <- function(input, output, session) {
         return()
       }
       
-      df <- data.frame(sample = residuals_data)
+      # Calculer les quantiles théoriques et observés
+      n <- length(residuals_data)
+      theoretical_quantiles <- qnorm(ppoints(n))
+      sample_quantiles <- sort(residuals_data)
       
-      ggplot(df, aes(sample = sample)) +
-        qqplotr::stat_qq_band(distribution = "norm", bandType = "pointwise", alpha = 0.2) +
-        qqplotr::stat_qq_line(distribution = "norm") +
-        qqplotr::stat_qq_point(distribution = "norm") +
+      # Calculer les bandes de confiance (approximation)
+      se <- (sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
+      upper_band <- theoretical_quantiles + 1.96 * se
+      lower_band <- theoretical_quantiles - 1.96 * se
+      
+      df <- data.frame(
+        theoretical = theoretical_quantiles,
+        sample = sample_quantiles,
+        upper = upper_band,
+        lower = lower_band
+      )
+      
+      ggplot(df, aes(x = theoretical, y = sample)) +
+        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
+        geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+        geom_point(shape = 1, size = 2) +
         theme_minimal() +
         labs(title = "QQ-plot des résidus", 
              x = "Quantiles théoriques", 
-             y = "Quantiles observés")
+             y = "Quantiles observés") +
+        theme(plot.title = element_text(hjust = 0.5))
       
     }, error = function(e) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
@@ -10166,9 +10207,9 @@ server <- function(input, output, session) {
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
               showNotification(
-                paste0(" Interaction significative détectée: ", fvar1, " × ", fvar2, 
+                paste0("✓ Interaction significative détectée: ", fvar1, " × ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")\n",
-                       " Décomposition bidirectionnelle en cours..."),
+                       "↳ Décomposition bidirectionnelle en cours..."),
                 type = "warning", duration = 5
               )
               
@@ -10231,12 +10272,12 @@ server <- function(input, output, session) {
               }
               
               showNotification(
-                paste0(" Décomposition complétée pour ", fvar1, " × ", fvar2),
+                paste0("✓ Décomposition complétée pour ", fvar1, " × ", fvar2),
                 type = "message", duration = 3
               )
             } else if (!is.na(interaction_pvalue)) {
               showNotification(
-                paste0(" Interaction non significative: ", fvar1, " × ", fvar2, 
+                paste0("○ Interaction non significative: ", fvar1, " × ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")"),
                 type = "default", duration = 3
               )
@@ -10275,7 +10316,7 @@ server <- function(input, output, session) {
       
       showNotification(
         HTML(paste0(
-          "<b> ANALYSE TERMINÉE</b><br/>",
+          "<b>✓ ANALYSE TERMINÉE</b><br/>",
           "• ", n_main, " effet(s) principal(aux)<br/>",
           "• ", n_simple, " effet(s) simple(s)<br/>",
           "• ", n_interactions, " interaction(s) décomposée(s)"
@@ -10516,17 +10557,47 @@ server <- function(input, output, session) {
     
     if (nrow(simple_data) == 0) return(NULL)
     
-    current_var_idx <- values$currentVarIndex %||% 1
-    resp_var <- input$multiResponse[current_var_idx]
+    if (is.null(values$currentVarIndex)) {
+      values$currentVarIndex <- 1
+    }
+    
+    if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
+      return(div(style = "color: #e74c3c; font-style: italic;", 
+                 "Aucune variable sélectionnée"))
+    }
+    
+    current_var_idx <- values$currentVarIndex
+    max_idx <- length(input$multiResponse)
+    
+    if (current_var_idx < 1 || current_var_idx > max_idx) {
+      current_var_idx <- 1
+      values$currentVarIndex <- 1
+    }
+    
+    resp_var <- tryCatch({
+      input$multiResponse[[current_var_idx]]
+    }, error = function(e) {
+      return(NULL)
+    })
+    
+    if (is.null(resp_var) || is.na(resp_var) || resp_var == "") {
+      return(div(style = "color: #e74c3c; font-style: italic;", 
+                 "Erreur d'accès à la variable"))
+    }
     
     simple_var_data <- simple_data[simple_data$Variable == resp_var, ]
     
     if (nrow(simple_var_data) == 0) {
       return(div(style = "color: #e74c3c; font-style: italic;", 
-                 "Aucun effet simple pour cette variable"))
+                 paste("Aucun effet simple pour", resp_var)))
     }
     
     factors <- unique(simple_var_data$Facteur)
+    
+    if (length(factors) == 0) {
+      return(div(style = "color: #e74c3c; font-style: italic;", 
+                 "Aucun facteur disponible"))
+    }
     
     selectInput("selectedSimpleEffect", 
                 "Sélectionner l'effet simple:",
@@ -10596,9 +10667,32 @@ server <- function(input, output, session) {
   outputOptions(output, "showVariableNavigation", suspendWhenHidden = FALSE)
   
   output$variableNavigation <- renderUI({
-    req(length(input$multiResponse) > 1)
-    current_idx <- values$currentVarIndex %||% 1
+    if (is.null(input$multiResponse) || length(input$multiResponse) <= 1) {
+      return(NULL)
+    }
+    
+    if (is.null(values$currentVarIndex)) {
+      values$currentVarIndex <- 1
+    }
+    
+    current_idx <- values$currentVarIndex
     total_vars <- length(input$multiResponse)
+    
+    if (current_idx < 1 || current_idx > total_vars) {
+      current_idx <- 1
+      values$currentVarIndex <- 1
+    }
+    
+    current_var_name <- tryCatch({
+      var_temp <- input$multiResponse[[current_idx]]
+      if (is.null(var_temp) || is.na(var_temp) || var_temp == "") {
+        paste("Variable", current_idx)
+      } else {
+        var_temp
+      }
+    }, error = function(e) {
+      paste("Variable", current_idx)
+    })
     
     div(style = "display: flex; align-items: center; gap: 15px;",
         actionButton("prevMultiVar", "", 
@@ -10608,7 +10702,7 @@ server <- function(input, output, session) {
         div(style = "color: white; font-size: 1.2em; font-weight: bold; text-align: center;",
             span(style = "display: block; font-size: 0.8em; opacity: 0.8;", 
                  paste("Variable", current_idx, "/", total_vars)),
-            span(input$multiResponse[current_idx])
+            span(current_var_name)
         ),
         actionButton("nextMultiVar", "", 
                      icon = icon("chevron-right"), 
@@ -10618,53 +10712,165 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$prevMultiVar, {
-    values$currentVarIndex <- if (values$currentVarIndex > 1) 
-      values$currentVarIndex - 1 else length(input$multiResponse)
-  })
-  
-  observeEvent(input$nextMultiVar, {
-    values$currentVarIndex <- if (values$currentVarIndex < length(input$multiResponse)) 
-      values$currentVarIndex + 1 else 1
-  })
-  
-  # Graphiques 
-  output$multiPlot <- renderPlotly({
-    req(input$multiResponse, input$multiFactor, values$multiResultsMain)
-    
-    current_var_idx <- values$currentVarIndex %||% 1
-    resp_var <- input$multiResponse[current_var_idx]
-    
-    if (input$plotDisplayType == "main") {
-      fvar <- input$multiFactor[1]
-      plot_data <- values$filteredData
-      agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
-                                       values$multiResultsMain$Facteur == fvar &
-                                       values$multiResultsMain$Type == "main", ]
-    } else {
-      req(input$selectedSimpleEffect)
-      
-      parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
-      main_factor <- parts[1]
-      condition <- parts[2]
-      
-      cond_parts <- strsplit(condition, "=")[[1]]
-      cond_factor <- cond_parts[1]
-      cond_level <- cond_parts[2]
-      
-      plot_data <- values$filteredData[values$filteredData[[cond_factor]] == cond_level, ]
-      
-      agg <- values$multiResultsMain[values$multiResultsMain$Variable == resp_var & 
-                                       values$multiResultsMain$Facteur == input$selectedSimpleEffect &
-                                       values$multiResultsMain$Type == "simple_effect", ]
-      
-      fvar <- main_factor
-    }
-    
-    if (nrow(agg) == 0) {
-      showNotification("Aucune donnée disponible pour le graphique", type = "warning")
+    if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
       return(NULL)
     }
     
+    if (is.null(values$currentVarIndex)) {
+      values$currentVarIndex <- 1
+      return(NULL)
+    }
+    
+    tryCatch({
+      current <- as.integer(values$currentVarIndex)
+      total <- length(input$multiResponse)
+      
+      new_idx <- if (current > 1) current - 1 else total
+      
+      if (new_idx >= 1 && new_idx <= total) {
+        values$currentVarIndex <- new_idx
+      }
+    }, error = function(e) {
+      NULL
+    })
+  })
+  
+  observeEvent(input$nextMultiVar, {
+    if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
+      return(NULL)
+    }
+    
+    if (is.null(values$currentVarIndex)) {
+      values$currentVarIndex <- 1
+      return(NULL)
+    }
+    
+    tryCatch({
+      current <- as.integer(values$currentVarIndex)
+      total <- length(input$multiResponse)
+      
+      new_idx <- if (current < total) current + 1 else 1
+      
+      if (new_idx >= 1 && new_idx <= total) {
+        values$currentVarIndex <- new_idx
+      }
+    }, error = function(e) {
+      NULL
+    })
+  })
+  
+  # Graphiques 
+  
+  output$multiPlot <- renderPlotly({
+    
+    # Validations de base
+    req(values$multiResultsMain, input$multiResponse, input$multiFactor, values$filteredData)
+    
+    if (nrow(values$multiResultsMain) == 0 || length(input$multiResponse) == 0 || length(input$multiFactor) == 0) {
+      return(NULL)
+    }
+    
+    # Gestion de l'index
+    if (is.null(values$currentVarIndex)) values$currentVarIndex <- 1
+    
+    max_idx <- length(input$multiResponse)
+    current_var_idx <- as.integer(values$currentVarIndex)
+    
+    if (is.na(current_var_idx) || current_var_idx < 1 || current_var_idx > max_idx) {
+      current_var_idx <- 1
+      values$currentVarIndex <- 1
+    }
+    
+    # Extraction sécurisée de la variable
+    resp_var <- tryCatch({
+      input$multiResponse[[current_var_idx]]
+    }, error = function(e) NULL)
+    
+    if (is.null(resp_var) || is.na(resp_var) || resp_var == "" || !resp_var %in% colnames(values$filteredData)) {
+      return(NULL)
+    }
+    
+    # Préparation selon le type
+    fvar <- NULL
+    plot_data <- NULL
+    agg <- NULL
+    
+    if (input$plotDisplayType == "main") {
+      fvar <- tryCatch({
+        input$multiFactor[[1]]
+      }, error = function(e) NULL)
+      
+      if (is.null(fvar) || is.na(fvar) || !fvar %in% colnames(values$filteredData)) {
+        return(NULL)
+      }
+      
+      plot_data <- values$filteredData
+      
+      agg <- values$multiResultsMain[
+        !is.na(values$multiResultsMain$Variable) &
+          !is.na(values$multiResultsMain$Facteur) &
+          !is.na(values$multiResultsMain$Type) &
+          values$multiResultsMain$Variable == resp_var & 
+          values$multiResultsMain$Facteur == fvar &
+          values$multiResultsMain$Type == "main", 
+      ]
+      
+      if (nrow(agg) == 0) return(NULL)
+      
+    } else {
+      if (is.null(input$selectedSimpleEffect) || input$selectedSimpleEffect == "") {
+        return(NULL)
+      }
+      
+      parse_result <- tryCatch({
+        parts <- strsplit(input$selectedSimpleEffect, " | ", fixed = TRUE)[[1]]
+        if (length(parts) != 2) return(list(success = FALSE))
+        
+        main_factor <- trimws(parts[1])
+        condition <- trimws(parts[2])
+        cond_parts <- strsplit(condition, "=", fixed = TRUE)[[1]]
+        if (length(cond_parts) != 2) return(list(success = FALSE))
+        
+        cond_factor <- trimws(cond_parts[1])
+        cond_level <- trimws(cond_parts[2])
+        
+        if (!cond_factor %in% colnames(values$filteredData)) return(list(success = FALSE))
+        
+        filtered_data <- values$filteredData[values$filteredData[[cond_factor]] == cond_level, ]
+        if (nrow(filtered_data) == 0) return(list(success = FALSE))
+        
+        agg_data <- values$multiResultsMain[
+          !is.na(values$multiResultsMain$Variable) &
+            !is.na(values$multiResultsMain$Facteur) &
+            !is.na(values$multiResultsMain$Type) &
+            values$multiResultsMain$Variable == resp_var & 
+            values$multiResultsMain$Facteur == input$selectedSimpleEffect &
+            values$multiResultsMain$Type == "simple_effect", 
+        ]
+        
+        if (nrow(agg_data) == 0) return(list(success = FALSE))
+        
+        list(success = TRUE, plot_data = filtered_data, agg = agg_data, fvar = main_factor)
+        
+      }, error = function(e) list(success = FALSE))
+      
+      if (!parse_result$success) return(NULL)
+      
+      plot_data <- parse_result$plot_data
+      agg <- parse_result$agg
+      fvar <- parse_result$fvar
+    }
+    
+    # Vérifications finales
+    if (is.null(agg) || is.null(fvar) || is.null(plot_data) || nrow(agg) == 0 || nrow(plot_data) == 0) {
+      return(NULL)
+    }
+    
+    required_cols <- c(fvar, "Moyenne", "Ecart_type", "Erreur_type", "groups")
+    if (!all(required_cols %in% colnames(agg))) return(NULL)
+    if (!fvar %in% colnames(plot_data) || !resp_var %in% colnames(plot_data)) return(NULL)
+    
+    # Configuration thème
     base_theme <- theme_minimal() +
       theme(
         plot.title = element_text(size = input$titleSize, face = "bold", hjust = 0.5),
@@ -10683,162 +10889,204 @@ server <- function(input, output, session) {
       if (input$plotDisplayType == "main") {
         paste("Effet principal:", resp_var, "par", fvar)
       } else {
-        parts <- strsplit(input$selectedSimpleEffect, " \\| ")[[1]]
-        paste("Effet simple:", resp_var, "-", parts[1], "à", parts[2])
+        paste("Effet simple:", resp_var, "-", input$selectedSimpleEffect)
       }
     }
     
     base_labels <- labs(
       title = plot_title,
-      x = input$customXLabel %||% fvar,
-      y = input$customYLabel %||% resp_var
+      x = if (!is.null(input$customXLabel) && input$customXLabel != "") input$customXLabel else fvar,
+      y = if (!is.null(input$customYLabel) && input$customYLabel != "") input$customYLabel else resp_var
     )
     
-    legend_title <- ifelse(is.null(input$customLegendTitle) || input$customLegendTitle == "", 
-                           "Groupes statistiques", input$customLegendTitle)
+    legend_title <- if (is.null(input$customLegendTitle) || input$customLegendTitle == "") {
+      "Groupes statistiques"
+    } else {
+      input$customLegendTitle
+    }
     
-    if (input$plotType == "box") {
-      agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
-        (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
+    # Création du graphique
+    p <- NULL
+    
+    tryCatch({
+      # Harmoniser les facteurs et créer des colonnes simples
+      if (!is.factor(plot_data[[fvar]])) plot_data[[fvar]] <- as.factor(plot_data[[fvar]])
+      if (!is.factor(agg[[fvar]])) agg[[fvar]] <- as.factor(agg[[fvar]])
       
-      if (input$colorByGroups) {
-        plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
-        p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
-          geom_boxplot(alpha = 0.7) +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
-          geom_boxplot(alpha = 0.7) +
-          theme(legend.position = "none")
-      }
+      common_levels <- intersect(levels(plot_data[[fvar]]), levels(agg[[fvar]]))
+      if (length(common_levels) == 0) return(NULL)
       
-      p <- p + base_theme + base_labels
+      plot_data[[fvar]] <- factor(plot_data[[fvar]], levels = common_levels)
+      agg[[fvar]] <- factor(agg[[fvar]], levels = common_levels)
       
-      if (!input$colorByGroups) {
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_position_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
+      # Créer des colonnes avec noms simples pour éviter les problèmes plotly
+      plot_data$x_var <- plot_data[[fvar]]
+      plot_data$y_var <- plot_data[[resp_var]]
+      agg$x_var <- agg[[fvar]]
       
-    } else if (input$plotType == "violin") {
-      agg$y_position_groups <- max(plot_data[[resp_var]], na.rm = TRUE) + 
-        (max(plot_data[[resp_var]], na.rm = TRUE) - min(plot_data[[resp_var]], na.rm = TRUE)) * 0.05
+      # Calcul position texte
+      y_max <- max(plot_data$y_var, na.rm = TRUE)
+      y_min <- min(plot_data$y_var, na.rm = TRUE)
+      y_range <- y_max - y_min
       
-      if (input$colorByGroups) {
-        plot_data_with_groups <- merge(plot_data, agg[, c(fvar, "groups")], by = fvar, all.x = TRUE)
-        p <- ggplot(plot_data_with_groups, aes_string(x = fvar, y = resp_var, fill = "groups")) +
-          geom_violin(alpha = 0.7) +
-          geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(plot_data, aes_string(x = fvar, y = resp_var, fill = fvar)) +
-          geom_violin(alpha = 0.7) +
-          geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (!input$colorByGroups) {
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_position_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
-      
-    } else if (input$plotType == "point") {
-      if (input$colorByGroups) {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups", color = "groups")) +
-          geom_point(size = 4, shape = 21, stroke = 2) +
-          scale_fill_discrete(name = legend_title) +
-          scale_color_discrete(name = legend_title)
-      } else {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar, color = fvar)) +
-          geom_point(size = 4, shape = 21, stroke = 2) +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (input$errorType == "se") {
-        p <- p + geom_errorbar(aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
-                               width = 0.2, color = "black")
-      } else if (input$errorType == "sd") {
-        p <- p + geom_errorbar(aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
-                               width = 0.2, color = "black")
-      } else if (input$errorType == "ci") {
-        ci_margin <- 1.96 * agg$Erreur_type
-        p <- p + geom_errorbar(aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
-                               width = 0.2, color = "black")
-      }
-      
-      if (!input$colorByGroups) {
-        y_text_position <- max(agg$Moyenne + 
-                                 if(input$errorType == "se") agg$Erreur_type 
-                               else if(input$errorType == "sd") agg$Ecart_type 
-                               else if(input$errorType == "ci") 1.96 * agg$Erreur_type
-                               else 0, na.rm = TRUE) * 1.05
+      if (input$plotType == "box") {
+        if (input$colorByGroups) {
+          agg_subset <- agg[, c(fvar, "groups"), drop = FALSE]
+          names(agg_subset)[1] <- "x_var"
+          plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
+          
+          p <- ggplot(plot_data_merged, aes(x = x_var, y = y_var, fill = groups)) +
+            geom_boxplot(alpha = 0.7) +
+            scale_fill_discrete(name = legend_title)
+        } else {
+          p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
+            geom_boxplot(alpha = 0.7) +
+            annotate("text", x = 1:nrow(agg), y = y_max + y_range * 0.05, 
+                     label = agg$groups, size = 5, fontface = "bold", color = "red")
+        }
         
-        agg$y_text_position <- y_text_position
-        p <- p + geom_text(data = agg, aes_string(x = fvar, y = "y_text_position", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
-      }
-      
-    } else if (input$plotType == "hist") {
-      if (input$colorByGroups) {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = "groups")) +
-          geom_col(alpha = 0.7, color = "black") +
-          scale_fill_discrete(name = legend_title)
-      } else {
-        p <- ggplot(agg, aes_string(x = fvar, y = "Moyenne", fill = fvar)) +
-          geom_col(alpha = 0.7, color = "black") +
-          theme(legend.position = "none")
-      }
-      
-      p <- p + base_theme + base_labels
-      
-      if (input$errorType != "none") {
+      } else if (input$plotType == "violin") {
+        if (input$colorByGroups) {
+          agg_subset <- agg[, c(fvar, "groups"), drop = FALSE]
+          names(agg_subset)[1] <- "x_var"
+          plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
+          
+          p <- ggplot(plot_data_merged, aes(x = x_var, y = y_var, fill = groups)) +
+            geom_violin(alpha = 0.7) +
+            geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+            scale_fill_discrete(name = legend_title)
+        } else {
+          p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
+            geom_violin(alpha = 0.7) +
+            geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+            annotate("text", x = 1:nrow(agg), y = y_max + y_range * 0.05, 
+                     label = agg$groups, size = 5, fontface = "bold", color = "red")
+        }
+        
+      } else if (input$plotType == "point") {
+        error_val <- if (input$errorType == "se") agg$Erreur_type
+        else if (input$errorType == "sd") agg$Ecart_type
+        else if (input$errorType == "ci") 1.96 * agg$Erreur_type
+        else 0
+        
+        agg$y_err_max <- agg$Moyenne + error_val
+        y_text_pos <- max(agg$y_err_max, na.rm = TRUE) * 1.05
+        
+        if (input$colorByGroups) {
+          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = groups, color = groups)) +
+            geom_point(size = 4, shape = 21, stroke = 2) +
+            scale_fill_discrete(name = legend_title) +
+            scale_color_discrete(name = legend_title)
+        } else {
+          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
+            geom_point(size = 4, shape = 21, stroke = 2) +
+            annotate("text", x = 1:nrow(agg), y = y_text_pos, 
+                     label = agg$groups, size = 5, fontface = "bold", color = "red")
+        }
+        
         if (input$errorType == "se") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
+          p <- p + geom_errorbar(aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
                                  width = 0.2, color = "black")
         } else if (input$errorType == "sd") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
+          p <- p + geom_errorbar(aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
                                  width = 0.2, color = "black")
         } else if (input$errorType == "ci") {
-          ci_margin <- 1.96 * agg$Erreur_type
-          p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
+          agg$ci_margin <- 1.96 * agg$Erreur_type
+          p <- p + geom_errorbar(aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
                                  width = 0.2, color = "black")
+        }
+        
+      } else if (input$plotType == "hist") {
+        if (input$colorByGroups) {
+          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = groups)) +
+            geom_col(alpha = 0.7, color = "black") +
+            scale_fill_discrete(name = legend_title)
+        } else {
+          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var)) +
+            geom_col(alpha = 0.7, color = "black") +
+            annotate("text", x = 1:nrow(agg), y = agg$Moyenne * 0.8, 
+                     label = agg$groups, size = 5, fontface = "bold", color = "red")
+        }
+        
+        p <- p + geom_text(aes(y = Moyenne/2, label = round(Moyenne, 2)),
+                           size = 4, fontface = "bold", color = "white")
+        
+        if (input$errorType != "none") {
+          if (input$errorType == "se") {
+            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
+                                   width = 0.2, color = "black")
+          } else if (input$errorType == "sd") {
+            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
+                                   width = 0.2, color = "black")
+          } else if (input$errorType == "ci") {
+            agg$ci_margin <- 1.96 * agg$Erreur_type
+            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
+                                   width = 0.2, color = "black")
+          }
         }
       }
       
-      p <- p + geom_text(data = agg, 
-                         aes_string(x = fvar, y = "Moyenne/2", label = "round(Moyenne, 2)"),
-                         size = 4, fontface = "bold", color = "white", inherit.aes = FALSE)
+      p <- p + base_theme + base_labels
       
-      if (!input$colorByGroups) {
-        agg$y_text_pos_groups <- agg$Moyenne * 0.8
-        p <- p + geom_text(data = agg, 
-                           aes_string(x = fvar, y = "y_text_pos_groups", label = "groups"),
-                           size = 5, fontface = "bold", color = "red", inherit.aes = FALSE)
+      # Palette
+      if (!is.null(p) && input$boxColor != "default" && !input$colorByGroups) {
+        p <- p + scale_fill_brewer(palette = input$boxColor) +
+          scale_color_brewer(palette = input$boxColor)
       }
-    }
+      
+      if (!is.null(p)) {
+        values$currentPlot <- p
+        
+        # Conversion plotly avec gestion d'erreur robuste
+        tryCatch({
+          return(ggplotly(p) %>% 
+                   layout(showlegend = if (input$colorByGroups) TRUE else FALSE))
+        }, error = function(e_plotly) {
+          # Si plotly échoue, afficher le ggplot statique
+          return(renderPlot({ print(p) }))
+        })
+      }
+      
+    }, error = function(e) {
+      showNotification(paste("Erreur graphique:", e$message), type = "error", duration = 10)
+      return(NULL)
+    })
     
-    if (input$boxColor != "default" && !input$colorByGroups) {
-      p <- p + scale_fill_brewer(palette = input$boxColor) +
-        scale_color_brewer(palette = input$boxColor)
-    }
-    
-    values$currentPlot <- p
-    ggplotly(p) %>%
-      layout(showlegend = if (input$colorByGroups) TRUE else FALSE)
+    return(NULL)
   })
   
   output$plotTitle <- renderUI({
-    req(input$multiResponse, values$currentVarIndex)
+    if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
+      return("Visualisations")
+    }
     
-    current_var_idx <- values$currentVarIndex %||% 1
-    current_var <- input$multiResponse[current_var_idx]
+    if (is.null(values$currentVarIndex)) {
+      values$currentVarIndex <- 1
+    }
     
-    type_text <- if (input$plotDisplayType == "main") "Effets principaux" else "Effets simples"
+    current_var_idx <- values$currentVarIndex
+    max_idx <- length(input$multiResponse)
+    
+    if (current_var_idx < 1 || current_var_idx > max_idx) {
+      current_var_idx <- 1
+      values$currentVarIndex <- 1
+    }
+    
+    current_var <- tryCatch({
+      input$multiResponse[[current_var_idx]]
+    }, error = function(e) {
+      return("Variable")
+    })
+    
+    if (is.null(current_var) || is.na(current_var) || current_var == "") {
+      current_var <- "Variable"
+    }
+    
+    type_text <- if (!is.null(input$plotDisplayType) && input$plotDisplayType == "simple") {
+      "Effets simples"
+    } else {
+      "Effets principaux"
+    }
     
     paste(type_text, "-", current_var)
   })
@@ -11118,7 +11366,7 @@ server <- function(input, output, session) {
     tryCatch({
       # Vérifier si les moyennes doivent être utilisées
       use_means <- !is.null(input$pcaUseMeans) && input$pcaUseMeans && 
-                   !is.null(input$pcaMeansGroup) && input$pcaMeansGroup != ""
+        !is.null(input$pcaMeansGroup) && input$pcaMeansGroup != ""
       
       if (use_means) {
         pca_data <- calculate_group_means(values$filteredData, input$pcaVars, input$pcaMeansGroup)
@@ -11254,10 +11502,35 @@ server <- function(input, output, session) {
     })
   })
   
+  # Selectionner les axes
+  output$pcaAxisXSelect <- renderUI({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    n_dims <- ncol(res.pca$ind$coord)
+    
+    selectInput("pcaAxisX", "Axe X:",
+                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                selected = 1)
+  })
+  
+  output$pcaAxisYSelect <- renderUI({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    n_dims <- ncol(res.pca$ind$coord)
+    
+    selectInput("pcaAxisY", "Axe Y:",
+                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                selected = min(2, n_dims))
+  })
+  
   # Fonction pour créer le plot PCA
   createPcaPlot <- function() {
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
+    
+    # Axes sélectionnés (par défaut 1 et 2)
+    axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
+    axis_y <- if (!is.null(input$pcaAxisY)) as.numeric(input$pcaAxisY) else 2
     
     plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
       input$pcaPlotTitle
@@ -11267,6 +11540,7 @@ server <- function(input, output, session) {
     
     if (input$pcaPlotType == "var") {
       p <- fviz_pca_var(res.pca,
+                        axes = c(axis_x, axis_y),
                         col.var = "contrib",
                         gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
                         repel = TRUE,
@@ -11274,6 +11548,7 @@ server <- function(input, output, session) {
                         title = plot_title)
     } else if (input$pcaPlotType == "ind") {
       p <- fviz_pca_ind(res.pca,
+                        axes = c(axis_x, axis_y),
                         col.ind = "contrib",
                         gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
                         repel = TRUE,
@@ -11281,6 +11556,7 @@ server <- function(input, output, session) {
                         title = plot_title)
     } else {
       p <- fviz_pca_biplot(res.pca,
+                           axes = c(axis_x, axis_y),
                            repel = TRUE,
                            col.var = "#2E9FDF",
                            col.ind = "#696969",
@@ -11289,28 +11565,28 @@ server <- function(input, output, session) {
     }
     
     eigenvals <- get_eigenvalue(res.pca)
-    pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-    pc2_var <- round(eigenvals[2, "variance.percent"], 1)
+    pc_x_var <- round(eigenvals[axis_x, "variance.percent"], 1)
+    pc_y_var <- round(eigenvals[axis_y, "variance.percent"], 1)
     
     x_label <- if (!is.null(input$pcaXLabel) && input$pcaXLabel != "") {
       input$pcaXLabel
     } else {
-      paste0("PC1 (", pc1_var, "%)")
+      paste0("PC", axis_x, " (", pc_x_var, "%)")
     }
     
     y_label <- if (!is.null(input$pcaYLabel) && input$pcaYLabel != "") {
       input$pcaYLabel
     } else {
-      paste0("PC2 (", pc2_var, "%)")
+      paste0("PC", axis_y, " (", pc_y_var, "%)")
     }
     
     p <- p + labs(x = x_label, y = y_label)
     
     if (!is.null(input$pcaCenterAxes) && input$pcaCenterAxes) {
       if (input$pcaPlotType == "var") {
-        coords <- res.pca$var$coord[, 1:2]
+        coords <- res.pca$var$coord[, c(axis_x, axis_y)]
       } else {
-        coords <- res.pca$ind$coord[, 1:2]
+        coords <- res.pca$ind$coord[, c(axis_x, axis_y)]
       }
       max_range <- max(abs(range(coords, na.rm = TRUE)))
       p <- p + xlim(-max_range, max_range) + ylim(-max_range, max_range)
@@ -11376,7 +11652,7 @@ server <- function(input, output, session) {
       
       p <- suppressWarnings(suppressMessages(createPcaPlot()))
       suppressWarnings(ggsave(file, plot = p, device = input$pcaPlot_format, 
-             width = width, height = height, dpi = dpi, units = "cm"))
+                              width = width, height = height, dpi = dpi, units = "cm"))
     }
   )
   
@@ -11686,21 +11962,83 @@ server <- function(input, output, session) {
       "Dendrogramme HCPC"
     }
     
+    # Générer les mêmes couleurs que pour la carte des clusters
+    n_clusters <- length(unique(res.hcpc$data.clust$clust))
+    cluster_colors <- generate_distinct_colors(n_clusters)
+    
+    # Calculer une taille de texte adaptative selon le nombre d'individus
+    n_individus <- nrow(res.hcpc$data.clust)
+    cex_labels <- if (n_individus <= 20) {
+      0.7
+    } else if (n_individus <= 50) {
+      0.5
+    } else if (n_individus <= 100) {
+      0.4
+    } else {
+      0.3
+    }
+    
+    # Créer le dendrogramme avec les couleurs personnalisées
     p_dend <- fviz_dend(res.hcpc,
-                        cex = 0.7,
-                        palette = "jco",
+                        cex = cex_labels,
+                        palette = cluster_colors,
                         rect = TRUE,
                         rect_fill = TRUE,
                         rect_border = "jco",
                         main = dend_title,
-                        sub = paste("Nombre de clusters:", length(unique(res.hcpc$data.clust$clust))))
+                        sub = paste("Nombre de clusters:", n_clusters),
+                        labels_track_height = 0.8,  # Augmenter l'espace pour les labels
+                        ggtheme = theme_minimal())
+    
+    # Améliorer l'affichage des labels
+    p_dend <- p_dend + 
+      theme(
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
+        plot.margin = margin(10, 10, 50, 10),  # Marges : top, right, bottom, left
+        axis.title.x = element_blank()
+      )
+    
+    # Si trop d'individus (>100), masquer les labels pour éviter la surcharge
+    if (n_individus > 100) {
+      p_dend <- p_dend + 
+        theme(axis.text.x = element_blank(),
+              axis.ticks.x = element_blank()) +
+        labs(caption = paste("Note: Labels masqués (", n_individus, "individus). 
+                           Consultez les résultats détaillés pour l'affectation complète."))
+    }
+    
     return(p_dend)
   }
+  
+  # Selectin des axes pour le HCPC
+  output$hcpcAxisXSelect <- renderUI({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    n_dims <- ncol(res.pca$ind$coord)
+    
+    selectInput("hcpcAxisX", "Axe X:",
+                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                selected = 1)
+  })
+  
+  output$hcpcAxisYSelect <- renderUI({
+    req(pcaResultReactive())
+    res.pca <- pcaResultReactive()
+    n_dims <- ncol(res.pca$ind$coord)
+    
+    selectInput("hcpcAxisY", "Axe Y:",
+                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                selected = min(2, n_dims))
+  })
   
   createHcpcClusterPlot <- function() {
     req(hcpcResultReactive(), pcaResultReactive())
     res.hcpc <- hcpcResultReactive()
     res.pca <- pcaResultReactive()
+    
+    # Axes sélectionnés (par défaut 1 et 2)
+    axis_x <- if (!is.null(input$hcpcAxisX)) as.numeric(input$hcpcAxisX) else 1
+    axis_y <- if (!is.null(input$hcpcAxisY)) as.numeric(input$hcpcAxisY) else 2
     
     cluster_title <- if (!is.null(input$hcpcClusterTitle) && input$hcpcClusterTitle != "") {
       input$hcpcClusterTitle
@@ -11709,31 +12047,39 @@ server <- function(input, output, session) {
     }
     
     eigenvals <- get_eigenvalue(res.pca)
-    pc1_var <- round(eigenvals[1, "variance.percent"], 1)
-    pc2_var <- round(eigenvals[2, "variance.percent"], 1)
+    pc_x_var <- round(eigenvals[axis_x, "variance.percent"], 1)
+    pc_y_var <- round(eigenvals[axis_y, "variance.percent"], 1)
     
     x_label <- if (!is.null(input$hcpcClusterXLabel) && input$hcpcClusterXLabel != "") {
       input$hcpcClusterXLabel
     } else {
-      paste0("PC1 (", pc1_var, "%)")
+      paste0("PC", axis_x, " (", pc_x_var, "%)")
     }
     
     y_label <- if (!is.null(input$hcpcClusterYLabel) && input$hcpcClusterYLabel != "") {
       input$hcpcClusterYLabel
     } else {
-      paste0("PC2 (", pc2_var, "%)")
+      paste0("PC", axis_y, " (", pc_y_var, "%)")
     }
     
+    # Générer des couleurs distinctives pour tous les clusters
+    n_clusters <- length(unique(res.hcpc$data.clust$clust))
+    cluster_colors <- generate_distinct_colors(n_clusters)
+    
     p_cluster <- fviz_cluster(res.hcpc,
+                              axes = c(axis_x, axis_y),
                               repel = TRUE,
                               show.clust.cent = TRUE,
-                              palette = "jco",
+                              palette = cluster_colors,
                               ggtheme = theme_minimal(),
                               main = cluster_title) +
-      labs(x = x_label, y = y_label)
+      labs(x = x_label, y = y_label) +
+      theme(legend.position = "right",
+            legend.title = element_text(size = 10, face = "bold"),
+            legend.text = element_text(size = 9))
     
     if (!is.null(input$hcpcCenterAxes) && input$hcpcCenterAxes) {
-      coords <- res.pca$ind$coord[, 1:2]
+      coords <- res.pca$ind$coord[, c(axis_x, axis_y)]
       max_range <- max(abs(range(coords, na.rm = TRUE)))
       p_cluster <- p_cluster + xlim(-max_range, max_range) + ylim(-max_range, max_range)
     }
@@ -11841,7 +12187,7 @@ server <- function(input, output, session) {
       
       p_dend <- suppressWarnings(suppressMessages(createHcpcDendPlot()))
       suppressWarnings(ggsave(file, plot = p_dend, device = input$hcpcDend_format, 
-             width = width, height = height, dpi = dpi, units = "cm"))
+                              width = width, height = height, dpi = dpi, units = "cm"))
     }
   )
   
@@ -11871,11 +12217,11 @@ server <- function(input, output, session) {
       
       p_cluster <- suppressWarnings(suppressMessages(createHcpcClusterPlot()))
       suppressWarnings(ggsave(file, plot = p_cluster, device = input$hcpcCluster_format, 
-             width = width, height = height, dpi = dpi, units = "cm"))
+                              width = width, height = height, dpi = dpi, units = "cm"))
     }
   )
   
-  # Téléchargement donnees HCPC - Excel CORRIGE
+  # Téléchargement donnees HCPC 
   output$downloadHcpcDataXlsx <- downloadHandler(
     filename = function() {
       paste0("hcpc_resultats_", Sys.Date(), ".xlsx")
@@ -11948,7 +12294,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # Téléchargement donnees HCPC - CSV CORRIGE
+  # Téléchargement donnees HCPC 
   output$downloadHcpcDataCsv <- downloadHandler(
     filename = function() {
       paste0("hcpc_resultats_", Sys.Date(), ".zip")
@@ -12035,7 +12381,7 @@ server <- function(input, output, session) {
   )
   
   
-  # SECTION 3: AFD (Analyse Factorielle Discriminante) - VERSION CORRIGEE
+  # SECTION 3: AFD (Analyse Factorielle Discriminante) 
   
   output$afdFactorSelect <- renderUI({
     req(values$filteredData)
@@ -12137,7 +12483,7 @@ server <- function(input, output, session) {
                 selected = selected_val)
   })
   
-  # CORRECTION MAJEURE : Gestion correcte des moyennes par groupe
+  # Gestion correcte des moyennes par groupe
   afdResultReactive <- reactive({
     req(values$filteredData, input$afdVars, input$afdFactor)
     
@@ -12145,12 +12491,12 @@ server <- function(input, output, session) {
     input$afdMeansGroup
     input$afdCrossValidation
     input$afdQualiSup
-    input$afdRefresh  # Bouton d'actualisation
+    input$afdRefresh  
     
     tryCatch({
       # Vérifier si les moyennes doivent être utilisées
       use_means <- !is.null(input$afdUseMeans) && input$afdUseMeans && 
-                   !is.null(input$afdMeansGroup) && input$afdMeansGroup != ""
+        !is.null(input$afdMeansGroup) && input$afdMeansGroup != ""
       
       if (use_means) {
         # Vérifier que le facteur de discrimination est différent du groupe de moyennes
@@ -12487,11 +12833,74 @@ server <- function(input, output, session) {
     })
   })
   
+  # Sectionner les axes de l'AFD
+  
+  generate_distinct_colors <- function(n) {
+    # Fonction pour générer n couleurs distinctives
+    if (n <= 0) return(character(0))
+    
+    if (n <= 12) {
+      # Pour 12 couleurs ou moins, utiliser des palettes prédéfinies combinées
+      colors <- c(
+        "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#FFFF33",
+        "#A65628", "#F781BF", "#999999", "#66C2A5", "#FC8D62", "#8DA0CB"
+      )
+      return(colors[1:n])
+    } else if (n <= 24) {
+      # Pour 13-24 couleurs, combiner plusieurs palettes
+      pal1 <- RColorBrewer::brewer.pal(min(n, 12), "Set3")
+      pal2 <- RColorBrewer::brewer.pal(min(n - 12, 12), "Paired")
+      return(c(pal1, pal2)[1:n])
+    } else {
+      # Pour plus de 24 couleurs, utiliser une génération automatique
+      # avec des teintes espacées uniformément
+      hcl.colors(n, palette = "Dynamic", alpha = 0.8)
+    }
+  }
+  
+  output$afdAxisXSelect <- renderUI({
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    n_dims <- ncol(afd_res$predictions$x)
+    
+    if (n_dims == 1) {
+      return(div(style = "padding: 10px; background-color: #fff3cd; border-radius: 4px;",
+                 p(style = "margin: 0; color: #856404; font-size: 12px;",
+                   icon("info-circle"), " Une seule fonction discriminante disponible")))
+    }
+    
+    selectInput("afdAxisX", "Axe X:",
+                choices = setNames(1:n_dims, paste0("LD", 1:n_dims)),
+                selected = 1)
+  })
+  
+  output$afdAxisYSelect <- renderUI({
+    req(afdResultReactive())
+    afd_res <- afdResultReactive()
+    n_dims <- ncol(afd_res$predictions$x)
+    
+    if (n_dims == 1) {
+      return(div(style = "padding: 10px; background-color: #fff3cd; border-radius: 4px;",
+                 p(style = "margin: 0; color: #856404; font-size: 12px;",
+                   icon("info-circle"), " Une seule fonction discriminante disponible")))
+    }
+    
+    selectInput("afdAxisY", "Axe Y:",
+                choices = setNames(1:n_dims, paste0("LD", 1:n_dims)),
+                selected = min(2, n_dims))
+  })
+  
   createAfdIndPlot <- function() {
     req(afdResultReactive())
     afd_res <- afdResultReactive()
     afd_predict <- afd_res$predictions
     afd_data <- afd_res$data
+    
+    n_dims <- ncol(afd_predict$x)
+    
+    # Axes sélectionnés (par défaut 1 et 2, ou 1 et densité si une seule dimension)
+    axis_x <- if (!is.null(input$afdAxisX)) as.numeric(input$afdAxisX) else 1
+    axis_y <- if (!is.null(input$afdAxisY) && n_dims > 1) as.numeric(input$afdAxisY) else NULL
     
     ind_title <- if (!is.null(input$afdIndTitle) && input$afdIndTitle != "") {
       input$afdIndTitle
@@ -12506,33 +12915,60 @@ server <- function(input, output, session) {
     x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
       input$afdIndXLabel
     } else {
-      "LD1"
+      paste0("LD", axis_x)
     }
     
     y_label <- if (!is.null(input$afdIndYLabel) && input$afdIndYLabel != "") {
       input$afdIndYLabel
     } else {
-      if (ncol(afd_predict$x) > 1) "LD2" else "Densite"
+      if (n_dims > 1 && !is.null(axis_y)) paste0("LD", axis_y) else "Densité"
     }
     
-    p_ind <- ggplot(afd_df, aes_string(x = "LD1", y = if(ncol(afd_predict$x) > 1) "LD2" else NULL, 
-                                       color = "Groupe", label = "Individual")) +
-      geom_point(size = 3, alpha = 0.7) +
-      geom_text(vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
-      theme_minimal() +
-      labs(title = ind_title, x = x_label, y = y_label) +
-      scale_color_brewer(palette = "Set1")
+    # Générer des couleurs distinctives pour tous les groupes
+    n_groups <- length(unique(afd_df$Groupe))
+    group_colors <- generate_distinct_colors(n_groups)
+    names(group_colors) <- levels(factor(afd_df$Groupe))
     
-    if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
-      max_range <- max(abs(range(afd_predict$x, na.rm = TRUE)))
-      p_ind <- p_ind + xlim(-max_range, max_range)
-      if (ncol(afd_predict$x) > 1) {
-        p_ind <- p_ind + ylim(-max_range, max_range)
+    # Construire le graphique selon le nombre de dimensions
+    if (n_dims > 1 && !is.null(axis_y)) {
+      # Graphique 2D avec deux axes sélectionnés
+      x_col <- paste0("LD", axis_x)
+      y_col <- paste0("LD", axis_y)
+      
+      p_ind <- ggplot(afd_df, aes_string(x = x_col, y = y_col, 
+                                         color = "Groupe", label = "Individual")) +
+        geom_point(size = 3, alpha = 0.7) +
+        geom_text(vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+        theme_minimal() +
+        labs(title = ind_title, x = x_label, y = y_label) +
+        scale_color_manual(values = group_colors) +
+        theme(legend.position = "right",
+              legend.title = element_text(size = 10, face = "bold"),
+              legend.text = element_text(size = 9))
+      
+      if (!is.null(input$afdIndCenterAxes) && input$afdIndCenterAxes) {
+        coords <- afd_predict$x[, c(axis_x, axis_y)]
+        max_range <- max(abs(range(coords, na.rm = TRUE)))
+        p_ind <- p_ind + xlim(-max_range, max_range) + ylim(-max_range, max_range)
       }
+    } else {
+      # Graphique 1D avec densité
+      x_col <- paste0("LD", axis_x)
+      
+      p_ind <- ggplot(afd_df, aes_string(x = x_col, fill = "Groupe", color = "Groupe")) +
+        geom_density(alpha = 0.5) +
+        theme_minimal() +
+        labs(title = ind_title, x = x_label, y = y_label) +
+        scale_color_manual(values = group_colors) +
+        scale_fill_manual(values = group_colors) +
+        theme(legend.position = "right",
+              legend.title = element_text(size = 10, face = "bold"),
+              legend.text = element_text(size = 9))
     }
     
     return(p_ind)
   }
+  
   
   createAfdVarPlot <- function() {
     req(afdResultReactive())
@@ -12540,13 +12976,22 @@ server <- function(input, output, session) {
     afd_result <- afd_res$model
     afd_data <- afd_res$data
     
+    n_dims <- length(afd_result$svd)
+    
+    # Axes sélectionnés (par défaut 1 et 2, ou 1 et corrélation si une seule dimension)
+    axis_x <- if (!is.null(input$afdAxisX)) as.numeric(input$afdAxisX) else 1
+    axis_y <- if (!is.null(input$afdAxisY) && n_dims > 1) as.numeric(input$afdAxisY) else NULL
+    
     var_title <- if (!is.null(input$afdVarTitle) && input$afdVarTitle != "") {
       input$afdVarTitle
     } else {
       "AFD - Contribution des variables"
     }
     
-    X_std <- scale(afd_data[, input$afdVars])
+    # Utiliser les variables effectivement utilisées
+    vars_used <- if (!is.null(afd_res$vars_used)) afd_res$vars_used else input$afdVars
+    
+    X_std <- scale(afd_data[, vars_used, drop = FALSE])
     scores <- as.matrix(X_std) %*% afd_result$scaling
     structure_matrix <- cor(X_std, scores)
     
@@ -12556,29 +13001,56 @@ server <- function(input, output, session) {
     x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
       input$afdVarXLabel
     } else {
-      "LD1"
+      paste0("LD", axis_x)
     }
     
     y_label <- if (!is.null(input$afdVarYLabel) && input$afdVarYLabel != "") {
       input$afdVarYLabel
     } else {
-      if (ncol(structure_matrix) > 1) "LD2" else "Correlation"
+      if (n_dims > 1 && !is.null(axis_y)) paste0("LD", axis_y) else "Corrélation"
     }
     
-    p_var <- ggplot(var_df, aes_string(x = "LD1", y = if(ncol(structure_matrix) > 1) "LD2" else NULL, 
-                                       label = "Variable")) +
-      geom_segment(aes_string(xend = "LD1", yend = if(ncol(structure_matrix) > 1) "LD2" else NULL), 
-                   x = 0, y = 0, arrow = arrow(length = unit(0.3, "cm")), color = "blue", size = 1) +
-      geom_text(vjust = -0.5, hjust = 0.5, size = 4) +
-      theme_minimal() +
-      labs(title = var_title, x = x_label, y = y_label)
-    
-    if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
-      max_range <- max(abs(range(structure_matrix, na.rm = TRUE)))
-      p_var <- p_var + xlim(-max_range, max_range)
-      if (ncol(structure_matrix) > 1) {
-        p_var <- p_var + ylim(-max_range, max_range)
+    # Construire le graphique selon le nombre de dimensions
+    if (n_dims > 1 && !is.null(axis_y)) {
+      # Graphique 2D avec deux axes sélectionnés
+      x_col <- paste0("LD", axis_x)
+      y_col <- paste0("LD", axis_y)
+      
+      p_var <- ggplot(var_df, aes_string(x = x_col, y = y_col, label = "Variable")) +
+        geom_segment(aes_string(xend = x_col, yend = y_col), 
+                     x = 0, y = 0, arrow = arrow(length = unit(0.3, "cm")), 
+                     color = "#2E86AB", size = 1.2) +
+        geom_text(vjust = -0.5, hjust = 0.5, size = 4, fontface = "bold") +
+        theme_minimal() +
+        labs(title = var_title, x = x_label, y = y_label) +
+        theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+      
+      if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
+        coords <- structure_matrix[, c(axis_x, axis_y)]
+        max_range <- max(abs(range(coords, na.rm = TRUE)))
+        p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
       }
+    } else {
+      # Graphique 1D avec corrélation
+      x_col <- paste0("LD", axis_x)
+      
+      var_df_ordered <- var_df[order(abs(var_df[[x_col]]), decreasing = TRUE), ]
+      var_df_ordered$Variable <- factor(var_df_ordered$Variable, 
+                                        levels = var_df_ordered$Variable)
+      
+      # Créer une colonne pour la couleur basée sur le signe
+      var_df_ordered$Color <- ifelse(var_df_ordered[[x_col]] > 0, "Positive", "Négative")
+      
+      p_var <- ggplot(var_df_ordered, aes_string(x = "Variable", y = x_col, fill = "Color")) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_minimal() +
+        labs(title = var_title, x = "Variable", y = y_label) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+        scale_fill_manual(values = c("Positive" = "#2E86AB", "Négative" = "#A23B72"),
+                          name = "Corrélation") +
+        theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+              legend.position = "bottom")
     }
     
     return(p_var)
@@ -12725,7 +13197,7 @@ server <- function(input, output, session) {
       
       p_ind <- suppressWarnings(suppressMessages(createAfdIndPlot()))
       suppressWarnings(ggsave(file, plot = p_ind, device = input$afdInd_format, 
-             width = width, height = height, dpi = dpi, units = "cm"))
+                              width = width, height = height, dpi = dpi, units = "cm"))
     }
   )
   
@@ -12755,7 +13227,7 @@ server <- function(input, output, session) {
       
       p_var <- suppressWarnings(suppressMessages(createAfdVarPlot()))
       suppressWarnings(ggsave(file, plot = p_var, device = input$afdVar_format, 
-             width = width, height = height, dpi = dpi, units = "cm"))
+                              width = width, height = height, dpi = dpi, units = "cm"))
     }
   )
   
@@ -12824,7 +13296,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # Téléchargement donnees AFD - CSV avec nom correct
+  # Téléchargement donnees AFD 
   output$downloadAfdDataCsv <- downloadHandler(
     filename = function() {
       "afd_resultats.zip"  # Nom fixe sans date
@@ -13860,85 +14332,7 @@ server <- function(input, output, session) {
       showNotification("Données exportées avec succès!", type = "message", duration = 3)
     }
   )
-  # ---- Rapport ----
-  observeEvent(input$generateReport, {
-    showNotification("Génération du rapport en cours...", type = "message")
-    
-    report_path <- tempfile(fileext = ".Rmd")
-    
-    writeLines(c(
-      "---",
-      paste0("title: \"", input$reportTitle, "\""),
-      paste0("author: \"", input$reportAuthor, "\""),
-      paste0("date: \"", Sys.Date(), "\""),
-      paste0("output: ", input$reportFormat),
-      "---",
-      "",
-      "```{r setup, include=FALSE}",
-      "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
-      "```",
-      "",
-      "# Analyse Statistique des Données",
-      "",
-      "## Résumé des données",
-      "```{r data-summary}",
-      "summary(values$filteredData)",
-      "```",
-      "",
-      "## Analyses descriptives",
-      "```{r descriptive}",
-      "if (!is.null(values$descStats)) {",
-      "  knitr::kable(values$descStats, caption = \"Statistiques descriptives\")",
-      "}",
-      "```",
-      "",
-      "## Tests statistiques",
-      "```{r tests}",
-      "if (!is.null(values$testResultsDF)) {",
-      "  knitr::kable(values$testResultsDF, caption = \"Résultats des tests\")",
-      "}",
-      "```",
-      "",
-      "## Visualisations",
-      "```{r plots, fig.cap=\"Visualisations des résultats\"}",
-      "if (!is.null(values$currentPlot)) {",
-      "  print(values$currentPlot)",
-      "}",
-      "```"
-    ), report_path)
-    
-    output_file <- rmarkdown::render(report_path, switch(
-      input$reportFormat,
-      "html_document" = rmarkdown::html_document(),
-      "pdf_document" = rmarkdown::pdf_document(),
-      "word_document" = rmarkdown::word_document()
-    ))
-    
-    output$reportPreview <- renderUI({
-      if (input$reportFormat == "html_document") {
-        includeHTML(output_file)
-      } else {
-        tags$iframe(src = output_file, width = "100%", height = "600px")
-      }
-    })
-    
-    output$downloadReport <- downloadHandler(
-      filename = function() {
-        paste0("rapport_", Sys.Date(), switch(
-          input$reportFormat,
-          "html_document" = ".html",
-          "pdf_document" = ".pdf",
-          "word_document" = ".docx"
-        ))
-      },
-      content = function(file) {
-        file.copy(output_file, file)
-      }
-    )
-    
-    showNotification("Rapport généré avec succès!", type = "message")
-  })
 }
 
 
-shinyApp(ui, server)
+shinyApp(ui, server)
