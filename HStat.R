@@ -6909,7 +6909,7 @@ server <- function(input, output, session) {
       
       # Stocker les labels personnalisés de manière persistante
       if(!is.null(input$vizXVar) && is.null(values$storedLevelLabels[[input$vizXVar]])) {
-        values$storedLevelLabels[[input$vizXVar]] <- unique_vals
+        values$storedLevelLabels[[input$vizXVar]] <- setNames(unique_vals, unique_vals)
       }
     }
   })
@@ -7027,11 +7027,29 @@ server <- function(input, output, session) {
       if(is.null(new_label) || new_label == "") lvl else new_label
     })
     
-    # Stocker de manière persistante
+    # Stocker de manière persistante avec noms
     names(level_mapping) <- values$currentXLevels
     values$storedLevelLabels[[input$vizXVar]] <- level_mapping
     
-    showNotification("Labels appliqués et enregistrés", type = "message", duration = 2)
+    # Mettre à jour l'ordre personnalisé avec les nouveaux labels
+    if(!is.null(values$customXOrder)) {
+      # Mapper l'ordre existant avec les nouveaux labels
+      values$customXOrder <- sapply(values$customXOrder, function(old_val) {
+        if(old_val %in% names(level_mapping)) {
+          as.character(level_mapping[[old_val]])
+        } else {
+          old_val
+        }
+      })
+    } else {
+      # Si pas d'ordre personnalisé, créer un ordre avec les labels
+      values$customXOrder <- as.character(level_mapping[values$currentXLevels])
+    }
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
+    showNotification("Labels appliqués et ordre mis à jour", type = "message", duration = 2)
   })
   
   # Observateur pour réinitialiser les niveaux avec notification
@@ -7046,7 +7064,13 @@ server <- function(input, output, session) {
     # Supprimer le stockage persistant
     values$storedLevelLabels[[input$vizXVar]] <- NULL
     
-    showNotification("Niveaux réinitialisés", type = "message", duration = 2)
+    # Réinitialiser aussi l'ordre personnalisé
+    values$customXOrder <- NULL
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
+    showNotification("Niveaux et ordre réinitialisés", type = "message", duration = 2)
   })
   
   # Actions rapides pour les niveaux
@@ -7158,10 +7182,32 @@ server <- function(input, output, session) {
       ))
     }
     
+    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    display_vals <- unique_vals
+    if(!is.null(values$storedLevelLabels[[x_var]])) {
+      level_mapping <- values$storedLevelLabels[[x_var]]
+      display_vals <- sapply(unique_vals, function(val) {
+        if(val %in% names(level_mapping)) {
+          as.character(level_mapping[[val]])
+        } else {
+          val
+        }
+      })
+    }
+    
+    # Si un ordre personnalisé existe, l'utiliser
+    if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
+      # Filtrer pour ne garder que les valeurs qui existent
+      ordered_vals <- values$customXOrder[values$customXOrder %in% display_vals]
+      if(length(ordered_vals) > 0) {
+        display_vals <- ordered_vals
+      }
+    }
+    
     div(
       div(style = "margin-bottom: 10px;",
           div(style = "display: flex; justify-content: space-between; align-items: center;",
-              span(paste(length(unique_vals), "catégories détectées"), 
+              span(paste(length(display_vals), "catégories détectées"), 
                    style = "color: #666; font-size: 12px;"),
               div(style = "display: flex; gap: 5px;",
                   actionButton("autoSortX", "Tri auto", 
@@ -7175,9 +7221,9 @@ server <- function(input, output, session) {
       ),
       
       div(id = "xOrderSortable",
-          style = if(length(unique_vals) > 15) "max-height: 500px; overflow-y: auto; padding: 10px; background-color: #f9f9f9; border-radius: 5px;" else "padding: 10px; background-color: #f9f9f9; border-radius: 5px;",
-          lapply(seq_along(unique_vals), function(i) {
-            val <- unique_vals[i]
+          style = if(length(display_vals) > 15) "max-height: 500px; overflow-y: auto; padding: 10px; background-color: #f9f9f9; border-radius: 5px;" else "padding: 10px; background-color: #f9f9f9; border-radius: 5px;",
+          lapply(seq_along(display_vals), function(i) {
+            val <- display_vals[i]
             div(
               id = paste0("xorder_", i),
               `data-value` = val,
@@ -7200,22 +7246,52 @@ server <- function(input, output, session) {
   
   # Tri automatique de l'ordre X
   observeEvent(input$autoSortX, {
-    req(values$currentXLevels)
-    sorted_levels <- sort(values$currentXLevels)
-    values$customXOrder <- sorted_levels
+    req(values$currentXLevels, input$vizXVar)
+    
+    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    if(!is.null(values$storedLevelLabels[[input$vizXVar]])) {
+      level_mapping <- values$storedLevelLabels[[input$vizXVar]]
+      sorted_labels <- sort(as.character(level_mapping[values$currentXLevels]))
+      values$customXOrder <- sorted_labels
+    } else {
+      sorted_levels <- sort(values$currentXLevels)
+      values$customXOrder <- sorted_levels
+    }
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
     showNotification("Ordre trié alphabétiquement", type = "message", duration = 2)
   })
   
   # Inverser l'ordre X
   observeEvent(input$reverseOrderX, {
-    req(values$currentXLevels)
-    values$customXOrder <- rev(values$currentXLevels)
+    req(values$currentXLevels, input$vizXVar)
+    
+    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
+      # Inverser l'ordre actuel
+      values$customXOrder <- rev(values$customXOrder)
+    } else if(!is.null(values$storedLevelLabels[[input$vizXVar]])) {
+      level_mapping <- values$storedLevelLabels[[input$vizXVar]]
+      values$customXOrder <- rev(as.character(level_mapping[values$currentXLevels]))
+    } else {
+      values$customXOrder <- rev(values$currentXLevels)
+    }
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
     showNotification("Ordre inversé", type = "message", duration = 2)
   })
   
   # Réinitialiser l'ordre X
   observeEvent(input$resetOrderX, {
     values$customXOrder <- NULL
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
     showNotification("Ordre réinitialisé", type = "message", duration = 2)
   })
   
@@ -7223,6 +7299,10 @@ server <- function(input, output, session) {
   observeEvent(input$xLevelOrder, {
     if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
       values$customXOrder <- input$xLevelOrder
+      
+      # Forcer le recalcul du graphique
+      values$plotUpdateTrigger <- runif(1)
+      
       showNotification(
         paste("Ordre modifié:", length(input$xLevelOrder), "catégories"), 
         type = "message", 
@@ -7306,6 +7386,10 @@ server <- function(input, output, session) {
   plotData <- reactive({
     req(values$filteredData, input$vizXVar, input$vizYVar)
     
+    # Forcer la réactivité à values$customXOrder et plotUpdateTrigger
+    values$customXOrder
+    values$plotUpdateTrigger
+    
     # Utiliser les données agrégées si disponibles
     data <- if(isTRUE(input$useAggregation)) {
       aggregatedData()
@@ -7320,60 +7404,46 @@ server <- function(input, output, session) {
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
     
     if(x_type %in% c("factor", "categorical", "text")) {
+      # Obtenir les niveaux originaux actuellement présents
+      current_levels <- unique(as.character(data[[x_var]]))
+      
       # Utiliser les labels stockés de manière persistante
       if(!is.null(values$storedLevelLabels[[x_var]])) {
         level_mapping <- values$storedLevelLabels[[x_var]]
-        
-        # Obtenir les niveaux actuellement présents dans les données
-        current_levels <- unique(as.character(data[[x_var]]))
         
         # Ne garder que les niveaux qui existent dans le mapping et dans les données
         valid_levels <- names(level_mapping)[names(level_mapping) %in% current_levels]
         
         if(length(valid_levels) > 0) {
+          # Appliquer le mapping des labels
           data[[x_var]] <- factor(
             data[[x_var]],
             levels = valid_levels,
             labels = as.character(level_mapping[valid_levels])
           )
-        } else {
-          # Si aucun niveau valide, utiliser les données telles quelles
-          data[[x_var]] <- factor(data[[x_var]])
-        }
-      } else if(!is.null(values$currentXLevels)) {
-        # Obtenir les niveaux actuellement présents dans les données
-        current_levels <- unique(as.character(data[[x_var]]))
-        
-        # Ne garder que les niveaux qui existent à la fois dans currentXLevels et dans les données
-        valid_levels <- values$currentXLevels[values$currentXLevels %in% current_levels]
-        
-        if(length(valid_levels) > 0) {
-          level_mapping <- sapply(valid_levels, function(lvl) {
-            new_label <- input[[paste0("xLevel_", make.names(lvl))]]
-            if(is.null(new_label) || new_label == "") lvl else new_label
-          })
           
-          data[[x_var]] <- factor(
-            data[[x_var]],
-            levels = valid_levels,
-            labels = as.character(level_mapping)
-          )
+          # Appliquer l'ordre personnalisé APRÈS la transformation des labels
+          if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
+            existing_order <- values$customXOrder[values$customXOrder %in% levels(data[[x_var]])]
+            if(length(existing_order) > 0) {
+              data[[x_var]] <- factor(data[[x_var]], levels = existing_order)
+            }
+          }
         } else {
-          # Si aucun niveau valide, utiliser les données telles quelles
           data[[x_var]] <- factor(data[[x_var]])
         }
-      }
-      
-      # Appliquer l'ordre personnalisé si défini
-      if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
-        # Ne garder que les niveaux de customXOrder qui existent dans les données
-        existing_order <- values$customXOrder[values$customXOrder %in% levels(data[[x_var]])]
-        if(length(existing_order) > 0) {
-          data[[x_var]] <- factor(data[[x_var]], levels = existing_order)
+      } else {
+        # Pas de labels personnalisés - juste convertir en facteur
+        data[[x_var]] <- factor(data[[x_var]], levels = sort(current_levels))
+        
+        # Appliquer l'ordre personnalisé si défini (même sans labels)
+        if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
+          # customXOrder contient les valeurs ORIGINALES car pas de mapping
+          existing_order <- values$customXOrder[values$customXOrder %in% levels(data[[x_var]])]
+          if(length(existing_order) > 0) {
+            data[[x_var]] <- factor(data[[x_var]], levels = existing_order)
+          }
         }
-      } else if(is.null(values$storedLevelLabels[[x_var]]) && is.null(values$currentXLevels)) {
-        # Assurer un ordre cohérent par défaut seulement si aucun label n'a été appliqué
-        data[[x_var]] <- factor(data[[x_var]])
       }
     }
     
@@ -7395,7 +7465,6 @@ server <- function(input, output, session) {
           rename(Value = value)
       } else {
         # Transformer en format long pour multi-Y
-        # Vérifier quelles variables Y existent réellement dans les données
         valid_y_vars <- y_vars[y_vars %in% names(data)]
         
         if(length(valid_y_vars) == 0) {
@@ -7403,16 +7472,12 @@ server <- function(input, output, session) {
           return(data)
         }
         
-        # Sélectionner X et toutes les variables Y valides
         cols_to_keep <- c(x_var, valid_y_vars)
         
-        # Vérifier que X existe aussi
         if(!x_var %in% names(data)) {
           showNotification("Erreur: Variable X non disponible", type = "error")
           return(data)
         }
-        
-        # Transformer en format long
         
         data_long <- data %>%
           dplyr::select(dplyr::any_of(cols_to_keep)) %>%
@@ -7480,13 +7545,28 @@ server <- function(input, output, session) {
         div(style = if(length(legend_levels) > 10) "max-height: 400px; overflow-y: auto;" else "",
             lapply(seq_along(legend_levels), function(i) {
               lvl <- legend_levels[i]
+              
+              # Récupérer le label actuel s'il existe déjà
+              storage_key <- if(legend_var_name == "Variables Y") {
+                "multiY_legend"
+              } else {
+                legend_var_name
+              }
+              
+              current_label <- if(!is.null(values$legendLabels[[storage_key]]) && 
+                                  !is.null(values$legendLabels[[storage_key]][[lvl]])) {
+                values$legendLabels[[storage_key]][[lvl]]
+              } else {
+                lvl
+              }
+              
               div(style = "margin-bottom: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;",
                   div(style = "font-size: 12px; color: #666; margin-bottom: 3px;",
                       paste("Original:", lvl)),
                   textInput(
                     inputId = paste0("legendLevel_", make.names(lvl)),
                     label = NULL,
-                    value = lvl,
+                    value = current_label,
                     placeholder = "Nouveau label...",
                     width = "100%"
                   )
@@ -7532,6 +7612,9 @@ server <- function(input, output, session) {
     # Stocker
     values$legendLabels[[storage_key]] <- legend_mapping
     
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
     removeModal()
     showNotification("Labels de légende appliqués", type = "message", duration = 2)
   })
@@ -7561,6 +7644,9 @@ server <- function(input, output, session) {
     # Supprimer le stockage
     values$legendLabels[[storage_key]] <- NULL
     
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
     showNotification("Labels de légende réinitialisés", type = "message", duration = 2)
   })
   
@@ -7570,6 +7656,33 @@ server <- function(input, output, session) {
   # Expression réactive pour créer le graphique avec mise à jour automatique
   createPlot <- reactive({
     req(values$plotData, input$vizXVar, input$vizYVar, input$vizType)
+    
+    # Réactivité aux options de personnalisation ET à l'ordre personnalisé
+    input$plotTitle
+    input$xAxisLabel
+    input$yAxisLabel
+    input$legendTitle
+    input$pointSize
+    input$lineWidth
+    input$pointAlpha
+    input$barWidth
+    input$barPosition
+    input$titleSize
+    input$axisLabelSize
+    input$baseFontSize
+    input$xAxisBold
+    input$xAxisItalic
+    input$yAxisBold
+    input$yAxisItalic
+    input$xTickBold
+    input$xTickItalic
+    input$xAxisAngle
+    input$legendPosition
+    input$showValues
+    input$showTrendLine
+    input$showPoints
+    values$customXOrder  # IMPORTANT: Réagir aux changements d'ordre
+    values$plotUpdateTrigger  # NOUVEAU: Trigger explicite pour forcer les mises à jour
     
     data <- values$plotData
     x_var <- input$vizXVar
@@ -7624,7 +7737,7 @@ server <- function(input, output, session) {
                           scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
     }
     
-    # Appliquer les labels de légende personnalisés
+    # Appliquer les labels de légende personnalisés CORRECTEMENT
     if(!is.null(color_var)) {
       storage_key <- if(color_var == "Variable") {
         "multiY_legend"
@@ -7634,101 +7747,77 @@ server <- function(input, output, session) {
       
       if(!is.null(values$legendLabels[[storage_key]])) {
         legend_mapping <- values$legendLabels[[storage_key]]
-        p <- p + scale_color_discrete(labels = legend_mapping) +
-          scale_fill_discrete(labels = legend_mapping)
+        
+        # Ne garder que les niveaux présents dans les données actuelles
+        current_levels <- unique(as.character(data[[color_var]]))
+        
+        # Filtrer le mapping pour ne garder que les niveaux existants
+        legend_mapping_filtered <- legend_mapping[names(legend_mapping) %in% current_levels]
+        
+        if(length(legend_mapping_filtered) > 0) {
+          # Application des labels avec breaks et labels explicites
+          p <- p + 
+            scale_color_discrete(
+              breaks = names(legend_mapping_filtered),
+              labels = as.character(legend_mapping_filtered),
+              drop = FALSE
+            ) +
+            scale_fill_discrete(
+              breaks = names(legend_mapping_filtered),
+              labels = as.character(legend_mapping_filtered),
+              drop = FALSE
+            )
+        }
       }
     }
     
-    # Personnalisation du thème 
-    if(viz_type != "seasonal_evolution") {
-      # Créer les paramètres de formatage des axes
-      x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$xAxisBold)) {
-        "bold"
-      } else if(isTRUE(input$xAxisItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      y_axis_face <- if(isTRUE(input$yAxisBold) && isTRUE(input$yAxisItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$yAxisBold)) {
-        "bold"
-      } else if(isTRUE(input$yAxisItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      x_tick_face <- if(isTRUE(input$xTickBold) && isTRUE(input$xTickItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$xTickBold)) {
-        "bold"
-      } else if(isTRUE(input$xTickItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      # Obtenir l'angle des labels X
-      x_angle <- input$xAxisAngle %||% 0
-      x_hjust <- if(x_angle > 0) 1 else 0.5
-      x_vjust <- if(x_angle > 0) 1 else 0.5
-      
-      p <- p + 
-        theme_minimal(base_size = input$baseFontSize %||% 12) +
-        theme(
-          plot.title = element_text(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
-          axis.title.x = element_text(face = x_axis_face, size = input$axisLabelSize %||% 11),
-          axis.title.y = element_text(face = y_axis_face, size = input$axisLabelSize %||% 11),
-          axis.text.x = element_text(face = x_tick_face, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
-          legend.position = input$legendPosition %||% "right"
-        )
+    # Personnalisation du thème pour tous les types de graphiques
+    # Créer les paramètres de formatage des axes
+    x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
+      "bold.italic"
+    } else if(isTRUE(input$xAxisBold)) {
+      "bold"
+    } else if(isTRUE(input$xAxisItalic)) {
+      "italic"
     } else {
-      # Pour seasonal_evolution, appliquer tous les options de formatage
-      x_axis_face <- if(isTRUE(input$xAxisBold) && isTRUE(input$xAxisItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$xAxisBold)) {
-        "bold"
-      } else if(isTRUE(input$xAxisItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      y_axis_face <- if(isTRUE(input$yAxisBold) && isTRUE(input$yAxisItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$yAxisBold)) {
-        "bold"
-      } else if(isTRUE(input$yAxisItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      x_tick_face <- if(isTRUE(input$xTickBold) && isTRUE(input$xTickItalic)) {
-        "bold.italic"
-      } else if(isTRUE(input$xTickBold)) {
-        "bold"
-      } else if(isTRUE(input$xTickItalic)) {
-        "italic"
-      } else {
-        "plain"
-      }
-      
-      x_angle <- input$xAxisAngle %||% 45
-      x_hjust <- if(x_angle > 0) 1 else 0.5
-      
-      # Appliquer tous les formatages pour seasonal_evolution
-      p <- p + theme(
-        axis.text.x = element_text(angle = x_angle, hjust = x_hjust, face = x_tick_face, size = 8),
+      "plain"
+    }
+    
+    y_axis_face <- if(isTRUE(input$yAxisBold) && isTRUE(input$yAxisItalic)) {
+      "bold.italic"
+    } else if(isTRUE(input$yAxisBold)) {
+      "bold"
+    } else if(isTRUE(input$yAxisItalic)) {
+      "italic"
+    } else {
+      "plain"
+    }
+    
+    x_tick_face <- if(isTRUE(input$xTickBold) && isTRUE(input$xTickItalic)) {
+      "bold.italic"
+    } else if(isTRUE(input$xTickBold)) {
+      "bold"
+    } else if(isTRUE(input$xTickItalic)) {
+      "italic"
+    } else {
+      "plain"
+    }
+    
+    # Obtenir l'angle des labels X
+    x_angle <- input$xAxisAngle %||% 0
+    x_hjust <- if(x_angle > 0) 1 else 0.5
+    x_vjust <- if(x_angle > 0) 1 else 0.5
+    
+    # Appliquer le thème pour tous les graphiques
+    p <- p + 
+      theme_minimal(base_size = input$baseFontSize %||% 12) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
         axis.title.x = element_text(face = x_axis_face, size = input$axisLabelSize %||% 11),
         axis.title.y = element_text(face = y_axis_face, size = input$axisLabelSize %||% 11),
-        plot.title = element_text(size = input$titleSize %||% 14, face = "bold", hjust = 0.5)
+        axis.text.x = element_text(face = x_tick_face, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
+        legend.position = input$legendPosition %||% "right"
       )
-    }
     
     # Ajouter les titres personnalisés
     if(!is.null(input$plotTitle) && input$plotTitle != "") {
@@ -7754,400 +7843,6 @@ server <- function(input, output, session) {
     
     return(p)
   })
-  
-  # Rendu du graphique interactif 
-  output$interactivePlot <- renderPlotly({
-    req(createPlot())
-    
-    p <- createPlot()
-    
-    # Convertir en plotly avec interactivité
-    plotly_obj <- tryCatch({
-      ggplotly(p, tooltip = "all") %>%
-        layout(
-          hovermode = "closest",
-          dragmode = "zoom"
-        ) %>%
-        config(
-          displayModeBar = TRUE,
-          modeBarButtonsToRemove = c("lasso2d", "select2d"),
-          displaylogo = FALSE
-        )
-    }, error = function(e) {
-      showNotification("Erreur lors de la conversion en graphique interactif", 
-                       type = "error", duration = 3)
-      return(NULL)
-    })
-    
-    # Stocker le graphique actuel
-    values$currentInteractivePlot <- plotly_obj
-    
-    return(plotly_obj)
-  })
-  
-  # Bouton Personnaliser
-  observeEvent(input$customizePlot, {
-    showModal(modalDialog(
-      title = tagList(icon("paint-brush"), " Personnalisation Rapide"),
-      size = "l",
-      
-      fluidRow(
-        column(6,
-               h5("Titres", style = "color: #007bff; font-weight: bold;"),
-               textInput("quickPlotTitle", "Titre:", value = input$plotTitle %||% "", placeholder = "Titre du graphique"),
-               textInput("quickXLabel", "Label X:", value = input$xAxisLabel %||% "", placeholder = "Auto"),
-               textInput("quickYLabel", "Label Y:", value = input$yAxisLabel %||% "", placeholder = "Auto")
-        ),
-        column(6,
-               h5("Apparence", style = "color: #007bff; font-weight: bold;"),
-               sliderInput("quickPointSize", "Taille des points:", min = 1, max = 10, value = input$pointSize %||% 3, step = 0.5),
-               sliderInput("quickLineWidth", "Épaisseur des lignes:", min = 0.5, max = 5, value = input$lineWidth %||% 1, step = 0.5),
-               selectInput("quickLegendPos", "Position légende:", 
-                           choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top", "Bas" = "bottom", "Aucune" = "none"),
-                           selected = input$legendPosition %||% "right")
-        )
-      ),
-      
-      footer = tagList(
-        actionButton("applyQuickCustom", "Appliquer", class = "btn-primary"),
-        modalButton("Fermer")
-      )
-    ))
-  })
-  
-  # Appliquer la personnalisation rapide
-  observeEvent(input$applyQuickCustom, {
-    updateTextInput(session, "plotTitle", value = input$quickPlotTitle)
-    updateTextInput(session, "xAxisLabel", value = input$quickXLabel)
-    updateTextInput(session, "yAxisLabel", value = input$quickYLabel)
-    updateSliderInput(session, "pointSize", value = input$quickPointSize)
-    updateSliderInput(session, "lineWidth", value = input$quickLineWidth)
-    updateSelectInput(session, "legendPosition", selected = input$quickLegendPos)
-    
-    removeModal()
-    showNotification("Personnalisation appliquée", type = "message", duration = 2)
-  })
-  
-  
-  # FONCTIONS DE CRÉATION
-  
-  # Fonction pour créer un scatter plot
-  create_scatter_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_point(aes(color = .data[[color_var]]), 
-                          size = input$pointSize %||% 3, 
-                          alpha = input$pointAlpha %||% 0.7)
-    } else {
-      p <- p + geom_point(size = input$pointSize %||% 3, 
-                          alpha = input$pointAlpha %||% 0.7)
-    }
-    
-    # Ajouter ligne de tendance si demandé
-    if(isTRUE(input$showTrendLine)) {
-      p <- p + geom_smooth(method = input$trendMethod %||% "lm", 
-                           se = isTRUE(input$showConfidenceInterval))
-    }
-    
-    # Ajouter les valeurs si demandé
-    if(isTRUE(input$showValues)) {
-      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
-                         vjust = -0.5, size = 3, check_overlap = TRUE)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un line plot
-  create_line_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
-                         size = input$lineWidth %||% 1)
-      if(isTRUE(input$showPoints)) {
-        p <- p + geom_point(aes(color = .data[[color_var]]), 
-                            size = input$pointSize %||% 2)
-      }
-    } else {
-      p <- p + geom_line(size = input$lineWidth %||% 1)
-      if(isTRUE(input$showPoints)) {
-        p <- p + geom_point(size = input$pointSize %||% 2)
-      }
-    }
-    
-    # Ajouter les valeurs si demandé
-    if(isTRUE(input$showValues)) {
-      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
-                         vjust = -0.5, size = 3, check_overlap = TRUE)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un bar plot
-  create_bar_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_col(aes(fill = .data[[color_var]]), 
-                        position = input$barPosition %||% "dodge",
-                        width = input$barWidth %||% 0.8)
-    } else {
-      p <- p + geom_col(width = input$barWidth %||% 0.8)
-    }
-    
-    # Ajouter les valeurs si demandé
-    if(isTRUE(input$showValues)) {
-      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
-                         vjust = -0.5, size = 3, 
-                         position = position_dodge(width = input$barWidth %||% 0.8))
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un box plot
-  create_box_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_boxplot(aes(fill = .data[[color_var]]), alpha = 0.7)
-    } else {
-      p <- p + geom_boxplot(alpha = 0.7)
-    }
-    
-    if(isTRUE(input$showOutliers)) {
-      p <- p + geom_jitter(width = 0.2, alpha = 0.3, size = 1)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un violin plot
-  create_violin_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_violin(aes(fill = .data[[color_var]]), alpha = 0.7)
-    } else {
-      p <- p + geom_violin(alpha = 0.7)
-    }
-    
-    if(isTRUE(input$showBoxInsideViolin)) {
-      p <- p + geom_boxplot(width = 0.1)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un seasonal smooth plot
-  create_seasonal_smooth_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), alpha = 0.5)
-      p <- p + geom_smooth(aes(color = .data[[color_var]], group = .data[[color_var]]),
-                           method = input$smoothMethod %||% "loess",
-                           span = input$smoothSpan %||% 0.75,
-                           se = isTRUE(input$showConfidenceInterval))
-    } else {
-      p <- p + geom_line(alpha = 0.5)
-      p <- p + geom_smooth(method = input$smoothMethod %||% "loess",
-                           span = input$smoothSpan %||% 0.75,
-                           se = isTRUE(input$showConfidenceInterval))
-    }
-    
-    # Ajouter les valeurs si demandé 
-    if(isTRUE(input$showValues) && isTRUE(input$showPoints)) {
-      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
-                         vjust = -0.5, size = 2.5, check_overlap = TRUE)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un seasonal evolution plot 
-  create_seasonal_evolution_plot <- function(data, x_var, y_var, color_var = NULL) {
-    
-    # Créer le graphique de base
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + 
-        geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
-                  linewidth = input$lineWidth %||% 1.2,
-                  na.rm = TRUE) +
-        geom_point(aes(color = .data[[color_var]]), 
-                   size = input$pointSize %||% 3,
-                   na.rm = TRUE)
-    } else {
-      p <- p + 
-        geom_line(linewidth = input$lineWidth %||% 1.2,
-                  na.rm = TRUE) +
-        geom_point(size = input$pointSize %||% 3,
-                   na.rm = TRUE)
-    }
-    
-    # Ajouter les valeurs si demandé
-    if(isTRUE(input$showValues)) {
-      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
-                         vjust = -0.5, size = 3, check_overlap = TRUE)
-    }
-    
-    # Appliquer le thème clean 
-    p <- p +
-      scale_x_discrete(drop = FALSE) +
-      theme_minimal() +
-      theme(
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.background = element_rect(fill = "white", color = NA),
-        plot.background = element_rect(fill = "white", color = NA),
-        axis.text = element_text(size = 10, color = "black"),
-        axis.title = element_text(size = 12, color = "black"),
-        axis.line = element_line(color = "black", linewidth = 0.5),
-        axis.ticks = element_line(color = "black", linewidth = 0.5),
-        plot.title = element_text(size = 14, color = "black", hjust = 0.5),
-        legend.position = "bottom",
-        legend.text = element_text(size = 10),
-        legend.margin = margin(t = 20),
-        axis.text.x = element_text(angle = input$xAxisAngle %||% 45, hjust = 1, size = 8)
-      )
-    
-    # Ajuster l'échelle Y 
-    y_vals <- data[[y_var]][!is.na(data[[y_var]]) & is.finite(data[[y_var]])]
-    if(length(y_vals) > 0) {
-      y_max <- max(y_vals, na.rm = TRUE)
-      if(!is.infinite(y_max) && !is.na(y_max)) {
-        p <- p + scale_y_continuous(
-          limits = c(0, y_max + y_max * 0.1),  
-          breaks = pretty(c(0, y_max))
-        )
-      }
-    }
-    
-    # Guide pour la légende
-    if(!is.null(color_var)) {
-      p <- p + guides(color = guide_legend(override.aes = list(size = 2), ncol = 2))
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un histogram
-  create_histogram_plot <- function(data, x_var) {
-    p <- ggplot(data, aes(x = .data[[x_var]])) +
-      geom_histogram(bins = input$histBins %||% 30, 
-                     fill = input$histColor %||% "steelblue",
-                     alpha = 0.7,
-                     color = "white")
-    return(p)
-  }
-  
-  # Fonction pour créer un density plot
-  create_density_plot <- function(data, x_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_density(aes(fill = .data[[color_var]], color = .data[[color_var]]), alpha = 0.5)
-    } else {
-      p <- p + geom_density(fill = "steelblue", alpha = 0.5)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un heatmap
-  create_heatmap_plot <- function(data, x_var, y_var) {
-    # Agrégation pour heatmap
-    agg_data <- data %>%
-      group_by(across(all_of(c(x_var, y_var)))) %>%
-      summarise(count = n(), .groups = "drop")
-    
-    p <- ggplot(agg_data, aes(x = .data[[x_var]], y = .data[[y_var]], fill = count)) +
-      geom_tile() +
-      scale_fill_gradient(low = "white", high = "steelblue") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    # Ajouter les valeurs si demandé
-    if(isTRUE(input$showValues)) {
-      p <- p + geom_text(aes(label = count), color = "black", size = 3)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un area plot
-  create_area_plot <- function(data, x_var, y_var, color_var = NULL) {
-    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
-    
-    if(!is.null(color_var)) {
-      p <- p + geom_area(aes(fill = .data[[color_var]]), 
-                         position = input$areaPosition %||% "stack",
-                         alpha = 0.7)
-    } else {
-      p <- p + geom_area(fill = "steelblue", alpha = 0.7)
-    }
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un pie chart
-  create_pie_plot <- function(data, x_var, y_var) {
-    # Agrégation
-    pie_data <- data %>%
-      group_by(across(all_of(x_var))) %>%
-      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
-      mutate(percentage = total / sum(total) * 100)
-    
-    p <- ggplot(pie_data, aes(x = "", y = total, fill = .data[[x_var]])) +
-      geom_col() +
-      coord_polar(theta = "y") +
-      theme_void()
-    
-    # Toujours afficher les valeurs/pourcentages pour les pie charts
-    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
-                       position = position_stack(vjust = 0.5))
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un donut chart
-  create_donut_plot <- function(data, x_var, y_var) {
-    # Similaire au pie mais avec un trou au centre
-    donut_data <- data %>%
-      group_by(across(all_of(x_var))) %>%
-      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
-      mutate(percentage = total / sum(total) * 100)
-    
-    p <- ggplot(donut_data, aes(x = 2, y = total, fill = .data[[x_var]])) +
-      geom_col() +
-      coord_polar(theta = "y") +
-      xlim(c(0.5, 2.5)) +
-      theme_void()
-    
-    # Toujours afficher les valeurs/pourcentages pour les donut charts
-    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
-                       position = position_stack(vjust = 0.5))
-    
-    return(p)
-  }
-  
-  # Fonction pour créer un treemap
-  create_treemap_plot <- function(data, x_var, y_var) {
-    # Note: Nécessite le package treemapify
-    treemap_data <- data %>%
-      group_by(across(all_of(x_var))) %>%
-      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop")
-    
-    p <- ggplot(treemap_data, aes(area = total, fill = .data[[x_var]], label = .data[[x_var]])) +
-      treemapify::geom_treemap() +
-      treemapify::geom_treemap_text(colour = "white", place = "centre")
-    
-    return(p)
-  }
   
   
   # INFORMATIONS ET STATS
@@ -8360,7 +8055,6 @@ server <- function(input, output, session) {
   
   # INDICATEURS RÉACTIFS
   
-  
   # Indicateur multi-Y
   output$multiYIndicator <- reactive({
     !is.null(values$multipleY) && values$multipleY
@@ -8376,9 +8070,378 @@ server <- function(input, output, session) {
     }
   })
   
+  # Bouton Personnaliser
+  observeEvent(input$customizePlot, {
+    showModal(modalDialog(
+      title = tagList(icon("paint-brush"), " Personnalisation Rapide"),
+      size = "l",
+      
+      fluidRow(
+        column(6,
+               h5("Titres", style = "color: #007bff; font-weight: bold;"),
+               textInput("quickPlotTitle", "Titre:", value = input$plotTitle %||% "", placeholder = "Titre du graphique"),
+               textInput("quickXLabel", "Label X:", value = input$xAxisLabel %||% "", placeholder = "Auto"),
+               textInput("quickYLabel", "Label Y:", value = input$yAxisLabel %||% "", placeholder = "Auto")
+        ),
+        column(6,
+               h5("Apparence", style = "color: #007bff; font-weight: bold;"),
+               sliderInput("quickPointSize", "Taille des points:", min = 1, max = 10, value = input$pointSize %||% 3, step = 0.5),
+               sliderInput("quickLineWidth", "Épaisseur des lignes:", min = 0.5, max = 5, value = input$lineWidth %||% 1, step = 0.5),
+               selectInput("quickLegendPos", "Position légende:", 
+                           choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top", "Bas" = "bottom", "Aucune" = "none"),
+                           selected = input$legendPosition %||% "right")
+        )
+      ),
+      
+      footer = tagList(
+        actionButton("applyQuickCustom", "Appliquer", class = "btn-primary"),
+        modalButton("Fermer")
+      )
+    ))
+  })
   
-  #  EXPORT AVANCÉ DES GRAPHIQUES 
+  # Appliquer la personnalisation rapide
+  observeEvent(input$applyQuickCustom, {
+    updateTextInput(session, "plotTitle", value = input$quickPlotTitle)
+    updateTextInput(session, "xAxisLabel", value = input$quickXLabel)
+    updateTextInput(session, "yAxisLabel", value = input$quickYLabel)
+    updateSliderInput(session, "pointSize", value = input$quickPointSize)
+    updateSliderInput(session, "lineWidth", value = input$quickLineWidth)
+    updateSelectInput(session, "legendPosition", selected = input$quickLegendPos)
+    
+    # Forcer le recalcul du graphique
+    values$plotUpdateTrigger <- runif(1)
+    
+    removeModal()
+    showNotification("Personnalisation appliquée", type = "message", duration = 2)
+  })
   
+  
+  # FONCTIONS DE CRÉATION
+  
+  # Fonction pour créer un scatter plot
+  create_scatter_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_point(aes(color = .data[[color_var]]), 
+                          size = input$pointSize %||% 3, 
+                          alpha = input$pointAlpha %||% 0.7)
+    } else {
+      p <- p + geom_point(size = input$pointSize %||% 3, 
+                          alpha = input$pointAlpha %||% 0.7)
+    }
+    
+    # Ajouter ligne de tendance si demandé
+    if(isTRUE(input$showTrendLine)) {
+      p <- p + geom_smooth(method = input$trendMethod %||% "lm", 
+                           formula = y ~ x,
+                           se = isTRUE(input$showConfidenceInterval))
+    }
+    
+    # Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un line plot
+  create_line_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
+                         size = input$lineWidth %||% 1)
+      if(isTRUE(input$showPoints)) {
+        p <- p + geom_point(aes(color = .data[[color_var]]), 
+                            size = input$pointSize %||% 2)
+      }
+    } else {
+      p <- p + geom_line(size = input$lineWidth %||% 1)
+      if(isTRUE(input$showPoints)) {
+        p <- p + geom_point(size = input$pointSize %||% 2)
+      }
+    }
+    
+    # Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un bar plot
+  create_bar_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_col(aes(fill = .data[[color_var]]), 
+                        position = input$barPosition %||% "dodge",
+                        width = input$barWidth %||% 0.8)
+    } else {
+      p <- p + geom_col(width = input$barWidth %||% 0.8)
+    }
+    
+    # Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, 
+                         position = position_dodge(width = input$barWidth %||% 0.8))
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un box plot
+  create_box_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_boxplot(aes(fill = .data[[color_var]]), alpha = 0.7)
+    } else {
+      p <- p + geom_boxplot(alpha = 0.7)
+    }
+    
+    if(isTRUE(input$showOutliers)) {
+      p <- p + geom_jitter(width = 0.2, alpha = 0.3, size = 1)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un violin plot
+  create_violin_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_violin(aes(fill = .data[[color_var]]), alpha = 0.7)
+    } else {
+      p <- p + geom_violin(alpha = 0.7)
+    }
+    
+    if(isTRUE(input$showBoxInsideViolin)) {
+      p <- p + geom_boxplot(width = 0.1)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un seasonal smooth plot
+  create_seasonal_smooth_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), alpha = 0.5)
+      p <- p + geom_smooth(aes(color = .data[[color_var]], group = .data[[color_var]]),
+                           method = input$smoothMethod %||% "loess",
+                           formula = y ~ x,
+                           span = input$smoothSpan %||% 0.75,
+                           se = isTRUE(input$showConfidenceInterval))
+    } else {
+      p <- p + geom_line(alpha = 0.5)
+      p <- p + geom_smooth(method = input$smoothMethod %||% "loess",
+                           formula = y ~ x,
+                           span = input$smoothSpan %||% 0.75,
+                           se = isTRUE(input$showConfidenceInterval))
+    }
+    
+    # Ajouter les valeurs si demandé 
+    if(isTRUE(input$showValues) && isTRUE(input$showPoints)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 2.5, check_overlap = TRUE)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un seasonal evolution plot 
+  create_seasonal_evolution_plot <- function(data, x_var, y_var, color_var = NULL) {
+    
+    # Créer le graphique de base
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + 
+        geom_line(aes(color = .data[[color_var]], group = .data[[color_var]]), 
+                  linewidth = input$lineWidth %||% 1.2,
+                  na.rm = TRUE) +
+        geom_point(aes(color = .data[[color_var]]), 
+                   size = input$pointSize %||% 3,
+                   na.rm = TRUE)
+    } else {
+      p <- p + 
+        geom_line(linewidth = input$lineWidth %||% 1.2,
+                  na.rm = TRUE) +
+        geom_point(size = input$pointSize %||% 3,
+                   na.rm = TRUE)
+    }
+    
+    # Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = round(.data[[y_var]], 2)), 
+                         vjust = -0.5, size = 3, check_overlap = TRUE)
+    }
+    
+    # Appliquer le thème clean 
+    p <- p +
+      scale_x_discrete(drop = FALSE) +
+      theme_minimal() +
+      theme(
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "white", color = NA),
+        plot.background = element_rect(fill = "white", color = NA),
+        axis.text = element_text(size = 10, color = "black"),
+        axis.title = element_text(size = 12, color = "black"),
+        axis.line = element_line(color = "black", linewidth = 0.5),
+        axis.ticks = element_line(color = "black", linewidth = 0.5),
+        plot.title = element_text(size = 14, color = "black", hjust = 0.5),
+        legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        legend.margin = margin(t = 20),
+        axis.text.x = element_text(angle = input$xAxisAngle %||% 45, hjust = 1, size = 8)
+      )
+    
+    # Ajuster l'échelle Y 
+    y_vals <- data[[y_var]][!is.na(data[[y_var]]) & is.finite(data[[y_var]])]
+    if(length(y_vals) > 0) {
+      y_max <- max(y_vals, na.rm = TRUE)
+      if(!is.infinite(y_max) && !is.na(y_max)) {
+        p <- p + scale_y_continuous(
+          limits = c(0, y_max + y_max * 0.1),  
+          breaks = pretty(c(0, y_max))
+        )
+      }
+    }
+    
+    # Guide pour la légende
+    if(!is.null(color_var)) {
+      p <- p + guides(color = guide_legend(override.aes = list(size = 2), ncol = 2))
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un histogram
+  create_histogram_plot <- function(data, x_var) {
+    p <- ggplot(data, aes(x = .data[[x_var]])) +
+      geom_histogram(bins = input$histBins %||% 30, 
+                     fill = input$histColor %||% "steelblue",
+                     alpha = 0.7,
+                     color = "white")
+    return(p)
+  }
+  
+  # Fonction pour créer un density plot
+  create_density_plot <- function(data, x_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_density(aes(fill = .data[[color_var]], color = .data[[color_var]]), alpha = 0.5)
+    } else {
+      p <- p + geom_density(fill = "steelblue", alpha = 0.5)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un heatmap
+  create_heatmap_plot <- function(data, x_var, y_var) {
+    # Agrégation pour heatmap
+    agg_data <- data %>%
+      group_by(across(all_of(c(x_var, y_var)))) %>%
+      summarise(count = n(), .groups = "drop")
+    
+    p <- ggplot(agg_data, aes(x = .data[[x_var]], y = .data[[y_var]], fill = count)) +
+      geom_tile() +
+      scale_fill_gradient(low = "white", high = "steelblue") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    # Ajouter les valeurs si demandé
+    if(isTRUE(input$showValues)) {
+      p <- p + geom_text(aes(label = count), color = "black", size = 3)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un area plot
+  create_area_plot <- function(data, x_var, y_var, color_var = NULL) {
+    p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
+    
+    if(!is.null(color_var)) {
+      p <- p + geom_area(aes(fill = .data[[color_var]]), 
+                         position = input$areaPosition %||% "stack",
+                         alpha = 0.7)
+    } else {
+      p <- p + geom_area(fill = "steelblue", alpha = 0.7)
+    }
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un pie chart
+  create_pie_plot <- function(data, x_var, y_var) {
+    # Agrégation
+    pie_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      mutate(percentage = total / sum(total) * 100)
+    
+    p <- ggplot(pie_data, aes(x = "", y = total, fill = .data[[x_var]])) +
+      geom_col() +
+      coord_polar(theta = "y") +
+      theme_void()
+    
+    # Toujours afficher les valeurs/pourcentages pour les pie charts
+    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+                       position = position_stack(vjust = 0.5))
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un donut chart
+  create_donut_plot <- function(data, x_var, y_var) {
+    # Similaire au pie mais avec un trou au centre
+    donut_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      mutate(percentage = total / sum(total) * 100)
+    
+    p <- ggplot(donut_data, aes(x = 2, y = total, fill = .data[[x_var]])) +
+      geom_col() +
+      coord_polar(theta = "y") +
+      xlim(c(0.5, 2.5)) +
+      theme_void()
+    
+    # Toujours afficher les valeurs/pourcentages pour les donut charts
+    p <- p + geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+                       position = position_stack(vjust = 0.5))
+    
+    return(p)
+  }
+  
+  # Fonction pour créer un treemap
+  create_treemap_plot <- function(data, x_var, y_var) {
+    
+    treemap_data <- data %>%
+      group_by(across(all_of(x_var))) %>%
+      summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop")
+    
+    p <- ggplot(treemap_data, aes(area = total, fill = .data[[x_var]], label = .data[[x_var]])) +
+      treemapify::geom_treemap() +
+      treemapify::geom_treemap_text(colour = "white", place = "centre")
+    
+    return(p)
+  }
+  
+  
+  # EXPORT AVANCÉ DES GRAPHIQUES
   
   # Calcul des dimensions selon DPI 
   output$calculatedDimensions <- renderUI({
@@ -8415,60 +8478,13 @@ server <- function(input, output, session) {
     }
     
     tryCatch({
-      data <- values$plotData
-      x_var <- input$vizXVar
-      viz_type <- input$vizType
-      
-      if(is.null(data) || nrow(data) == 0) return(NULL)
-      
-      # Déterminer la variable Y
-      if(!is.null(values$multipleY) && values$multipleY) {
-        y_var <- "Value"
-        color_var <- "Variable"
-      } else {
-        y_var <- input$vizYVar[1]
-        color_var <- if(!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
-          input$vizColorVar
-        } else {
-          NULL
-        }
-      }
-      
-      # Créer le graphique selon le type
-      p <- switch(viz_type,
-                  "scatter" = create_scatter_plot(data, x_var, y_var, color_var),
-                  "line" = create_line_plot(data, x_var, y_var, color_var),
-                  "bar" = create_bar_plot(data, x_var, y_var, color_var),
-                  "box" = create_box_plot(data, x_var, y_var, color_var),
-                  "violin" = create_violin_plot(data, x_var, y_var, color_var),
-                  "seasonal_smooth" = create_seasonal_smooth_plot(data, x_var, y_var, color_var),
-                  "seasonal_evolution" = create_seasonal_evolution_plot(data, x_var, y_var, color_var),
-                  "histogram" = create_histogram_plot(data, x_var),
-                  "density" = create_density_plot(data, x_var, color_var),
-                  "heatmap" = create_heatmap_plot(data, x_var, y_var),
-                  "area" = create_area_plot(data, x_var, y_var, color_var),
-                  "pie" = create_pie_plot(data, x_var, y_var),
-                  "donut" = create_donut_plot(data, x_var, y_var),
-                  "treemap" = create_treemap_plot(data, x_var, y_var),
-                  NULL)
-      
-      if(is.null(p)) return(NULL)
-      
-      # Ajouter facetting si demandé
-      if(!is.null(input$vizFacetVar) && input$vizFacetVar != "Aucun") {
-        p <- p + facet_wrap(as.formula(paste("~", input$vizFacetVar)), 
-                            scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
-      }
-      
-      return(p)
-      
+      return(createPlot())
     }, error = function(e) {
       return(NULL)
     })
   }
   
   # Téléchargement du graphique 
-  
   observeEvent(input$downloadPlotBtn, {
     
     # Désactiver le bouton pendant le traitement
@@ -8595,6 +8611,36 @@ server <- function(input, output, session) {
     # Réactiver le bouton
     shinyjs::enable("downloadPlotBtn")
     
+  })
+  
+  # Rendu du graphique interactif 
+  output$interactivePlot <- renderPlotly({
+    req(createPlot())
+    
+    p <- createPlot()
+    
+    # Convertir en plotly avec interactivité
+    plotly_obj <- tryCatch({
+      ggplotly(p, tooltip = "all") %>%
+        layout(
+          hovermode = "closest",
+          dragmode = "zoom"
+        ) %>%
+        config(
+          displayModeBar = TRUE,
+          modeBarButtonsToRemove = c("lasso2d", "select2d"),
+          displaylogo = FALSE
+        )
+    }, error = function(e) {
+      showNotification("Erreur lors de la conversion en graphique interactif", 
+                       type = "error", duration = 3)
+      return(NULL)
+    })
+    
+    # Stocker le graphique actuel
+    values$currentInteractivePlot <- plotly_obj
+    
+    return(plotly_obj)
   })
   # ---- Tests statistiques ----
   output$responseVarSelect <- renderUI({
