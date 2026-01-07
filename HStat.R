@@ -994,34 +994,106 @@ ui <- dashboardPage(
       ),
       
       # ---- Filtrage ----
+      
       tabItem(tabName = "filter",
+              #  En-tête avec boutons d'action globaux 
               fluidRow(
-                box(title = "Filtre croisement complet (2 facteurs)", status = "primary", width = 6, solidHeader = TRUE,
-                    uiOutput("filterFactorA"),
-                    uiOutput("filterFactorB"),
-                    checkboxInput("requireA", "Garder niveaux de A présents pour tous les niveaux de B", TRUE),
-                    checkboxInput("requireB", "Garder niveaux de B présents pour tous les niveaux de A", FALSE),
-                    actionButton("applyCrossFilter", "Appliquer (2 facteurs)", class = "btn-primary", icon = icon("filter"))
-                ),
-                box(title = "Filtre croisement complet (N facteurs)", status = "primary", width = 6, solidHeader = TRUE,
-                    uiOutput("filterFactorsN"),
-                    helpText("Garde uniquement les niveaux qui forment un croisement complet entre tous les facteurs sélectionnés."),
-                    actionButton("applyCrossFilterN", "Appliquer (N facteurs)", class = "btn-primary", icon = icon("filter")),
-                    actionButton("resetFilter", "Réinitialiser", class = "btn-warning", icon = icon("redo")),
-                    hr(),
-                    h5("Résumé :"),
-                    verbatimTextOutput("filterSummary")
+                box(title = "Actions globales", status = "warning", width = 12, solidHeader = TRUE,
+                    icon = icon("cog"),
+                    fluidRow(
+                      column(6,
+                             actionButton("resetFilter", "Réinitialiser tous les filtres", 
+                                          class = "btn-warning btn-lg btn-block", 
+                                          icon = icon("redo"))
+                      ),
+                      column(6,
+                             downloadButton("downloadFilteredData", "Télécharger les données filtrées", 
+                                            class = "btn-success btn-lg btn-block")
+                      )
+                    )
                 )
               ),
+              
+              #  Indicateurs de performance 
               fluidRow(
                 valueBoxOutput("originalRows", width = 3),
                 valueBoxOutput("filteredRows", width = 3),
                 valueBoxOutput("removedRows", width = 3),
-                valueBoxOutput("completeCases", width = 3)
+                valueBoxOutput("columnsCount", width = 3)
               ),
+              
+              #  Section 1: Filtres basiques (lignes et valeurs) 
               fluidRow(
-                box(title = "Données filtrées", status = "info", width = 12, solidHeader = TRUE, 
-                    DTOutput("filteredData"))
+                box(title = "Filtre par sélection de lignes", status = "primary", width = 6, 
+                    solidHeader = TRUE, collapsible = TRUE,
+                    icon = icon("list-ol"),
+                    uiOutput("rowRangeUI"),
+                    hr(),
+                    actionButton("applyRowRange", "Appliquer la sélection de lignes", 
+                                 class = "btn-primary btn-block", icon = icon("filter"))
+                ),
+                
+                box(title = "Filtre par valeur(s)", status = "primary", width = 6, 
+                    solidHeader = TRUE, collapsible = TRUE,
+                    icon = icon("search"),
+                    uiOutput("valueFilterUI"),
+                    hr(),
+                    actionButton("applyValueFilter", "Appliquer le filtre par valeur", 
+                                 class = "btn-primary btn-block", icon = icon("filter"))
+                )
+              ),
+              
+              #  Section 2: Filtre par colonnes 
+              fluidRow(
+                box(title = "Sélection des colonnes", status = "info", width = 12, 
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
+                    icon = icon("columns"),
+                    fluidRow(
+                      column(12,
+                             uiOutput("columnSelectUI")
+                      )
+                    ),
+                    hr(),
+                    actionButton("applyColumnFilter", "Appliquer la sélection de colonnes", 
+                                 class = "btn-info btn-block", icon = icon("check"))
+                )
+              ),
+              
+              #  Section 3: Filtres avancés  
+              fluidRow(
+                box(title = "Filtre croisement complet (2 facteurs)", status = "success", width = 6, 
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                    icon = icon("th"),
+                    uiOutput("filterFactorA"),
+                    uiOutput("filterFactorB"),
+                    checkboxInput("requireA", "Garder niveaux de A présents pour tous les niveaux de B", TRUE),
+                    checkboxInput("requireB", "Garder niveaux de B présents pour tous les niveaux de A", FALSE),
+                    hr(),
+                    actionButton("applyCrossFilter", "Appliquer (2 facteurs)", 
+                                 class = "btn-success btn-block", icon = icon("filter")),
+                    helpText("Filtre les données pour ne garder que les combinaisons complètes entre deux facteurs.")
+                ),
+                
+                box(title = "Filtre croisement complet (N facteurs)", status = "success", width = 6, 
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                    icon = icon("project-diagram"),
+                    uiOutput("filterFactorsN"),
+                    helpText("Garde uniquement les niveaux qui forment un croisement complet entre tous les facteurs sélectionnés."),
+                    hr(),
+                    actionButton("applyCrossFilterN", "Appliquer (N facteurs)", 
+                                 class = "btn-success btn-block", icon = icon("filter"))
+                )
+              ),
+              
+              #  Tableau des données filtrées 
+              fluidRow(
+                box(title = "Aperçu des données filtrées", status = "info", width = 12, 
+                    solidHeader = TRUE, collapsible = TRUE,
+                    icon = icon("table"),
+                    DTOutput("filteredData"),
+                    br(),
+                    helpText("Ce tableau affiche les données après application des filtres.")
+                )
               )
       ),
       # ---- Analyse descriptives ----
@@ -5110,6 +5182,244 @@ server <- function(input, output, session) {
   })
   
   # ---- Filtrage ----
+  
+  
+  #  Filtre par plage de lignes 
+  
+  output$rowRangeUI <- renderUI({
+    req(values$cleanData)
+    max_rows <- nrow(values$cleanData)
+    tagList(
+      textAreaInput("rowSelection", "Sélection de lignes :",
+                    placeholder = "Exemples :\n1 à 10\n1,3,4,5,10,15,20\n1,3,4,5,10,15,20 à 30",
+                    rows = 3),
+      helpText(HTML(paste0(
+        "<b>Formats acceptés :</b><br>",
+        "• Plage : <code>1 à 10</code> ou <code>5-15</code><br>",
+        "• Liste : <code>1,3,4,5,10,15,20</code><br>",
+        "• Combinaison : <code>1,3,5,10 à 15,20,25 à 30</code><br>",
+        "Total de lignes disponibles : ", max_rows
+      )))
+    )
+  })
+  
+  # Fonction pour parser la sélection de lignes
+  parseRowSelection <- function(selection_text, max_rows) {
+    if (is.null(selection_text) || nchar(trimws(selection_text)) == 0) {
+      stop("Veuillez entrer une sélection de lignes valide.")
+    }
+    
+    # Nettoyer le texte
+    text <- trimws(selection_text)
+    text <- gsub("\\s+", " ", text)  
+    
+    # Remplacer différents formats de plage par un format uniforme
+    text <- gsub("à", "-", text, ignore.case = TRUE)
+    text <- gsub("a", "-", text, ignore.case = TRUE)
+    
+    # Séparer par virgules
+    parts <- strsplit(text, ",")[[1]]
+    parts <- trimws(parts)
+    
+    all_rows <- c()
+    
+    for (part in parts) {
+      if (grepl("-", part)) {
+        # C'est une plage (ex: "1-10" ou "20-30")
+        range_parts <- strsplit(part, "-")[[1]]
+        range_parts <- trimws(range_parts)
+        
+        if (length(range_parts) != 2) {
+          stop(paste("Format de plage invalide :", part))
+        }
+        
+        start <- as.numeric(range_parts[1])
+        end <- as.numeric(range_parts[2])
+        
+        if (is.na(start) || is.na(end)) {
+          stop(paste("Plage invalide :", part))
+        }
+        
+        if (start > end) {
+          stop(paste("La ligne de début doit être <= ligne de fin dans :", part))
+        }
+        
+        if (start < 1 || end > max_rows) {
+          stop(paste("Plage hors limites :", part, "(min: 1, max:", max_rows, ")"))
+        }
+        
+        all_rows <- c(all_rows, start:end)
+        
+      } else {
+        # C'est un numéro individuel
+        row_num <- as.numeric(part)
+        
+        if (is.na(row_num)) {
+          stop(paste("Numéro de ligne invalide :", part))
+        }
+        
+        if (row_num < 1 || row_num > max_rows) {
+          stop(paste("Ligne hors limites :", row_num, "(min: 1, max:", max_rows, ")"))
+        }
+        
+        all_rows <- c(all_rows, row_num)
+      }
+    }
+    
+    # Enlever les doublons et trier
+    all_rows <- unique(sort(all_rows))
+    
+    return(all_rows)
+  }
+  
+  observeEvent(input$applyRowRange, {
+    req(values$cleanData, input$rowSelection)
+    
+    tryCatch({
+      max_rows <- nrow(values$cleanData)
+      selected_rows <- parseRowSelection(input$rowSelection, max_rows)
+      
+      filtered <- values$cleanData[selected_rows, ]
+      values$filteredData <- filtered
+      
+      showNotification(
+        paste("Filtre par plage appliqué.", length(selected_rows), "lignes sélectionnées"),
+        type = "message",
+        duration = 5
+      )
+    }, error = function(e) {
+      showNotification(paste("Erreur filtre par plage:", e$message), type = "error", duration = 10)
+    })
+  })
+  
+  #  Filtre par valeur(s) 
+  # Permet de rechercher des lignes contenant une ou plusieurs valeurs spécifiques
+  output$valueFilterUI <- renderUI({
+    req(values$cleanData)
+    col_names <- names(values$cleanData)
+    tagList(
+      selectInput("valueFilterCol", "Colonne à filtrer :",
+                  choices = col_names, selected = col_names[1]),
+      textAreaInput("valueFilterText", "Valeur(s) à rechercher (une par ligne) :",
+                    placeholder = "Aout 04-10\nSeptembre 01-07\nJuillet 28-03",
+                    rows = 4),
+      checkboxInput("valueFilterExact", "Correspondance exacte", FALSE),
+      checkboxInput("valueFilterCaseSensitive", "Sensible à la casse", FALSE),
+      helpText("Entrez une ou plusieurs valeurs, une par ligne. Les lignes contenant au moins une de ces valeurs seront conservées.")
+    )
+  })
+  
+  observeEvent(input$applyValueFilter, {
+    req(values$cleanData, input$valueFilterCol, input$valueFilterText)
+    
+    validate(need(nchar(trimws(input$valueFilterText)) > 0, "Veuillez entrer au moins une valeur à rechercher."))
+    
+    tryCatch({
+      df <- values$cleanData
+      col_name <- input$valueFilterCol
+      
+      # Séparer les valeurs par ligne et nettoyer
+      search_values <- strsplit(input$valueFilterText, "\n")[[1]]
+      search_values <- trimws(search_values)
+      search_values <- search_values[nchar(search_values) > 0]  
+      
+      validate(need(length(search_values) > 0, "Veuillez entrer au moins une valeur valide."))
+      
+      # Convertir en caractère pour la recherche
+      col_data <- as.character(df[[col_name]])
+      
+      # Créer un masque pour chaque valeur de recherche
+      mask <- rep(FALSE, length(col_data))
+      
+      for (search_value in search_values) {
+        if (input$valueFilterExact) {
+          # Correspondance exacte
+          if (input$valueFilterCaseSensitive) {
+            mask <- mask | (col_data == search_value)
+          } else {
+            mask <- mask | (tolower(col_data) == tolower(search_value))
+          }
+        } else {
+          # Correspondance partielle 
+          if (input$valueFilterCaseSensitive) {
+            mask <- mask | grepl(search_value, col_data, fixed = TRUE)
+          } else {
+            mask <- mask | grepl(search_value, col_data, ignore.case = TRUE)
+          }
+        }
+      }
+      
+      # Gérer les NA
+      mask[is.na(mask)] <- FALSE
+      
+      filtered <- df[mask, ]
+      values$filteredData <- filtered
+      
+      showNotification(
+        paste("Filtre par valeur appliqué:", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
+        type = "message",
+        duration = 5
+      )
+    }, error = function(e) {
+      showNotification(paste("Erreur filtre par valeur:", e$message), type = "error", duration = 10)
+    })
+  })
+  
+  #  Filtre par sélection de colonnes 
+  # Permet de choisir quelles colonnes conserver
+  output$columnSelectUI <- renderUI({
+    req(values$cleanData)
+    col_names <- names(values$cleanData)
+    
+    tagList(
+      checkboxGroupInput("selectedColumns", "Sélectionner les colonnes à conserver :",
+                         choices = col_names,
+                         selected = col_names,
+                         inline = FALSE),
+      fluidRow(
+        column(6,
+               actionButton("selectAllCols", "Tout sélectionner", 
+                            class = "btn-sm btn-default btn-block", icon = icon("check-square"))
+        ),
+        column(6,
+               actionButton("deselectAllCols", "Tout désélectionner", 
+                            class = "btn-sm btn-default btn-block", icon = icon("square"))
+        )
+      )
+    )
+  })
+  
+  observeEvent(input$selectAllCols, {
+    req(values$cleanData)
+    col_names <- names(values$cleanData)
+    updateCheckboxGroupInput(session, "selectedColumns", selected = col_names)
+  })
+  
+  observeEvent(input$deselectAllCols, {
+    updateCheckboxGroupInput(session, "selectedColumns", selected = character(0))
+  })
+  
+  observeEvent(input$applyColumnFilter, {
+    req(values$cleanData, input$selectedColumns)
+    
+    validate(need(length(input$selectedColumns) > 0, "Veuillez sélectionner au moins une colonne."))
+    
+    tryCatch({
+      filtered <- values$cleanData[, input$selectedColumns, drop = FALSE]
+      values$filteredData <- filtered
+      
+      showNotification(
+        paste("Filtre par colonnes appliqué:", length(input$selectedColumns), "colonnes sélectionnées"),
+        type = "message",
+        duration = 5
+      )
+    }, error = function(e) {
+      showNotification(paste("Erreur filtre par colonnes:", e$message), type = "error", duration = 10)
+    })
+  })
+  
+  #  Filtres croisés 
+  # Filtres pour croisements complets entre facteurs
   output$filterFactorA <- renderUI({
     req(values$cleanData)
     fac_cols <- names(values$cleanData)[sapply(values$cleanData, is.factor)]
@@ -5139,9 +5449,9 @@ server <- function(input, output, session) {
                                         reqA = isTRUE(input$requireA),
                                         reqB = isTRUE(input$requireB))
       values$filteredData <- filtered
-      showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes:", nrow(filtered)), type = "message")
+      showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
-      showNotification(paste("Erreur filtrage:", e$message), type = "error")
+      showNotification(paste("Erreur filtrage:", e$message), type = "error", duration = 10)
     })
   })
   
@@ -5157,17 +5467,19 @@ server <- function(input, output, session) {
     tryCatch({
       filtered <- filter_complete_cross_n(values$cleanData, input$factorsN)
       values$filteredData <- filtered
-      showNotification(paste("Filtrage (N facteurs) appliqué. Lignes:", nrow(filtered)), type = "message")
+      showNotification(paste("Filtrage (N facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
-      showNotification(paste("Erreur filtrage N facteurs:", e$message), type = "error")
+      showNotification(paste("Erreur filtrage N facteurs:", e$message), type = "error", duration = 10)
     })
   })
   
+  #  Réinitialisation globale 
   observeEvent(input$resetFilter, {
     values$filteredData <- values$cleanData
-    showNotification("Filtre réinitialisé", type = "message")
+    showNotification("Tous les filtres réinitialisés", type = "message", duration = 5)
   })
   
+  #  Indicateurs de performance (ValueBoxes) 
   output$originalRows <- renderValueBox({
     req(values$cleanData)
     valueBox(
@@ -5193,27 +5505,40 @@ server <- function(input, output, session) {
     )
   })
   
-  output$completeCases <- renderValueBox({
+  output$columnsCount <- renderValueBox({
     req(values$filteredData)
-    complete <- sum(complete.cases(values$filteredData))
     valueBox(
-      complete, "Cas complets", icon = icon("check"),
-      color = "blue"
+      ncol(values$filteredData), "Colonnes actives", icon = icon("columns"),
+      color = "purple"
     )
   })
   
+  #  Affichage des données filtrées 
   output$filteredData <- renderDT({
     req(values$filteredData)
-    datatable(values$filteredData, options = list(scrollX = TRUE))
+    datatable(values$filteredData, 
+              options = list(
+                scrollX = TRUE,
+                pageLength = 10,
+                lengthMenu = c(10, 25, 50, 100),
+                dom = 'Bfrtip',
+                buttons = c('copy', 'csv', 'excel')
+              ),
+              filter = "top",
+              rownames = TRUE,
+              class = 'cell-border stripe')
   })
   
-  output$filterSummary <- renderPrint({
-    req(values$cleanData, values$filteredData)
-    cat("Nombre de lignes originales :", nrow(values$cleanData), "\n")
-    cat("Nombre de lignes filtrées :", nrow(values$filteredData), "\n")
-    cat("Nombre de lignes supprimées :", nrow(values$cleanData) - nrow(values$filteredData), "\n")
-  })
-  
+  #  Export des données filtrées 
+  output$downloadFilteredData <- downloadHandler(
+    filename = function() {
+      paste("donnees_filtrees_", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      req(values$filteredData)
+      write.csv(values$filteredData, file, row.names = FALSE)
+    }
+  )
   # ---- Analyse descriptives ----
   
   # Sélection des variables numériques
