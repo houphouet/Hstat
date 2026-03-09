@@ -1,45 +1,44 @@
-# HStat — Application Shiny d'Analyse Statistique
+# HStat — Shiny Statistical Analysis Application
 
-HStat est une application web interactive développée avec R Shiny permettant de réaliser un pipeline complet d'analyse de données, de l'importation jusqu'aux analyses multivariées avancées, sans écrire une seule ligne de code.
+HStat is an interactive web application built with R Shiny that enables a complete data analysis pipeline — from data import to advanced multivariate analyses — without writing a single line of code.
 
 ---
 
-## Prérequis
+## Prerequisites
 
 - **R** ≥ 4.2.0
-- **RStudio** (recommandé) ou tout autre environnement R
-- Connexion Internet pour l'installation automatique des packages (première exécution)
+- **RStudio** (recommended) or any other R environment
+- Internet connection for automatic package installation (first run only)
 
 ---
 
+### 1. Launch the application
 
-### 1. Lancer l'application
-
-Ouvrez RStudio, puis dans la console :
+Open RStudio, then run in the console:
 
 ```r
 shiny::runApp("app.R")
 ```
 
-Les packages s'installent automatiquemment si nécessaire.
+Required packages are installed automatically if needed.
+
 ---
 
-## Structure du projet
+## Project structure
 
 ```
 HStat/
-├── app.R        # Point d'entrée : source les modules et lance shinyApp()
-├── Utils.R      # Encodage, installation des packages, fonctions utilitaires
-├── UX.R         # Interface utilisateur (objet `ui`)
-├── Server.R     # Logique serveur (fonction `server`)
-└── README.md    # Ce fichier
+├── app.R        # Entry point: sources the modules and calls shinyApp()
+├── Utils.R      # Encoding, package installation, utility functions
+├── UX.R         # User interface (ui object)
+├── Server.R     # Server logic (server function)
+└── README.md    # This file
 ```
 
+## License
 
-## Licence
-
-Ce projet est opensource. 
+This project is open source.
 
 ---
 
-*HStat est développé pour faciliter l'analyse statistique sans barrière de programmation.*
+*HStat is developed to make statistical analysis accessible without any programming barrier.*
