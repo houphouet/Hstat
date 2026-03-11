@@ -1,9 +1,7 @@
 server <- function(input, output, session) {
 
-  # ── Handler global : log les erreurs non capturées sans crasher l'app ──────
-  # Helper: ajoute des backticks autour des noms de colonnes avec espaces dans une formule
   auto_quote_colnames <- function(formula_str, col_names) {
-    # ── 1. Protéger les noms de colonnes spéciaux ────────────────────────────
+    # ── 1. Protéger les noms de colonnes spéciaux
     cols_sorted <- col_names[order(nchar(col_names), decreasing = TRUE)]
     for (col in cols_sorted) {
       if (grepl("[-/ +*^()%$@!?]|^[0-9]", col, perl = TRUE)) {
@@ -14,21 +12,21 @@ server <- function(input, output, session) {
       }
     }
     
-    # ── 2. Transformer mean(c(...)) → rowMeans(cbind(...), na.rm=TRUE) ───────
+    # ── 2. Ajouter des variables à partir des functions
     # Cas : mean(c(A, B, C))
     formula_str <- gsub(
       "\\bmean\\s*\\(\\s*c\\s*\\(([^)]+)\\)\\s*\\)",
       "rowMeans(cbind(\\1), na.rm=TRUE)",
       formula_str, perl = TRUE
     )
-    # Cas : mean(A, B) ou mean(A, B, C) avec plusieurs arguments directement
+    # Cas : mean(A, B) ou mean(A, B, C) 
     formula_str <- gsub(
       "\\bmean\\s*\\(([^)]+,[^)]+)\\)",
       "rowMeans(cbind(\\1), na.rm=TRUE)",
       formula_str, perl = TRUE
     )
     
-    # ── 3. Transformer sum(c(...)) → rowSums(cbind(...), na.rm=TRUE) ─────────
+    # ── 3. Transformer sum(c(...)) 
     # Cas : sum(c(A, B, C))
     formula_str <- gsub(
       "\\bsum\\s*\\(\\s*c\\s*\\(([^)]+)\\)\\s*\\)",
@@ -77,22 +75,18 @@ server <- function(input, output, session) {
   
   values$customXLevels <- reactiveVal(NULL)
   
-  # ── Wrappers réactifs Shiny → fonctions pures de Utils.R ───────────────────
-  #    Ces fonctions lisent input$ et values$ puis délèguent à viz_*()
 
-  # Format d'affichage des dates (lit input$xDateDisplayFormat)
+  # Format d'affichage des dates
   get_date_display_fmt <- function() {
     fmt <- input$xDateDisplayFormat %||% "%d-%m-%Y"
     if (viz_valid_date_fmt(fmt)) fmt else "%d-%m-%Y"
   }
 
-  # Thème ggplot2 (lit input$plotTheme)
+  # Thème ggplot2 
   get_plot_theme <- function(base_size = 12) {
     viz_get_theme(input$plotTheme %||% "minimal", base_size = base_size)
   }
 
-  # Axe X — CORRECTIF BUG : lit les valeurs réactives directement
-  # Ne passe plus par attr() qui est perdu lors des manipulations de data.frame
   get_x_scale <- function(data, x_var) {
     viz_get_x_scale(
       x_col      = data[[x_var]],
@@ -856,7 +850,7 @@ server <- function(input, output, session) {
   observeEvent(input$insertIfelse,{ updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " ifelse(, , )")) })
   observeEvent(input$insertIsNA,  { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " is.na()")) })
   
-  # rowCondPicker : insérer une condition sur lignes dans la formule
+  # Insérer une condition sur lignes dans la formule
   output$rowCondPicker <- renderUI({
     req(values$cleanData)
     tagList(
@@ -911,8 +905,7 @@ server <- function(input, output, session) {
       new_col <- with(values$cleanData, eval(parse(text = formula_safe)))
       
       if (length(new_col) == 1) {
-        # Résultat scalaire : probablement mean()/sum() mal utilisé
-        # Broadcast si la valeur est numérique (ex: constante)
+        
         new_col <- rep(new_col, nrow(values$cleanData))
       }
       
@@ -1155,8 +1148,8 @@ server <- function(input, output, session) {
     })
   })
   
-  # ── Suppression de lignes ──────────────────────────────────────────────────
-
+  # ── Suppression de lignes 
+  
   # Aperçu des lignes qui seront supprimées
   output$deleteRowsPreview <- renderUI({
     req(values$cleanData)
@@ -1219,11 +1212,11 @@ server <- function(input, output, session) {
     })
   })
   
-  # ── Tableau interactif pour sélection des lignes à supprimer ─────────────
+  # ── Tableau interactif pour sélection des lignes à supprimer
   output$deleteRowsTable <- DT::renderDataTable({
     req(values$cleanData)
     DT::datatable(
-      head(values$cleanData, 500),   # Limiter à 500 lignes pour la perf
+      head(values$cleanData, 500),   
       selection  = "multiple",
       extensions = "Scroller",
       options    = list(
@@ -1277,6 +1270,7 @@ server <- function(input, output, session) {
   })
 
   #  Filtre par valeur(s) 
+  
   # Permet de rechercher des lignes contenant une ou plusieurs valeurs spécifiques
   output$valueFilterUI <- renderUI({
     req(values$cleanData)
@@ -1350,7 +1344,7 @@ server <- function(input, output, session) {
   })
   
   #  Filtre par sélection de colonnes 
-  # Permet de choisir quelles colonnes conserver
+
   output$columnSelectUI <- renderUI({
     req(values$cleanData)
     col_names <- names(values$cleanData)
@@ -1403,6 +1397,7 @@ server <- function(input, output, session) {
   })
   
   #  Filtres croisés 
+  
   # Filtres pour croisements complets entre facteurs
   output$filterFactorA <- renderUI({
     req(values$cleanData)
@@ -1463,7 +1458,7 @@ server <- function(input, output, session) {
     showNotification("Tous les filtres réinitialisés", type = "message", duration = 5)
   })
   
-  #  Indicateurs de performance (ValueBoxes) 
+  #  Indicateurs de performance 
   output$originalRows <- renderValueBox({
     req(values$cleanData)
     valueBox(
@@ -1672,7 +1667,7 @@ server <- function(input, output, session) {
   output$descResults <- renderDT({
     req(values$descStats)
     
-    # Nombre de décimales (seulement si l'utilisateur a coché l'option)
+    # Nombre de décimales 
     use_round <- !is.null(input$descRoundResults) && input$descRoundResults
     dec <- if (use_round && !is.null(input$descDecimals)) input$descDecimals else 4
     
@@ -1897,6 +1892,7 @@ server <- function(input, output, session) {
           panel.grid.minor = element_line(color = "grey95", linewidth = 0.2)
         )
     } else {
+      
       # BOXPLOT GROUPÉ SANS BARRES DE PERCENTILES
       
       # Créer le boxplot de base
@@ -2005,99 +2001,17 @@ server <- function(input, output, session) {
     print(p)
   }, res = 96)
   
-  # Téléchargement PNG
-  output$downloadDescPlotPNG <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".png")
-    },
+
+  # Téléchargement graphique descriptif 
+  output$downloadDescPlot <- downloadHandler(
+    filename = function() paste0("graphique_descriptif_", Sys.Date(), ".", input$descPlot_format),
     content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight, input$descPlotDPI)
-      width_inches <- input$descPlotWidth / input$descPlotDPI
-      height_inches <- input$descPlotHeight / input$descPlotDPI
+      dpi       <- input$descPlot_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 18)
       p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             dpi = input$descPlotDPI, units = "in", bg = "white", device = "png")
-      showNotification("Graphique PNG téléchargé!", type = "message", duration = 3)
-    }
-  )
-  
-  # Téléchargement JPEG
-  output$downloadDescPlotJPEG <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".jpg")
-    },
-    content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight, input$descPlotDPI)
-      width_inches <- input$descPlotWidth / input$descPlotDPI
-      height_inches <- input$descPlotHeight / input$descPlotDPI
-      p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             dpi = input$descPlotDPI, units = "in", bg = "white", device = "jpeg", quality = 100)
-      showNotification("Graphique JPEG téléchargé!", type = "message", duration = 3)
-    }
-  )
-  
-  # Téléchargement TIFF
-  output$downloadDescPlotTIFF <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".tiff")
-    },
-    content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight, input$descPlotDPI)
-      width_inches <- input$descPlotWidth / input$descPlotDPI
-      height_inches <- input$descPlotHeight / input$descPlotDPI
-      p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             dpi = input$descPlotDPI, units = "in", bg = "white", device = "tiff", compression = "lzw")
-      showNotification("Graphique TIFF téléchargé!", type = "message", duration = 3)
-    }
-  )
-  
-  # Téléchargement PDF
-  output$downloadDescPlotPDF <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".pdf")
-    },
-    content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight)
-      width_inches <- input$descPlotWidth / 96
-      height_inches <- input$descPlotHeight / 96
-      p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             units = "in", device = "pdf")
-      showNotification("Graphique PDF téléchargé!", type = "message", duration = 3)
-    }
-  )
-  
-  # Téléchargement SVG
-  output$downloadDescPlotSVG <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".svg")
-    },
-    content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight)
-      width_inches <- input$descPlotWidth / 96
-      height_inches <- input$descPlotHeight / 96
-      p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             units = "in", device = "svg")
-      showNotification("Graphique SVG téléchargé!", type = "message", duration = 3)
-    }
-  )
-  
-  # Téléchargement EPS
-  output$downloadDescPlotEPS <- downloadHandler(
-    filename = function() {
-      paste0("graphique_descriptif_", Sys.Date(), ".eps")
-    },
-    content = function(file) {
-      req(input$descPlotWidth, input$descPlotHeight)
-      width_inches <- input$descPlotWidth / 96
-      height_inches <- input$descPlotHeight / 96
-      p <- generate_desc_plot()
-      ggsave(filename = file, plot = p, width = width_inches, height = height_inches, 
-             units = "in", device = cairo_ps)
-      showNotification("Graphique EPS téléchargé!", type = "message", duration = 3)
+      suppressWarnings(ggsave(file, plot = p, device = input$descPlot_format,
+                              width = auto_dims$width, height = auto_dims$height,
+                              dpi = dpi, units = "cm"))
     }
   )
   # ---- Tableaux croisés dynamiques ----
@@ -2196,6 +2110,7 @@ server <- function(input, output, session) {
       # Proportions totales
       if ("total_prop" %in% input$analysisOptions) {
         total_prop <- prop.table(contingency_table) * 100
+        
         # Ajout manuel des marges pour les proportions totales
         total_prop_with_margins <- total_prop
         
@@ -2236,6 +2151,7 @@ server <- function(input, output, session) {
       
       # Calcul des residus standardises
       if ("residuals" %in% input$analysisOptions) {
+        
         # Vérifier que le test du Chi2 a été calculé et qu'il est valide
         if (!is.null(crosstab_values$chi_test) && is.list(crosstab_values$chi_test)) {
           residuals_std <- crosstab_values$chi_test$stdres
@@ -2429,7 +2345,7 @@ server <- function(input, output, session) {
   output$crosstabPlot <- renderPlot({
     req(crosstab_values$contingency_table, input$crosstabRowVar, input$crosstabColVar)
     
-    # Créer un data frame à partir du tableau de contingence
+    # Créer un dataFrame à partir du tableau de contingence
     df_plot <- as.data.frame(crosstab_values$contingency_table)
     df_plot <- df_plot[df_plot$Var1 != "Sum" & df_plot$Var2 != "Sum", ]
     names(df_plot) <- c("Row_Var", "Col_Var", "Freq")
@@ -2558,7 +2474,7 @@ server <- function(input, output, session) {
     print(p)
   })
   
-  # Rendu conditionnel de la section de téléchargement du graphique principal - NOUVEAU
+  # Rendu conditionnel de la section de téléchargement du graphique principal 
   output$plotDownloadSection <- renderUI({
     req(crosstab_values$current_plot)
     
@@ -2653,7 +2569,7 @@ server <- function(input, output, session) {
     print(p)
   })
   
-  # Rendu conditionnel de la section de téléchargement du graphique en secteurs - NOUVEAU
+  # Rendu conditionnel de la section de téléchargement du graphique en secteurs 
   output$pieDownloadSection <- renderUI({
     req(crosstab_values$current_pie_plot)
     
@@ -2921,8 +2837,8 @@ server <- function(input, output, session) {
       dpi <- if(!is.null(input$mainPlotDPI)) input$mainPlotDPI else 300
       format <- if(!is.null(input$mainPlotFormat)) input$mainPlotFormat else "png"
       
-      # Dimensions en pouces (standard pour une bonne qualité d'impression)
-      # 10x7.5 pouces = ratio 4:3, adapté pour la plupart des graphiques
+      # Dimensions en pouces 
+    
       width_in <- 10
       height_in <- 7.5
       
@@ -3211,8 +3127,6 @@ server <- function(input, output, session) {
     
     all_cols <- names(values$filteredData)
     
-    # Exclure la variable X et les variables Y
-    # unlist() garantit un vecteur character même si vizYVar est multi-sélection
     excluded_vars <- unique(as.character(unlist(c(input$vizXVar, input$vizYVar))))
     excluded_vars <- excluded_vars[!is.na(excluded_vars) & nchar(excluded_vars) > 0]
     available_cols <- setdiff(all_cols, excluded_vars)
@@ -3300,7 +3214,7 @@ server <- function(input, output, session) {
   }, priority = 1000)
   
   
-  # Stocker les niveaux actuels pour l'éditeur d'ordre (TOUS types de données)
+  # Stocker les niveaux actuels pour l'éditeur d'ordre 
   observe({
     req(values$filteredData, input$vizXVar)
     
@@ -3324,7 +3238,7 @@ server <- function(input, output, session) {
     
     values$currentXLevels <- unique_vals
     
-    # Initialiser les labels si jamais stockés pour cette variable
+    # Initialiser les labels 
     if (!is.null(input$vizXVar) && is.null(values$storedLevelLabels[[input$vizXVar]])) {
       values$storedLevelLabels[[input$vizXVar]] <- setNames(unique_vals, unique_vals)
     }
@@ -3339,7 +3253,7 @@ server <- function(input, output, session) {
     x_var <- input$vizXVar
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
     
-    # Tous les types supportés (date, numeric, factor, text, categorical)
+  
     if (is.null(x_type)) return(NULL)
     
     # Générer les valeurs uniques selon le type
@@ -3447,7 +3361,6 @@ server <- function(input, output, session) {
     
     # Reconstruire l'ordre en fonction du mapping
     if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
-      # L'ordre actuel contient des anciens labels → les translater
       inv_map <- setNames(names(level_mapping), as.character(level_mapping))
       values$customXOrder <- sapply(values$customXOrder, function(v) {
         new_v <- as.character(level_mapping[v])
@@ -3458,7 +3371,7 @@ server <- function(input, output, session) {
       values$customXOrder <- as.character(level_mapping[values$currentXLevels])
     }
     
-    # Forcer le recalcul immédiat du graphique (double invalidation)
+    # Forcer le recalcul immédiat du graphique 
     values$plotUpdateTrigger <- runif(1)
     invalidateLater(80)
     
@@ -3468,7 +3381,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Observateur pour réinitialiser les niveaux avec notification
+  # Réinitialiser les niveaux avec notification
   observeEvent(input$resetLevels, {
     req(values$currentXLevels, input$vizXVar)
     
@@ -3572,7 +3485,7 @@ server <- function(input, output, session) {
   # GESTION DE L'ORDRE X
   
   
-  # Éditeur d'ordre pour X catégoriel (toutes représentations)
+  # Éditeur d'ordre pour X catégoriel 
   output$xOrderEditor <- renderUI({
     req(values$filteredData, input$vizXVar)
     req(values$filteredData, input$vizXVar)
@@ -3606,7 +3519,7 @@ server <- function(input, output, session) {
       ))
     }
     
-    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    # Utiliser les labels personnalisés si disponibles
     display_vals <- unique_vals
     if(!is.null(values$storedLevelLabels[[x_var]])) {
       level_mapping <- values$storedLevelLabels[[x_var]]
@@ -3672,7 +3585,7 @@ server <- function(input, output, session) {
   observeEvent(input$autoSortX, {
     req(values$currentXLevels, input$vizXVar)
     
-    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    #  Utiliser les labels personnalisés si disponibles
     if(!is.null(values$storedLevelLabels[[input$vizXVar]])) {
       level_mapping <- values$storedLevelLabels[[input$vizXVar]]
       sorted_labels <- sort(as.character(level_mapping[values$currentXLevels]))
@@ -3692,7 +3605,7 @@ server <- function(input, output, session) {
   observeEvent(input$reverseOrderX, {
     req(values$currentXLevels, input$vizXVar)
     
-    # NOUVEAU: Utiliser les labels personnalisés si disponibles
+    #  Utiliser les labels personnalisés si disponibles
     if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
       # Inverser l'ordre actuel
       values$customXOrder <- rev(values$customXOrder)
@@ -3874,7 +3787,7 @@ server <- function(input, output, session) {
     x_var <- input$vizXVar
     y_vars <- input$vizYVar
     
-    # Appliquer les renommages de niveaux X si disponibles (TOUS types)
+    # Appliquer les renommages de niveaux X si disponibles 
     x_type <- if(input$xVarType == "auto") {
       if (!is.null(values$detectedXType)) values$detectedXType else {
         # Détecter directement si pas encore fait
@@ -3912,7 +3825,7 @@ server <- function(input, output, session) {
             data[[x_var]] <- factor(mapped_vals, levels = new_lvls)
           } else {
             # Date/numérique : le mapping est lu directement via values$storedLevelLabels
-            # dans get_x_scale() — pas besoin de stocker en attr()
+            
           }
         }
       } else if (x_is_cat_type) {
@@ -3925,7 +3838,7 @@ server <- function(input, output, session) {
         data[[x_var]] <- factor(data[[x_var]], levels = current_levels)
       }
       
-      # L'ordre est lu directement via values$customXOrder dans get_x_scale()
+      
     }
     
     # Conversion de date si nécessaire
@@ -3988,7 +3901,7 @@ server <- function(input, output, session) {
       return(data_long)
     }
     
-    # Mode Y simple - garder toutes les colonnes nécessaires
+    # Mode Y simple
     cols_needed <- unique(c(x_var, y_vars[1], input$vizColorVar, input$vizFacetVar))
     cols_needed <- cols_needed[cols_needed != "Aucun"]
     cols_needed <- cols_needed[cols_needed %in% names(data)]
@@ -4027,7 +3940,7 @@ server <- function(input, output, session) {
       if (is.factor(color_data)) {
         legend_levels <- levels(color_data)
       } else if (is.numeric(color_data) || is.integer(color_data)) {
-        # Couleur continue → proposer de renommer les coupures (bins)
+        # Couleur continue 
         legend_levels <- as.character(sort(unique(color_data)))
         if (length(legend_levels) > 20) {
           showNotification(
@@ -4181,7 +4094,7 @@ server <- function(input, output, session) {
     showNotification("Labels de légende appliqués", type = "message", duration = 2)
   })
   
-  # Prévisualiser les labels (applique temporairement sans fermer)
+  # Prévisualiser les labels 
   observeEvent(input$previewLegendLabels, {
     storage_key <- if (!is.null(values$multipleY) && values$multipleY) {
       "multiY_legend"
@@ -4310,12 +4223,12 @@ server <- function(input, output, session) {
     input$y2TickSize
     input$y2AxisBold
     input$y2AxisItalic
-    input$y2AxisLabelSize
-    input$y2LineSize
+    input$y2CurveWidth
     input$plotMarginTop
     input$plotMarginRight
     input$plotMarginBottom
     input$plotMarginLeft
+    
     # Couleurs des courbes (colourInput dynamiques)
     if (!is.null(values$yVarNames)) {
       lapply(values$yVarNames, function(v) input[[paste0("curveColor_", make.names(v))]])
@@ -4392,7 +4305,7 @@ server <- function(input, output, session) {
       }
     }
     
-    # ── DUAL AXIS : superposer les vars Y2 avec axe secondaire ────────────────
+    # Superposer les vars Y2 avec axe secondaire 
     y2_active_vars <- if (isTRUE(values$dualAxisActive) && !is.null(values$y2VarsActive))
                         values$y2VarsActive else character(0)
     
@@ -4458,15 +4371,16 @@ server <- function(input, output, session) {
             d2[[x_var]] <- as.Date(d2[[x_var]], origin = "1970-01-01")
           }
           d2$.y2_scaled    <- d2[[yv]] * sf + off
-          d2$.curve_label  <- yv   # Pour la légende
+          d2$.curve_label  <- yv   
           
-          # Trait PLEIN avec aes(color=) → apparaît dans la légende
+          # Trait PLEIN avec aes(color=)
+          y2_lw <- input$y2CurveWidth %||% 1.2
           if (viz_type %in% c("line","seasonal_smooth","seasonal_evolution","area")) {
             p <- p + geom_line(
               data      = d2,
               aes(x = .data[[x_var]], y = .data$.y2_scaled,
                   color = .data$.curve_label, group = .data$.curve_label),
-              linewidth = 1.2, linetype = "solid", na.rm = TRUE, show.legend = TRUE
+              linewidth = y2_lw, linetype = "solid", na.rm = TRUE, show.legend = TRUE
             )
           } else if (viz_type == "scatter") {
             p <- p + geom_point(
@@ -4481,7 +4395,7 @@ server <- function(input, output, session) {
                 data      = d2,
                 aes(x = .data[[x_var]], y = .data$.y2_scaled,
                     color = .data$.curve_label, group = .data$.curve_label),
-                linewidth = 1.3, linetype = "solid", na.rm = TRUE, show.legend = TRUE
+                linewidth = y2_lw, linetype = "solid", na.rm = TRUE, show.legend = TRUE
               ) + geom_point(
                 data  = d2,
                 aes(x = .data[[x_var]], y = .data$.y2_scaled,
@@ -4591,9 +4505,7 @@ server <- function(input, output, session) {
                           scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
     }
     
-    # ── Appliquer les labels de légende personnalisés ──────────────────────────
-    # Cette section s'exécute EN DERNIER pour remplacer tout scale_color existant
-    # Elle fonctionne en mode single-Y ET multi-Y (avec ou sans dual axis)
+    # ── Appliquer les labels de légende personnalisés 
     if (!is.null(color_var)) {
       storage_key <- if (color_var == "Variable") "multiY_legend" else color_var
       legend_map  <- values$legendLabels[[storage_key]]
@@ -4627,7 +4539,7 @@ server <- function(input, output, session) {
             orig_keys
           )
           
-          # Appliquer scale_color_manual + scale_fill_manual (remplace tout scale existant)
+          # Appliquer scale_color_manual + scale_fill_manual 
           tryCatch({
             p <- p +
               scale_color_manual(
@@ -4645,24 +4557,6 @@ server <- function(input, output, session) {
           }, error = function(e) invisible(NULL))
         }
       }
-    }
-    
-    # ── Appliquer les contrôles ggplot thème pour l'axe Y secondaire ──────────
-    if (isTRUE(values$dualAxisActive) && length(values$y2VarsActive %||% character(0)) > 0) {
-      y2_tick_face_gg  <- if (isTRUE(input$y2TickBold) && isTRUE(input$y2TickItalic)) "bold.italic" else if (isTRUE(input$y2TickBold)) "bold" else if (isTRUE(input$y2TickItalic)) "italic" else "plain"
-      y2_axis_face_gg  <- if (isTRUE(input$y2AxisBold) && isTRUE(input$y2AxisItalic)) "bold.italic" else if (isTRUE(input$y2AxisBold)) "bold" else if (isTRUE(input$y2AxisItalic)) "italic" else "plain"
-      y2_tick_sz_gg    <- (input$y2TickSize      %||% 10)
-      y2_label_sz_gg   <- (input$y2AxisLabelSize %||% 11)
-      y2_line_sz_gg    <- (input$y2LineSize       %||% 0.8)
-      tryCatch({
-        p <- p + theme(
-          axis.text.y.right  = element_text(size = y2_tick_sz_gg,  face = y2_tick_face_gg),
-          axis.title.y.right = element_text(size = y2_label_sz_gg, face = y2_axis_face_gg,
-                                            margin = margin(l = 8)),
-          axis.line.y.right  = element_line(color = "black", linewidth = y2_line_sz_gg),
-          axis.ticks.y.right = element_line(color = "black", linewidth = y2_line_sz_gg * 0.75)
-        )
-      }, error = function(e) invisible(NULL))
     }
     
     # Personnalisation du thème pour tous les types de graphiques
@@ -4707,8 +4601,8 @@ server <- function(input, output, session) {
       "plain"
     }
     
-    x_tick_size <- input$xTickSize %||% 10
-    y_tick_size <- input$yTickSize %||% 10
+    x_tick_size <- input$xTickSize %||% 12
+    y_tick_size <- input$yTickSize %||% 12
     
     # Obtenir l'angle des labels X
     x_angle <- input$xAxisAngle %||% 0
@@ -4728,14 +4622,16 @@ server <- function(input, output, session) {
       get_plot_theme(base_size = input$baseFontSize %||% 12) +
       theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
-        axis.title.x  = element_markdown(face = x_axis_face, size = input$axisLabelSize %||% 11),
-        axis.title.y  = element_markdown(face = y_axis_face, size = input$axisLabelSize %||% 11),
+        axis.title.x  = element_markdown(face = x_axis_face, size = input$axisLabelSize %||% 12),
+        axis.title.y  = element_markdown(face = y_axis_face, size = input$axisLabelSize %||% 12),
         axis.text.x   = element_text(face = x_tick_face, size = x_tick_size, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
         axis.text.y   = element_text(face = y_tick_face, size = y_tick_size),
         legend.position    = input$legendPosition %||% "right",
         legend.title       = element_markdown(size = input$legendTitleSize %||% 12, face = "bold"),
-        legend.text        = element_text(size = input$legendTextSize  %||% 10),
+        legend.text        = element_text(size = input$legendTextSize  %||% 12),
         legend.key.size    = unit(input$legendKeySize %||% 1, "lines"),
+        legend.margin      = margin(t = 6, r = 6, b = 6, l = 6),
+        legend.box.margin  = margin(t = 10, r = 0, b = 0, l = 0),
         axis.line   = element_line(color = "black", linewidth = axis_lw),
         axis.ticks  = element_line(color = "black", linewidth = axis_lw * 0.75),
         plot.margin = margin(t = pm_top, r = pm_right, b = pm_bottom, l = pm_left, unit = "pt")
@@ -4798,12 +4694,11 @@ server <- function(input, output, session) {
       }
     }
     
-    # Appliquer les breaks (une seule fois par axe pour éviter les conflits)
+    # Appliquer les breaks 
     if(!is.null(y_breaks_custom) && !viz_type %in% c("pie", "donut", "treemap")) {
       tryCatch({ p <- p + scale_y_continuous(breaks = y_breaks_custom) }, error = function(e) NULL)
     }
-    # scale_x_continuous custom uniquement pour les types numériques sans scale_x propre
-    # (line, scatter, area, seasonal_* gèrent leur propre scale_x via get_x_scale)
+
     if(!is.null(x_breaks_custom) && !viz_type %in% c(
         "pie", "donut", "treemap", "bar", "box", "violin",
         "histogram", "density", "line", "scatter", "area",
@@ -4811,7 +4706,7 @@ server <- function(input, output, session) {
       tryCatch({ p <- p + scale_x_continuous(breaks = x_breaks_custom) }, error = function(e) NULL)
     }
     
-    # ---- Limites des axes via coord_cartesian uniquement (compatible avec scale_*_continuous) ----
+    # ---- Limites des axes via coord_cartesian uniquement 
     y_min_val <- input$yAxisMin
     y_max_val <- input$yAxisMax
     x_min_val <- input$xAxisMin
@@ -4848,6 +4743,47 @@ server <- function(input, output, session) {
           expand = TRUE
         )
       }, error = function(e) NULL)
+    }
+    
+    # ── Appliquer les contrôles ggplot thème pour l'axe Y secondaire ──────────
+ 
+    # Tous les paramètres visuels MIROIR de l'axe Y principal.
+    if (isTRUE(values$dualAxisActive) && length(values$y2VarsActive %||% character(0)) > 0) {
+      # Miroir exact de Y1 : mêmes inputs
+      y2_lw_gg    <- axis_lw                 
+      y2_tick_sz  <- y_tick_size             
+      y2_tick_fce <- y_tick_face             
+      y2_lbl_sz   <- input$axisLabelSize %||% 12  
+      y2_lbl_fce  <- y_axis_face             
+      tryCatch({
+        p <- p + theme(
+          # Texte des graduations Y2 
+          axis.text.y.right  = element_text(
+            size  = y2_tick_sz,
+            face  = y2_tick_fce,
+            color = "black"
+          ),
+          # Label (titre) axe Y2 
+          axis.title.y.right = element_text(
+            size   = y2_lbl_sz,
+            face   = y2_lbl_fce,
+            color  = "black",
+            margin = margin(l = 8)
+          ),
+          # Ligne axe Y2 
+          axis.line.y.right  = element_line(
+            color     = "black",
+            linewidth = y2_lw_gg
+          ),
+          # Graduations (ticks) Y2 
+          axis.ticks.y.right = element_line(
+            color     = "black",
+            linewidth = y2_lw_gg * 0.75
+          ),
+          # Longueur des ticks Y2 identique à Y1
+          axis.ticks.length.y.right = unit(4, "pt")
+        )
+      }, error = function(e) invisible(NULL))
     }
     
     return(p)
@@ -5166,7 +5102,6 @@ server <- function(input, output, session) {
     )
   }
   
-  # get_x_scale est défini dans les wrappers réactifs (début du serveur)
   
   # Fonction pour créer un scatter plot
   create_scatter_plot <- function(data, x_var, y_var, color_var = NULL) {
@@ -5244,7 +5179,7 @@ server <- function(input, output, session) {
         }
       }
     }
-    # Axe X : tous les types + labels + ordre (via helper centralisé)
+    # Axe X : tous les types + labels + ordre 
     p <- p + get_x_scale(data, x_var)
     if (isTRUE(input$showTrendLine)) {
       p <- p + geom_smooth(data=data_pts, aes(x=.data[[x_var]], y=.data[[y_var]]),
@@ -5267,7 +5202,7 @@ server <- function(input, output, session) {
       return(ggplot() + annotate("text", x=0.5, y=0.5, label="Données insuffisantes") +
                theme_void())
     }
-    # Forcer X en facteur pour eviter le warning position_dodge avec X continu
+    
     if (!is.factor(data[[x_var]])) {
       data[[x_var]] <- factor(data[[x_var]], levels = unique(as.character(data[[x_var]])))
     }
@@ -5381,9 +5316,9 @@ server <- function(input, output, session) {
     x_is_date    <- inherits(data[[x_var]], c("Date","POSIXct","POSIXlt"))
     x_is_numeric <- is.numeric(data[[x_var]]) && !x_is_date
     x_is_factor  <- is.factor(data[[x_var]]) || is.character(data[[x_var]])
-    # Garder toutes les X avant filtrage NA (pour l'axe complet + labels)
+    # Garder toutes les X avant filtrage NA 
     all_x_orig <- data[[x_var]]
-    # Lire l'ordre personnalisé depuis values$ (attr() est perdu dans data.frame)
+    
     co_ord <- values$customXOrder
     # Pour les X catégoriels : convertir en facteur ordonné
     if (x_is_factor) {
@@ -5441,8 +5376,8 @@ server <- function(input, output, session) {
       if (isTRUE(input$showPoints))
         p <- p + geom_point(color=fixed_color, size=ps, alpha=0.7, na.rm=TRUE)
     }
-    # Axe X : tous les types + labels + ordre (get_x_scale lit values$ directement)
-    # Utiliser I() pour préserver le type exact (Date, factor, numeric)
+    # Axe X : tous les types + labels + ordre 
+
     tmp_df_scale <- data.frame(I(all_x_orig))
     names(tmp_df_scale) <- x_var
     p <- p + get_x_scale(tmp_df_scale, x_var)
@@ -5460,9 +5395,9 @@ server <- function(input, output, session) {
     x_is_date    <- inherits(data[[x_var]], c("Date","POSIXct","POSIXlt"))
     x_is_numeric <- is.numeric(data[[x_var]]) && !x_is_date
     x_is_factor  <- is.factor(data[[x_var]]) || is.character(data[[x_var]])
-    # Garder toutes les X avant filtrage (pour axe complet + labels)
+    # Garder toutes les X avant filtrage 
     all_x_orig <- data[[x_var]]
-    # Lire l'ordre personnalisé depuis values$ (attr() est perdu dans data.frame)
+    # Lire l'ordre personnalisé 
     co_ord <- values$customXOrder
 
     group_cols <- if (!is.null(color_var) && color_var %in% names(data)) c(x_var, color_var) else x_var
@@ -5544,7 +5479,7 @@ server <- function(input, output, session) {
                          vjust=lp$vjust, hjust=lp$hjust, size=lp$size, color=lp$color,
                          fontface=lp$fontface, check_overlap=TRUE, na.rm=TRUE)
     }
-    # Axe X : tous les types + labels + ordre (get_x_scale lit values$ directement)
+    # Axe X : tous les types + labels + ordre 
     tmp_df_scale <- data.frame(I(all_x_orig))
     names(tmp_df_scale) <- x_var
     p <- p + get_x_scale(tmp_df_scale, x_var)
@@ -5941,11 +5876,7 @@ server <- function(input, output, session) {
     
     #  police des niveaux (tickfont) et labels (titlefont) des axes ----
     
-    # ── SECOND AXE Y PLOTLY : remplacer les valeurs mises-à-l'échelle ggplot ──
-    # Les traces Y2 dans ggplot ont des y transformés dans l'espace Y1 (pour
-    # que ggplot affiche une courbe visuelle cohérente). Pour que plotly affiche
-    # un VRAI axe secondaire avec les valeurs réelles, on remplace ces y par les
-    # valeurs originales et on assigne yaxis="y2".
+    # ── SECOND AXE Y PLOTLY : remplacer les valeurs mises-à-l'échelle ggplot 
     
     y2_active_plotly <- if (isTRUE(values$dualAxisActive) &&
                             !is.null(values$y2VarsActive) &&
@@ -6000,29 +5931,46 @@ server <- function(input, output, session) {
         }
       }
       
-      # Contrôles spécifiques axe Y2 (miroir des contrôles Y1)
-      y2_tick_bold    <- isTRUE(input$y2TickBold)
-      y2_tick_italic  <- isTRUE(input$y2TickItalic)
-      y2_tick_sz      <- input$y2TickSize      %||% 10
-      y2_axis_bold    <- isTRUE(input$y2AxisBold)
-      y2_axis_italic  <- isTRUE(input$y2AxisItalic)
-      y2_label_sz_ply <- input$y2AxisLabelSize %||% 11
-      y2_line_sz_ply  <- input$y2LineSize       %||% 0.8
+      # ── Contrôles axe Y2 plotly : miroir exact de Y1 ──
+      y2_tick_bold    <- isTRUE(input$yTickBold)       # miroir Y1
+      y2_tick_italic  <- isTRUE(input$yTickItalic)     # miroir Y1
+      y2_tick_sz      <- input$yTickSize  %||% 12      # miroir Y1
+      y2_axis_bold    <- isTRUE(input$yAxisBold)       # miroir Y1
+      y2_axis_italic  <- isTRUE(input$yAxisItalic)     # miroir Y1
+      y2_label_sz_ply <- input$axisLabelSize %||% 12   # miroir Y1
+      # Épaisseur ligne : miroir axisLineSize (converti en pixels plotly ×2)
+      y2_line_sz_ply  <- (input$axisLineSize %||% 0.8)
       
       # Configurer yaxis2
       y2_cfg <- list(
-        title      = list(text = y2_label_ply,
-                          font = list(family = make_font_family(y2_axis_bold, y2_axis_italic),
-                                      size = y2_label_sz_ply)),
-        linewidth  = y2_line_sz_ply * 2,   # plotly utilise des unités pixels
-        overlaying = "y",
-        side       = "right",
-        showgrid   = FALSE,
-        zeroline   = FALSE,
-        range      = y2_rng_cfg,
-        tickfont   = list(size = y2_tick_sz, family = make_font_family(y2_tick_bold, y2_tick_italic)),
-        showline   = TRUE,
-        linecolor  = "#aaaaaa"
+        title           = list(
+          text = y2_label_ply,
+          font = list(
+            family = make_font_family(y2_axis_bold, y2_axis_italic),
+            size   = y2_label_sz_ply,
+            color  = "black"
+          )
+        ),
+        linewidth       = max(1, y2_line_sz_ply * 2),   # plotly en pixels
+        overlaying      = "y",
+        side            = "right",
+        showgrid        = FALSE,
+        zeroline        = FALSE,
+        range           = y2_rng_cfg,
+        tickfont        = list(
+          size   = y2_tick_sz,
+          family = make_font_family(y2_tick_bold, y2_tick_italic),
+          color  = "black"
+        ),
+        showline        = TRUE,
+        linecolor       = "black",
+        ticks           = "outside",
+        ticklen         = 5,
+        tickwidth       = 1,
+        tickcolor       = "black",
+        showticklabels  = TRUE,
+        mirror          = FALSE,
+        layer           = "above traces"
       )
       
       # Pas personnalisé (lit y2AxisBreakStep ou l'ancien y2AxisStep)
@@ -6487,14 +6435,7 @@ server <- function(input, output, session) {
     
     for (var in input$responseVar) {
       tryCatch({
-        # Préparer la formule
-        if (input$interaction && length(input$factorVar) == 2) {
-          formula_str <- as.formula(paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "*")))
-        } else {
-          formula_str <- as.formula(paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+")))
-        }
-        
-        # Vérifier que les données sont valides + convertir les facteurs (tous types)
+        # Vérifier que les données sont valides + convertir les facteurs 
         test_data <- values$filteredData[, c(var, input$factorVar), drop = FALSE]
         for (f in input$factorVar) {
           if (!is.factor(test_data[[f]])) {
@@ -6513,8 +6454,38 @@ server <- function(input, output, session) {
           next
         }
         
-        # Exécuter le test Scheirer-Ray-Hare (avec données converties)
-        test_result <- rcompanion::scheirerRayHare(formula_str, data = test_data)
+        # ── Renommer colonnes en noms sûrs 
+        safe_resp    <- "resp_var_srh"
+        safe_factors <- paste0("factor_srh_", seq_along(input$factorVar))
+        # Table de correspondance pour restaurer les noms dans les résultats
+        factor_label_map <- setNames(input$factorVar, safe_factors)
+        if (length(input$factorVar) == 2) {
+          factor_label_map[paste0(safe_factors[1], ":", safe_factors[2])] <-
+            paste0(input$factorVar[1], ":", input$factorVar[2])
+        }
+        
+        safe_data <- test_data
+        names(safe_data)[names(safe_data) == var] <- safe_resp
+        for (fi in seq_along(input$factorVar)) {
+          names(safe_data)[names(safe_data) == input$factorVar[fi]] <- safe_factors[fi]
+        }
+        
+        # Préparer la formule avec noms sûrs
+        if (isTRUE(input$interaction) && length(input$factorVar) == 2) {
+          formula_str <- as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "*")))
+        } else {
+          formula_str <- as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "+")))
+        }
+        
+        # Exécuter le test Scheirer-Ray-Hare avec noms sûrs
+        test_result <- rcompanion::scheirerRayHare(formula_str, data = safe_data)
+        
+        # Restaurer les noms originaux dans les rownames du résultat
+        orig_rnames <- rownames(test_result)
+        for (sf in names(factor_label_map)) {
+          orig_rnames <- gsub(sf, factor_label_map[sf], orig_rnames, fixed = TRUE)
+        }
+        rownames(test_result) <- orig_rnames
         
         # Vérifier si le résultat est valide
         if (is.null(test_result) || nrow(test_result) == 0) {
@@ -7594,10 +7565,8 @@ server <- function(input, output, session) {
   }
   
   # Fonction principale d'analyse 
-  # ── Synchronisation automatique tests → PostHoc ────────────────────────────
-  # Quand testResultsDF change, mettre à jour le type de test et invalider
-  # le sélecteur multiResponse pour qu'il se re-render avec les pré-sélections
-  observeEvent(values$testResultsDF, {
+  
+    observeEvent(values$testResultsDF, {
     req(values$testResultsDF)
     
     # Synchroniser le type de test (paramétrique / non-param)
@@ -7619,7 +7588,7 @@ server <- function(input, output, session) {
     )
   }, ignoreInit = TRUE)
   
-  # ── Tableau récapitulatif des p-values pour guider le PostHoc ─────────────
+  # ── Tableau récapitulatif des p-values pour guider le PostHoc
   output$testResultsSummaryForPostHoc <- renderUI({
     if (is.null(values$testResultsDF) || nrow(values$testResultsDF) == 0) {
       return(div(
@@ -7953,7 +7922,7 @@ server <- function(input, output, session) {
               )
               
               # ── Effets simples : utiliser df_temp (données nettoyées sans NA) ──
-              # CRITIQUE: df_temp a les facteurs droplevel() → levels valides seulement
+              
               test_m <- ifelse(input$testType == "param", input$multiTest, input$multiTestNonParam)
               
               # Comparer fvar1 à chaque niveau de fvar2 (niveaux de df_temp, pas df brut)
@@ -8695,7 +8664,7 @@ server <- function(input, output, session) {
     axis_title_size <- input$axisTitleSize
     axis_text_size <- input$axisTextSize
     graph_value_size <- input$graphValueSize
-    mean_value_size <- input$meanValueSize  # Taille des moyennes
+    mean_value_size <- input$meanValueSize  
     legend_title_size <- input$legendTitleSize
     legend_text_size <- input$legendTextSize
     legend_spacing <- input$legendSpacing
@@ -8971,7 +8940,7 @@ server <- function(input, output, session) {
       y_range <- y_max - y_min
       
       
-      # FIX BUG : Valeurs par défaut sécurisées pour la taille et le style
+      # Valeurs par défaut sécurisées pour la taille et le style
       
       
       # Valeurs par défaut si les inputs sont NULL ou non définis
@@ -8995,7 +8964,7 @@ server <- function(input, output, session) {
       }
       
       
-      # CRÉATION DES GRAPHIQUES (avec valeurs personnalisées sécurisées)
+      # CRÉATION DES GRAPHIQUES 
       
       
       if (plot_type == "box") {
@@ -9172,7 +9141,7 @@ server <- function(input, output, session) {
           p <- p + scale_y_continuous(breaks = y_breaks)
         }
         
-        # Graduations X (uniquement si numérique)
+        # Graduations X 
         if (!is.null(x_axis_break_step) && !is.na(x_axis_break_step) && x_axis_break_step > 0) {
           if (is.numeric(plot_data$x_var)) {
             x_data_min <- min(plot_data$x_var, na.rm = TRUE)
@@ -9379,7 +9348,7 @@ server <- function(input, output, session) {
   calculate_dimensions_from_dpi <- function(dpi, base_width_cm = 20, base_height_cm = 15) {
     # Définir les dimensions standard pour différents usages selon le DPI
     if (dpi <= 100) {
-      # Écran/Web - dimensions plus grandes pour compensation
+      # Dimensions plus grandes pour compensation
       width <- base_width_cm * 1.2
       height <- base_height_cm * 1.2
     } else if (dpi <= 150) {
@@ -9403,23 +9372,43 @@ server <- function(input, output, session) {
   createPlotDownloadHandler <- function(plot_func, default_name) {
     downloadHandler(
       filename = function() {
-        ext <- input[[paste0(default_name, "_format")]]
-        paste0(default_name, "_", Sys.Date(), ".", ext)
+        fmt <- tolower(trimws(input[[paste0(default_name, "_format")]] %||% "png"))
+        fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
+        if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
+        paste0(default_name, "_", Sys.Date(), ".", fmt)
       },
+      contentType = "application/octet-stream",
       content = function(file) {
-        width <- input[[paste0(default_name, "_width")]]
-        height <- input[[paste0(default_name, "_height")]]
-        dpi <- input[[paste0(default_name, "_dpi")]]
-        
+        fmt <- tolower(trimws(input[[paste0(default_name, "_format")]] %||% "png"))
+        fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
+        if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
+
+        dpi_val <- as.integer(input[[paste0(default_name, "_dpi")]] %||% 300)
+        if (is.na(dpi_val) || dpi_val < 72) dpi_val <- 300
+
+        # Les inputs _width/_height sont en PIXELS → conversion px -> cm
+        w_px <- as.numeric(input[[paste0(default_name, "_width")]]  %||% 0)
+        h_px <- as.numeric(input[[paste0(default_name, "_height")]] %||% 0)
+        w_cm <- if (!is.na(w_px) && w_px > 0) w_px / dpi_val * 2.54 else 25
+        h_cm <- if (!is.na(h_px) && h_px > 0) h_px / dpi_val * 2.54 else 20
+
         p <- tryCatch(plot_func(), error = function(e) {
           showNotification(paste("Erreur génération graphique:", conditionMessage(e)),
                            type = "error", duration = 5)
           NULL
         })
         req(!is.null(p))
-        
-        ggsave(file, plot = p, device = input[[paste0(default_name, "_format")]], 
-               width = width, height = height, dpi = dpi, units = "cm")
+
+        tryCatch(
+          suppressWarnings(ggsave(
+            filename = file, plot = p, device = fmt,
+            width = w_cm, height = h_cm, dpi = dpi_val, units = "cm"
+          )),
+          error = function(e) {
+            showNotification(paste("Erreur export", toupper(fmt), ":", e$message),
+                             type = "error", duration = 10)
+          }
+        )
       }
     )
   }
@@ -9466,7 +9455,7 @@ server <- function(input, output, session) {
     )
   })
 
-  # ── Panel colinéarité VIF ─────────────────────────────────────────────────
+  # ── Panel colinéarité VIF
   output$pcaCollinearityPanel <- renderUI({
     req(values$filteredData, input$pcaVars)
     if (length(input$pcaVars) < 2) return(NULL)
@@ -9623,7 +9612,7 @@ server <- function(input, output, session) {
         div(
           style = "margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;",
 
-          # Bouton : supprimer les variables suggérées automatiquement
+          #  supprimer les variables suggérées automatiquement
           if (length(suggest_remove) > 0) {
             actionButton(
               "pcaAutoRemoveCollinear",
@@ -9637,7 +9626,7 @@ server <- function(input, output, session) {
             )
           },
 
-          # Bouton : standardiser les variables (si pas encore coché)
+          #  standardiser les variables (si pas encore coché)
           actionButton(
             "pcaForceStandardize",
             tagList(icon("balance-scale"), " Forcer la standardisation"),
@@ -9771,7 +9760,7 @@ server <- function(input, output, session) {
     input$pcaIndSup
     input$pcaComponents
     input$pcaLabelSource
-    input$pcaRefresh  # Bouton d'actualisation
+    input$pcaRefresh  
     
     tryCatch({
       # Vérifier si les moyennes doivent être utilisées
@@ -9819,7 +9808,7 @@ server <- function(input, output, session) {
       if (sum(num_cols) >= 2) {
         R_mat <- safe_cor(all_data[, num_cols, drop = FALSE])
         if (!is.null(R_mat) && !anyNA(R_mat)) {
-          # Détecter les colonnes parfaitement colinéaires (|cor| == 1 avec une autre)
+          # Détecter les colonnes parfaitement colinéaires 
           to_drop <- c()
           for (ci in seq_len(ncol(R_mat))) {
             for (cj in seq_len(ncol(R_mat))) {
@@ -10004,9 +9993,7 @@ server <- function(input, output, session) {
   })
   
   # Fonction pour créer le plot PCA
-  createPcaPlot <- function() {
-    req(pcaResultReactive())
-    res.pca <- pcaResultReactive()
+  createPcaPlot <- function(res.pca) {
     
     # Axes sélectionnés (par défaut 1 et 2)
     axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
@@ -10078,7 +10065,7 @@ server <- function(input, output, session) {
   output$pcaPlot <- renderPlotly({
     req(values$pcaResult)
     p <- tryCatch(
-      suppressWarnings(suppressMessages(createPcaPlot())),
+      suppressWarnings(suppressMessages(createPcaPlot(pcaResultReactive()))),
       error = function(e) {
         showNotification(paste("Erreur graphique ACP :", e$message), type = "error", duration = 8)
         NULL
@@ -10103,7 +10090,7 @@ server <- function(input, output, session) {
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
     
-    # Nombre de décimales (seulement si l'utilisateur a coché l'option)
+    # Nombre de décimales 
     use_round <- !is.null(input$pcaRoundResults) && input$pcaRoundResults
     dec <- if (use_round && !is.null(input$pcaDecimals)) input$pcaDecimals else 4
     
@@ -10380,8 +10367,8 @@ server <- function(input, output, session) {
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
       pca_data_raw <- na.omit(pca_data_raw)
       
-      # ── Gardes avant fa() ────────────────────────────────────────────────────
-      # pca_data_raw already has zero-var cols removed (remove_zero_var_cols called above)
+      # ── Gardes avant fa() 
+      
       n_vars    <- ncol(pca_data_raw)
       n_obs     <- nrow(pca_data_raw)
       
@@ -10913,32 +10900,24 @@ server <- function(input, output, session) {
   
   # Téléchargement du de l'graphique ACP avec dimensions automatiques
   output$downloadPcaPlot <- downloadHandler(
-    filename = function() {
-      ext <- input$pcaPlot_format
-      paste0("acp_", Sys.Date(), ".", ext)
-    },
+    filename = function() paste0("acp_", Sys.Date(), ".", input$pcaPlot_format),
     content = function(file) {
-      dpi <- input$pcaPlot_dpi
-      
-      # Calculer les dimensions automatiquement si pas de valeurs personnalisées
-      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
-      
-      # Utiliser les valeurs de l'utilisateur si fournies, sinon auto
-      width <- if (!is.null(input$pcaPlot_width) && input$pcaPlot_width > 0) {
-        input$pcaPlot_width
-      } else {
-        auto_dims$width
-      }
-      
-      height <- if (!is.null(input$pcaPlot_height) && input$pcaPlot_height > 0) {
-        input$pcaPlot_height
-      } else {
-        auto_dims$height
-      }
-      
-      p <- suppressWarnings(suppressMessages(createPcaPlot()))
-      suppressWarnings(ggsave(file, plot = p, device = input$pcaPlot_format, 
-                              width = width, height = height, dpi = dpi, units = "cm"))
+      dpi       <- input$pcaPlot_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      p <- withCallingHandlers(
+        suppressMessages(createPcaPlot(pcaResultReactive())),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
+      withCallingHandlers(
+        suppressWarnings(ggsave(file, plot = p, device = input$pcaPlot_format,
+                                width = auto_dims$width, height = auto_dims$height,
+                                dpi = dpi, units = "cm")),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
     }
   )
   
@@ -11238,9 +11217,7 @@ server <- function(input, output, session) {
     })
   })
   
-  createHcpcDendPlot <- function() {
-    req(hcpcResultReactive())
-    res.hcpc <- hcpcResultReactive()
+  createHcpcDendPlot <- function(res.hcpc) {
     
     dend_title <- if (!is.null(input$hcpcDendTitle) && input$hcpcDendTitle != "") {
       input$hcpcDendTitle
@@ -11273,7 +11250,7 @@ server <- function(input, output, session) {
                         rect_border = "jco",
                         main = dend_title,
                         sub = paste("Nombre de clusters:", n_clusters),
-                        labels_track_height = 0.8,  # Augmenter l'espace pour les labels
+                        labels_track_height = 0.8,  
                         ggtheme = theme_minimal())
     
     # Améliorer l'affichage des labels
@@ -11317,10 +11294,7 @@ server <- function(input, output, session) {
                 selected = min(2, n_dims))
   })
   
-  createHcpcClusterPlot <- function() {
-    req(hcpcResultReactive(), pcaResultReactive())
-    res.hcpc <- hcpcResultReactive()
-    res.pca <- pcaResultReactive()
+  createHcpcClusterPlot <- function(res.hcpc, res.pca) {
     
     # Axes sélectionnés (par défaut 1 et 2)
     axis_x <- if (!is.null(input$hcpcAxisX)) as.numeric(input$hcpcAxisX) else 1
@@ -11375,7 +11349,7 @@ server <- function(input, output, session) {
   
   output$hcpcDendPlot <- renderPlotly({
     req(values$pcaResult)
-    p_dend <- suppressWarnings(suppressMessages(createHcpcDendPlot()))
+    p_dend <- suppressWarnings(suppressMessages(createHcpcDendPlot(hcpcResultReactive())))
     suppressWarnings({
       ggplotly(p_dend) %>% layout(margin = list(b = 100))
     })
@@ -11383,7 +11357,7 @@ server <- function(input, output, session) {
   
   output$hcpcClusterPlot <- renderPlotly({
     req(values$pcaResult)
-    p_cluster <- suppressWarnings(suppressMessages(createHcpcClusterPlot()))
+    p_cluster <- suppressWarnings(suppressMessages(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive())))
     suppressWarnings({
       ggplotly(p_cluster) %>% layout(showlegend = TRUE)
     })
@@ -11757,61 +11731,47 @@ server <- function(input, output, session) {
   
   # Téléchargement graphique HCPC Dendrogramme avec dimensions automatiques
   output$downloadHcpcDendPlot <- downloadHandler(
-    filename = function() {
-      ext <- input$hcpcDend_format
-      paste0("hcpc_dendrogramme_", Sys.Date(), ".", ext)
-    },
+    filename = function() paste0("hcpc_dendrogramme_", Sys.Date(), ".", input$hcpcDend_format),
     content = function(file) {
-      dpi <- input$hcpcDend_dpi
-      
-      # Calculer dimensions automatiques
-      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 30, base_height_cm = 20)
-      
-      width <- if (!is.null(input$hcpcDend_width) && input$hcpcDend_width > 0) {
-        input$hcpcDend_width
-      } else {
-        auto_dims$width
-      }
-      
-      height <- if (!is.null(input$hcpcDend_height) && input$hcpcDend_height > 0) {
-        input$hcpcDend_height
-      } else {
-        auto_dims$height
-      }
-      
-      p_dend <- suppressWarnings(suppressMessages(createHcpcDendPlot()))
-      suppressWarnings(ggsave(file, plot = p_dend, device = input$hcpcDend_format, 
-                              width = width, height = height, dpi = dpi, units = "cm"))
+      dpi       <- input$hcpcDend_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 30, 20)
+      p <- withCallingHandlers(
+        suppressMessages(createHcpcDendPlot(hcpcResultReactive())),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
+      withCallingHandlers(
+        suppressWarnings(ggsave(file, plot = p, device = input$hcpcDend_format,
+                                width = auto_dims$width, height = auto_dims$height,
+                                dpi = dpi, units = "cm")),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
     }
   )
   
   # Téléchargement graphique HCPC Cluster avec dimensions automatiques
   output$downloadHcpcClusterPlot <- downloadHandler(
-    filename = function() {
-      ext <- input$hcpcCluster_format
-      paste0("hcpc_clusters_", Sys.Date(), ".", ext)
-    },
+    filename = function() paste0("hcpc_clusters_", Sys.Date(), ".", input$hcpcCluster_format),
     content = function(file) {
-      dpi <- input$hcpcCluster_dpi
-      
-      # Calculer dimensions automatiques
-      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
-      
-      width <- if (!is.null(input$hcpcCluster_width) && input$hcpcCluster_width > 0) {
-        input$hcpcCluster_width
-      } else {
-        auto_dims$width
-      }
-      
-      height <- if (!is.null(input$hcpcCluster_height) && input$hcpcCluster_height > 0) {
-        input$hcpcCluster_height
-      } else {
-        auto_dims$height
-      }
-      
-      p_cluster <- suppressWarnings(suppressMessages(createHcpcClusterPlot()))
-      suppressWarnings(ggsave(file, plot = p_cluster, device = input$hcpcCluster_format, 
-                              width = width, height = height, dpi = dpi, units = "cm"))
+      dpi       <- input$hcpcCluster_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      p <- withCallingHandlers(
+        suppressMessages(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive())),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
+      withCallingHandlers(
+        suppressWarnings(ggsave(file, plot = p, device = input$hcpcCluster_format,
+                                width = auto_dims$width, height = auto_dims$height,
+                                dpi = dpi, units = "cm")),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
     }
   )
   
@@ -11981,7 +11941,7 @@ server <- function(input, output, session) {
     req(values$filteredData)
     df <- values$filteredData
     
-    # ── Regrouper les colonnes par type avec étiquettes claires ─────────
+    # ── Regrouper les colonnes par type avec étiquettes claires 
     build_group_choices <- function(df) {
       cols_factor  <- names(df)[sapply(df, is.factor)]
       cols_char    <- names(df)[sapply(df, is.character)]
@@ -12103,7 +12063,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # ── Panel colinéarité AFD ─────────────────────────────────────────────────
+  # ── Panel colinéarité AFD 
   output$afdCollinearityPanel <- renderUI({
     req(values$filteredData, input$afdVars)
     if (length(input$afdVars) < 2) return(NULL)
@@ -12333,7 +12293,7 @@ server <- function(input, output, session) {
         afd_data <- values$filteredData[, cols_to_select, drop = FALSE]
       }
       
-      # S'assurer que la variable de groupement est un facteur (tous types supportés)
+      # S'assurer que la variable de groupement est un facteur 
       if (!is.factor(afd_data[[input$afdFactor]])) {
         afd_data[[input$afdFactor]] <- tryCatch(
           factor(as.character(afd_data[[input$afdFactor]])),
@@ -12399,7 +12359,7 @@ server <- function(input, output, session) {
         return(NULL)
       }
       
-      # ── Détecter et éliminer les variables colinéaires avant lda() ──────────
+      # ── Détecter et éliminer les variables colinéaires avant lda() 
       # lda() plante avec solve.default si la matrice intra-groupe est singulière
       if (length(vars_to_use) >= 2) {
         num_afd <- afd_data[, vars_to_use, drop = FALSE]
@@ -12434,7 +12394,6 @@ server <- function(input, output, session) {
         return(NULL)
       }
       
-      # Reste du code - utiliser vars_to_use
       factor_safe <- paste0("`", input$afdFactor, "`")
       vars_safe <- paste0("`", vars_to_use, "`", collapse = " + ")
       afd_formula <- as.formula(paste(factor_safe, "~", vars_safe))
@@ -12488,6 +12447,7 @@ server <- function(input, output, session) {
         predictions = afd_predict,
         data = afd_data,
         vars_used = vars_to_use,
+        factor_name = input$afdFactor,
         cv_results = cv_results
       ))
       
@@ -12741,12 +12701,14 @@ server <- function(input, output, session) {
                 selected = min(2, n_dims))
   })
   
-  createAfdIndPlot <- function() {
-    req(afdResultReactive())
-    afd_res <- afdResultReactive()
+  createAfdIndPlot <- function(afd_res) {
     afd_predict <- afd_res$predictions
-    afd_data <- afd_res$data
-    
+    afd_data    <- afd_res$data
+    # Utiliser le nom du facteur stocké dans afd_res (pas input$afdFactor qui est NULL hors réactif)
+    factor_name <- afd_res$factor_name %||%
+                   names(afd_data)[sapply(afd_data, is.factor)][1] %||%
+                   names(afd_data)[ncol(afd_data)]
+
     n_dims <- ncol(afd_predict$x)
     
     # Axes sélectionnés (par défaut 1 et 2, ou 1 et densité si une seule dimension)
@@ -12760,7 +12722,7 @@ server <- function(input, output, session) {
     }
     
     afd_df <- as.data.frame(afd_predict$x)
-    afd_df$Groupe <- afd_data[[input$afdFactor]]
+    afd_df$Groupe     <- afd_data[[factor_name]]
     afd_df$Individual <- rownames(afd_data)
     
     x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
@@ -12821,9 +12783,7 @@ server <- function(input, output, session) {
   }
   
   
-  createAfdVarPlot <- function() {
-    req(afdResultReactive())
-    afd_res <- afdResultReactive()
+  createAfdVarPlot <- function(afd_res) {
     afd_result <- afd_res$model
     afd_data <- afd_res$data
     
@@ -12839,8 +12799,13 @@ server <- function(input, output, session) {
       "AFD - Contribution des variables"
     }
     
-    # Utiliser les variables effectivement utilisées
-    vars_used <- if (!is.null(afd_res$vars_used)) afd_res$vars_used else input$afdVars
+    # Utiliser les variables stockées dans afd_res (pas input$afdVars qui est NULL hors réactif)
+    vars_used <- afd_res$vars_used
+    if (is.null(vars_used) || length(vars_used) == 0) {
+      # Fallback : colonnes numériques de afd_data (hors facteur)
+      vars_used <- names(afd_data)[sapply(afd_data, is.numeric)]
+    }
+    if (is.null(vars_used) || length(vars_used) == 0) stop("Aucune variable disponible pour le graphique AFD.")
     
     X_std <- scale(afd_data[, vars_used, drop = FALSE])
     scores <- as.matrix(X_std) %*% afd_result$scaling
@@ -12909,7 +12874,7 @@ server <- function(input, output, session) {
   
   output$afdIndPlot <- renderPlotly({
     req(values$filteredData, input$afdFactor)
-    p_ind <- suppressWarnings(suppressMessages(createAfdIndPlot()))
+    p_ind <- suppressWarnings(suppressMessages(createAfdIndPlot(afdResultReactive())))
     suppressWarnings({
       ggplotly(p_ind) %>% layout(showlegend = TRUE)
     })
@@ -12917,7 +12882,7 @@ server <- function(input, output, session) {
   
   output$afdVarPlot <- renderPlotly({
     req(values$filteredData, input$afdFactor)
-    p_var <- suppressWarnings(suppressMessages(createAfdVarPlot()))
+    p_var <- suppressWarnings(suppressMessages(createAfdVarPlot(afdResultReactive())))
     suppressWarnings({
       ggplotly(p_var) %>% layout(showlegend = FALSE)
     })
@@ -12934,7 +12899,7 @@ server <- function(input, output, session) {
     dec         <- if (use_round && !is.null(input$afdDecimals)) input$afdDecimals else 3
     
     tryCatch({
-      # ── Calculs centraux ──────────────────────────────────────────────
+      # ── Calculs centraux 
       eigenvals <- afd_result$svd^2
       prop_var  <- eigenvals / sum(eigenvals) * 100
       can_cor   <- sqrt(eigenvals / (1 + eigenvals))
@@ -12950,7 +12915,7 @@ server <- function(input, output, session) {
       scores           <- as.matrix(X_std) %*% afd_result$scaling
       structure_matrix <- cor(X_std, scores)
       
-      # ── Helpers de style ──────────────────────────────────────────────
+      # ── Helpers de style 
       card <- function(..., border_color = "#dee2e6", bg = "white") {
         div(style = paste0(
           "background:", bg, "; border-radius:8px; padding:16px; margin-bottom:14px;",
@@ -12995,7 +12960,7 @@ server <- function(input, output, session) {
         )
       }
       
-      # ── Couleurs dynamiques ───────────────────────────────────────────
+      # ── Couleurs dynamiques 
       acc_color <- if (accuracy >= .9) "#3a7d5c" else if (accuracy >= .8) "#4a7fa5" else if (accuracy >= .7) "#b07d2a" else "#c0392b"
       acc_interp <- if (accuracy >= .9) "Excellent — la discrimination est quasi-parfaite."
       else if (accuracy >= .8) "Bon — la discrimination est fiable."
@@ -13015,7 +12980,7 @@ server <- function(input, output, session) {
         if (e >= .64) "Excellent (>= 0,64)" else if (e >= .25) "Fort (0,25 – 0,64)"
         else if (e >= .09) "Modere (0,09 – 0,25)" else "Faible (< 0,09)")
       
-      # ── RENDU UI ──────────────────────────────────────────────────────
+      # ── RENDU UI 
       tagList(
         
         
@@ -13320,61 +13285,47 @@ server <- function(input, output, session) {
   
   # Téléchargement graphique AFD Individus avec dimensions automatiques
   output$downloadAfdIndPlot <- downloadHandler(
-    filename = function() {
-      ext <- input$afdInd_format
-      paste0("afd_individus_", Sys.Date(), ".", ext)
-    },
+    filename = function() paste0("afd_individus_", Sys.Date(), ".", input$afdInd_format),
     content = function(file) {
-      dpi <- input$afdInd_dpi
-      
-      # Calculer dimensions automatiques
-      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
-      
-      width <- if (!is.null(input$afdInd_width) && input$afdInd_width > 0) {
-        input$afdInd_width
-      } else {
-        auto_dims$width
-      }
-      
-      height <- if (!is.null(input$afdInd_height) && input$afdInd_height > 0) {
-        input$afdInd_height
-      } else {
-        auto_dims$height
-      }
-      
-      p_ind <- suppressWarnings(suppressMessages(createAfdIndPlot()))
-      suppressWarnings(ggsave(file, plot = p_ind, device = input$afdInd_format, 
-                              width = width, height = height, dpi = dpi, units = "cm"))
+      dpi       <- input$afdInd_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      p <- withCallingHandlers(
+        suppressMessages(createAfdIndPlot(afdResultReactive())),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
+      withCallingHandlers(
+        suppressWarnings(ggsave(file, plot = p, device = input$afdInd_format,
+                                width = auto_dims$width, height = auto_dims$height,
+                                dpi = dpi, units = "cm")),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
     }
   )
   
   # Téléchargement graphique AFD Variables avec dimensions automatiques
   output$downloadAfdVarPlot <- downloadHandler(
-    filename = function() {
-      ext <- input$afdVar_format
-      paste0("afd_variables_", Sys.Date(), ".", ext)
-    },
+    filename = function() paste0("afd_variables_", Sys.Date(), ".", input$afdVar_format),
     content = function(file) {
-      dpi <- input$afdVar_dpi
-      
-      # Calculer dimensions automatiques
-      auto_dims <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 20)
-      
-      width <- if (!is.null(input$afdVar_width) && input$afdVar_width > 0) {
-        input$afdVar_width
-      } else {
-        auto_dims$width
-      }
-      
-      height <- if (!is.null(input$afdVar_height) && input$afdVar_height > 0) {
-        input$afdVar_height
-      } else {
-        auto_dims$height
-      }
-      
-      p_var <- suppressWarnings(suppressMessages(createAfdVarPlot()))
-      suppressWarnings(ggsave(file, plot = p_var, device = input$afdVar_format, 
-                              width = width, height = height, dpi = dpi, units = "cm"))
+      dpi       <- input$afdVar_dpi
+      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      p <- withCallingHandlers(
+        suppressMessages(createAfdVarPlot(afdResultReactive())),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
+      withCallingHandlers(
+        suppressWarnings(ggsave(file, plot = p, device = input$afdVar_format,
+                                width = auto_dims$width, height = auto_dims$height,
+                                dpi = dpi, units = "cm")),
+        warning = function(w) {
+          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
+        }
+      )
     }
   )
   

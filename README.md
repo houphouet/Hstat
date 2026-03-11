@@ -17,7 +17,7 @@ HStat is an interactive web application built with R Shiny that enables a comple
 Open RStudio, then run in the console:
 
 ```r
-shiny::runApp("HStat.R")
+shiny::runApp("app.R")
 ```
 
 Required packages are installed automatically if needed.
@@ -28,7 +28,7 @@ Required packages are installed automatically if needed.
 
 ```
 HStat/
-├── HStat.R        # Entry point: sources the modules and calls shinyApp()
+├── app.R        # Entry point: sources the modules and calls shinyApp()
 ├── Utils.R      # Encoding, package installation, utility functions
 ├── UX.R         # User interface (ui object)
 ├── Server.R     # Server logic (server function)

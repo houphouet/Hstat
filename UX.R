@@ -258,7 +258,7 @@ ui <- dashboardPage(
                     )
                   ),
                   
-                  # Accordéon pour les options
+                  # Options graphiques
                   tags$div(
                     class = "panel-group",
                     id = "corrOptionsAccordion",
@@ -661,7 +661,7 @@ ui <- dashboardPage(
               
               # Étape 2: Gestion des variables
               fluidRow(
-                # Gestion Variables + Lignes (regroupé)
+                # Gestion Variables + Lignes 
                 box(
                   title = tagList(
                     tags$span(
@@ -680,7 +680,7 @@ ui <- dashboardPage(
                   tabsetPanel(
                     type = "tabs",
                     
-                    # Onglet 1 : Supprimer variable ─────────────────────────────
+                    # Onglet 1 : Supprimer variable
                     tabPanel(
                       title = tagList(icon("columns"), " Supprimer Variable"),
                       br(),
@@ -697,7 +697,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # Onglet 2 : Supprimer lignes ────────────────────────────────
+                    # Onglet 2 : Supprimer lignes
                     tabPanel(
                       title = tagList(icon("trash-alt"), " Supprimer Lignes"),
                       br(),
@@ -742,7 +742,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # Onglet 3 : Ajouter variable constante ─────────────────────
+                    # Onglet 3 : Ajouter variable constante
                     tabPanel(
                       title = tagList(icon("plus-circle"), " Ajouter Variable"),
                       br(),
@@ -790,7 +790,7 @@ ui <- dashboardPage(
                       placeholder = "ex: Moyenne_Score"
                     ),
                     
-                    # ── Sélection de colonnes et lignes ─────────────────────────
+                    # ── Sélection de colonnes et lignes
                     fluidRow(
                       column(6,
                         div(
@@ -814,7 +814,7 @@ ui <- dashboardPage(
                     
                     br(),
                     
-                    # ── Opérateurs et fonctions ──────────────────────────────────
+                    # ── Opérateurs et fonctions
                     fluidRow(
                       column(12,
                         div(
@@ -857,7 +857,7 @@ ui <- dashboardPage(
                       placeholder = "ex: (Rendement + Biomasse) / 2   |   sum(Poids, Hauteur)   |   sqrt(Var1 * Var2)"
                     ),
                     
-                    # ── Exemples de fonctions ────────────────────────────────
+                    # ── Exemples d'application des fonctions
                     tags$div(
                       style = "margin-top:4px; margin-bottom:12px; padding:10px 12px; background:#f0f7ff; border:1px solid #bee3f8; border-radius:6px; font-size:11.5px;",
                       tags$b(style="color:#1a56db; font-size:12px;", icon("calculator"), " Exemples d'utilisation :"),
@@ -901,7 +901,7 @@ ui <- dashboardPage(
                         # ── En-tête transformations ──
                         tags$tr(style="background:#dcfce7;",
                           tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
-                            icon("function")," Transformations classiques")
+                            icon("calculator")," Transformations classiques")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                           tags$td(style="padding:3px 6px;",
@@ -1032,7 +1032,6 @@ ui <- dashboardPage(
                 )
               ),
               
-              # (Suppression de lignes déplacée dans Box 2 - Gestion Variables et Lignes)
 
               # Aperçu des données nettoyées
               fluidRow(
@@ -1305,60 +1304,16 @@ ui <- dashboardPage(
                                            min = 400, max = 2000, value = 600, step = 50, width = "100%")
                              ),
                              
-                             # TÉLÉCHARGEMENT DU GRAPHIQUE
-                             tags$div(
-                               style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);",
-                               h6(icon("download"), " Télécharger le Graphique", 
-                                  style = "color: white; font-weight: bold; margin-bottom: 15px; text-align: center; font-size: 16px;"),
-                               sliderInput("descPlotDPI", "Résolution (DPI):", 
-                                           min = 300, max = 600, value = 300, step = 50, width = "100%"),
-                               tags$div(
-                                 style = "background-color: rgba(255,255,255,0.2); padding: 10px; border-radius: 6px; margin-bottom: 10px;",
-                                 tags$p(tagList(icon("info-circle"), " Formats bitmap (avec pertes)"), 
-                                        style = "color: white; font-weight: bold; margin: 5px 0; font-size: 13px;")
-                               ),
-                               downloadButton("downloadDescPlotPNG", 
-                                              HTML("<i class='fa fa-image'></i> PNG (recommandé)"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600; margin-bottom: 8px;"),
-                               downloadButton("downloadDescPlotJPEG", 
-                                              HTML("<i class='fa fa-image'></i> JPEG"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600; margin-bottom: 8px;"),
-                               downloadButton("downloadDescPlotTIFF", 
-                                              HTML("<i class='fa fa-image'></i> TIFF (haute qualité)"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600; margin-bottom: 15px;"),
-                               tags$div(
-                                 style = "background-color: rgba(255,255,255,0.2); padding: 10px; border-radius: 6px; margin-bottom: 10px;",
-                                 tags$p(tagList(icon("vector-square"), " Formats vectoriels (sans pertes)"), 
-                                        style = "color: white; font-weight: bold; margin: 5px 0; font-size: 13px;")
-                               ),
-                               downloadButton("downloadDescPlotPDF", 
-                                              HTML("<i class='fa fa-file-pdf'></i> PDF"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600; margin-bottom: 8px;"),
-                               downloadButton("downloadDescPlotSVG", 
-                                              HTML("<i class='fa fa-file-code'></i> SVG (web)"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600; margin-bottom: 8px;"),
-                               downloadButton("downloadDescPlotEPS", 
-                                              HTML("<i class='fa fa-file'></i> EPS (publication)"), 
-                                              class = "btn-light btn-block", 
-                                              style = "font-weight: 600;")
+                             # TÉLÉCHARGEMENT DU GRAPHIQUE 
+                             fluidRow(
+                               column(6, selectInput("descPlot_format", "Format:",
+                                                     choices = c("png", "svg", "pdf", "tiff"),
+                                                     selected = "png")),
+                               column(6, numericInput("descPlot_dpi", "DPI:",
+                                                      value = 300, min = 72, max = 1200))
                              ),
-                             br(),
-                             tags$div(
-                               style = "background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 4px solid #4caf50;",
-                               h6(icon("lightbulb"), " Conseils", style = "color: #2e7d32; font-weight: bold; margin-bottom: 10px;"),
-                               tags$ul(
-                                 style = "font-size: 13px; color: #424242; margin: 0; padding-left: 20px;",
-                                 tags$li("PNG: Idéal pour le web et les présentations", style = "margin-bottom: 5px;"),
-                                 tags$li("PDF/SVG: Parfaits pour l'impression et publications", style = "margin-bottom: 5px;"),
-                                 tags$li("TIFF: Pour l'archivage haute qualité", style = "margin-bottom: 5px;"),
-                                 tags$li("Augmentez le DPI pour une meilleure qualité d'impression")
-                               )
-                             )
+                             downloadButton("downloadDescPlot", "Télécharger le Graphique",
+                                            class = "btn-info btn-sm")
                       ),
                       column(8,
                              wellPanel(
@@ -2028,7 +1983,7 @@ ui <- dashboardPage(
                     # Variable X avec actualisation auto
                     uiOutput("vizXVarSelect"),
                     
-                    # Type de variable X avec détection automatique
+                    # Iddentiquer le type de variable X avec détection automatique
                     selectInput(
                       "xVarType",
                       tagList(icon("magic"), " Type de la variable X:"),
@@ -2048,7 +2003,7 @@ ui <- dashboardPage(
                     )
                   ),
                   
-                  #  Personnalisation des étiquettes X (tous types)
+                  #  Personnalisation des étiquettes de l'axe X 
                   conditionalPanel(
                     condition = "true",
                     div(
@@ -2085,7 +2040,7 @@ ui <- dashboardPage(
                     )
                   ),
                   
-                  #  Options pour les dates
+                  #  Formatage des dates
                   conditionalPanel(
                     condition = "input.xVarType == 'date'",
                     div(
@@ -2157,7 +2112,7 @@ ui <- dashboardPage(
                     )
                   ),
                   
-                  #  Variable(s) Y avec support multi-sélection
+                  #  Selection multiples des Variable(s) Y avec support multi-sélection
                   div(
                     class = "well",
                     style = "background-color: #f1f8e9; border-left: 4px solid #8bc34a; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
@@ -2326,7 +2281,7 @@ ui <- dashboardPage(
                     )
                   ),
                   
-                  #  Bouton de mise à jour (optionnel, car auto)
+                  #  Bouton de mise à jour 
                   div(
                     style = "text-align: center; margin-top: 20px;",
                     actionButton(
@@ -2729,7 +2684,7 @@ ui <- dashboardPage(
                                    style = "font-size: 11px; color: #555; margin-top: 6px;")
                         ),
                         
-                        # ── AXE Y SECONDAIRE (droite) ─────────────────────
+                        # ── AXE Y SECONDAIRE (droite) 
                         conditionalPanel(
                           condition = "output.multiYIndicator == true",
                           div(
@@ -2745,48 +2700,39 @@ ui <- dashboardPage(
                             
                             hr(style="border-color:#ffe0b2; margin:10px 0;"),
                             
-                            # ── Niveaux (tick) axe Y2 ──
+                            # ── Note miroir Y1 ──
                             div(
-                              style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
-                              h6(icon("tag"), " Niveaux axe Y2",
-                                 style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
-                              div(
-                                style = "display:flex; gap:10px;",
-                                checkboxInput("y2TickBold",   tagList(icon("bold"),   " Gras"),    value = FALSE),
-                                checkboxInput("y2TickItalic", tagList(icon("italic"), " Italique"), value = FALSE)
+                              style = "margin-bottom:12px; padding:10px; background:#fff8e1; border-radius:6px; border-left:3px solid #ff9800;",
+                              tags$p(
+                                icon("sync-alt", style="color:#e65100;"),
+                                tags$b(style="color:#e65100;", " Mise en forme automatique"),
+                                style = "font-size:12px; margin:0 0 4px 0;"
                               ),
-                              sliderInput("y2TickSize", "Taille:", min = 6, max = 20, value = 10, step = 1)
-                            ),
-                            
-                            # ── Label (titre) axe Y2 ──
-                            div(
-                              style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
-                              h6(icon("font"), " Label axe Y2",
-                                 style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
-                              div(
-                                style = "display:flex; gap:10px;",
-                                checkboxInput("y2AxisBold",   tagList(icon("bold"),   " Gras"),    value = FALSE),
-                                checkboxInput("y2AxisItalic", tagList(icon("italic"), " Italique"), value = FALSE)
-                              ),
-                              textInput("y2AxisLabel", "Nom de l'axe Y2:", placeholder = "ex: Température (°C)"),
-                              sliderInput(
-                                "y2AxisLabelSize",
-                                tagList(icon("text-height"), " Taille du label Y2:"),
-                                min = 8, max = 18, value = 11, step = 1
+                              tags$p(
+                                "Taille, police (gras/italique) et épaisseur de l'axe Y2 suivent automatiquement les paramètres de l'axe Y principal.",
+                                style = "font-size:11px; color:#555; margin:0;"
                               )
                             ),
                             
-                            # ── Épaisseur ligne axe Y2 ──
+                            # ── Nom du label axe Y2 ──
                             div(
                               style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
-                              h6(icon("minus"), " Ligne axe Y2",
+                              h6(icon("font"), " Nom du label axe Y2",
+                                 style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
+                              textInput("y2AxisLabel", "Nom de l'axe Y2:", placeholder = "ex: Température (°C)")
+                            ),
+                            
+                            # ── Épaisseur de la courbe Y2 ──
+                            div(
+                              style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
+                              h6(icon("chart-line"), " Épaisseur courbe Y2",
                                  style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
                               sliderInput(
-                                "y2LineSize",
-                                tagList(icon("ruler-horizontal"), " Épaisseur ligne Y2:"),
-                                min = 0, max = 3, value = 0.8, step = 0.1
+                                "y2CurveWidth",
+                                tagList(icon("minus"), " Épaisseur courbe :"),
+                                min = 0.5, max = 5, value = 1.2, step = 0.5
                               ),
-                              helpText(icon("info-circle"), "0 = ligne invisible.",
+                              helpText(icon("info-circle"), "Indépendant de 'Épaisseur des lignes' Y1.",
                                        style = "font-size:11px; color:#888;")
                             ),
                             
@@ -3364,7 +3310,6 @@ ui <- dashboardPage(
                     br(), br(),
                     
                     
-                    # Options graphiques disponibles sous le graphique (onglet Graphiques)
                 ),
                 
                 
@@ -3528,7 +3473,7 @@ ui <- dashboardPage(
                                   
                                   br(),
                                   
-                                  # ── Options du graphique (juste sous le graphique) ────────────────────
+                                  # ── Options du graphique
                                   div(style = "border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;",
                                     div(
                                       class = "panel-heading",
@@ -3691,7 +3636,7 @@ ui <- dashboardPage(
                                   
                                   br(),
                                   
-                                  # ── Téléchargement (après les options) ────────────────────────────────
+                                  # ── Téléchargement
                                   div(style = "text-align: center;",
                                       downloadButton("downloadMultiPlot",
                                                      tagList(icon("image"), " Télécharger le graphique (PNG)"),
@@ -3840,9 +3785,7 @@ ui <- dashboardPage(
                     h5("Options de Téléchargement graphique:", style = "font-weight: bold; color: #495057;"),
                     fluidRow(
                       column(6,
-                             selectInput("pcaPlot_format", "Format:",
-                                         choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
-                                         selected = "png")
+                             selectInput("pcaPlot_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                       ),
                       column(6,
                              numericInput("pcaPlot_dpi", "Resolution (DPI):", value = 300, min = 72, max = 1200)
@@ -4024,9 +3967,7 @@ ui <- dashboardPage(
                                icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
-                                      selectInput("hcpcCluster_format", "Format:",
-                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
-                                                  selected = "png")
+                                      selectInput("hcpcCluster_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                ),
                                column(6,
                                       numericInput("hcpcCluster_dpi", "DPI:", value = 300, min = 72, max = 2000)
@@ -4052,9 +3993,7 @@ ui <- dashboardPage(
                                icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
-                                      selectInput("hcpcDend_format", "Format:",
-                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
-                                                  selected = "png")
+                                      selectInput("hcpcDend_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                ),
                                column(6,
                                       numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = 2000)
@@ -4301,9 +4240,7 @@ ui <- dashboardPage(
                                icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
-                                      selectInput("afdInd_format", "Format:",
-                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
-                                                  selected = "png")
+                                      selectInput("afdInd_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                ),
                                column(6,
                                       numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = 2000)
@@ -4330,9 +4267,7 @@ ui <- dashboardPage(
                                icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                              fluidRow(
                                column(6,
-                                      selectInput("afdVar_format", "Format:",
-                                                  choices = c("png", "jpg", "jpeg", "tiff", "bmp", "svg", "pdf", "eps"),
-                                                  selected = "png")
+                                      selectInput("afdVar_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                ),
                                column(6,
                                       numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = 2000)
