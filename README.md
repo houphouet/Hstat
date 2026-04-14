@@ -28,7 +28,7 @@ Required packages are installed automatically if needed.
 
 ```
 HStat/
-├── Hstat.R        # Entry point: sources the modules and calls shinyApp()
+├── HStat.R        # Entry point: sources the modules and calls shinyApp()
 ├── Utils.R      # Encoding, package installation, utility functions
 ├── UX.R         # User interface (ui object)
 ├── Server.R     # Server logic (server function)
