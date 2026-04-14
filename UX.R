@@ -175,8 +175,8 @@ ui <- dashboardPage(
                         style  = "display: inline-block !important; width: auto;"
                       ),
                       tags$small(style="color:#7f8c8d; display:block; margin-top:5px;",
-                        icon("info-circle"),
-                        " 120 observations, 12 variables (numérique, facteur, NA inclus)"
+                                 icon("info-circle"),
+                                 " 120 observations, 12 variables (numérique, facteur, NA inclus)"
                       )
                     )
                 )
@@ -710,16 +710,16 @@ ui <- dashboardPage(
                           div(
                             style = "background-color: #ffebee; padding: 12px; border-radius: 5px;",
                             tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
-                              "Formats : ", tags$code("1,3,5"), " — ", tags$code("10 à 20"), " — ", tags$code("1,3,10 à 15")),
+                                   "Formats : ", tags$code("1,3,5"), " — ", tags$code("10 à 20"), " — ", tags$code("1,3,10 à 15")),
                             textAreaInput("deleteRowsInput", NULL,
-                              placeholder = "1,3,5
+                                          placeholder = "1,3,5
 10 à 20
 1,3,5,10 à 15",
-                              rows = 3, width = "100%"),
+                                          rows = 3, width = "100%"),
                             uiOutput("deleteRowsPreview"),
                             actionButton("applyDeleteRows",
-                              tagList(icon("trash"), " Supprimer"),
-                              class = "btn-danger btn-block", style = "margin-top: 8px; font-weight: bold;")
+                                         tagList(icon("trash"), " Supprimer"),
+                                         class = "btn-danger btn-block", style = "margin-top: 8px; font-weight: bold;")
                           )
                         ),
                         
@@ -727,7 +727,7 @@ ui <- dashboardPage(
                           title = tagList(icon("mouse-pointer"), " Interactif"),
                           br(),
                           tags$p(style = "font-size: 11px; color: #555; margin-bottom: 8px;",
-                            icon("hand-pointer"), " Cliquez sur les lignes (Ctrl = multiple)"),
+                                 icon("hand-pointer"), " Cliquez sur les lignes (Ctrl = multiple)"),
                           div(
                             style = "border: 1px solid #dee2e6; border-radius: 5px; overflow: hidden;",
                             DT::dataTableOutput("deleteRowsTable", height = "260px")
@@ -736,8 +736,8 @@ ui <- dashboardPage(
                           uiOutput("deleteRowsInteractivePreview"),
                           br(),
                           actionButton("applyDeleteRowsInteractive",
-                            tagList(icon("trash"), " Supprimer la sélection"),
-                            class = "btn-danger btn-block", style = "font-weight: bold;")
+                                       tagList(icon("trash"), " Supprimer la sélection"),
+                                       class = "btn-danger btn-block", style = "font-weight: bold;")
                         )
                       )
                     ),
@@ -750,12 +750,12 @@ ui <- dashboardPage(
                         style = "background-color: #e8f5e9; padding: 15px; border-radius: 5px;",
                         h5(icon("plus-circle"), "Ajouter une Variable Constante", style = "color: #27ae60; margin-top: 0;"),
                         tags$p(style = "font-size: 12px; color: #7f8c8d;",
-                          "Crée une nouvelle colonne avec une valeur identique pour toutes les lignes"),
+                               "Crée une nouvelle colonne avec une valeur identique pour toutes les lignes"),
                         textInput("newVarName", "Nom:", placeholder = "ex: Categorie"),
                         numericInput("newVarValue", "Valeur par défaut:", 0),
                         actionButton("addVar",
-                          tagList(icon("plus"), " Ajouter"),
-                          class = "btn-success btn-block")
+                                     tagList(icon("plus"), " Ajouter"),
+                                     class = "btn-success btn-block")
                       )
                     )
                   )
@@ -793,22 +793,22 @@ ui <- dashboardPage(
                     # ── Sélection de colonnes et lignes
                     fluidRow(
                       column(6,
-                        div(
-                          style = "background-color: #eef7ff; padding: 10px; border-radius: 5px;",
-                          h6(icon("columns"), " Colonnes", style = "margin-bottom: 6px; color: #2c5aa0;"),
-                          uiOutput("colPicker"),
-                          tags$small(style = "color: #6c757d;",
-                            icon("info-circle"), " Cliquez pour insérer dans la formule")
-                        )
+                             div(
+                               style = "background-color: #eef7ff; padding: 10px; border-radius: 5px;",
+                               h6(icon("columns"), " Colonnes", style = "margin-bottom: 6px; color: #2c5aa0;"),
+                               uiOutput("colPicker"),
+                               tags$small(style = "color: #6c757d;",
+                                          icon("info-circle"), " Cliquez pour insérer dans la formule")
+                             )
                       ),
                       column(6,
-                        div(
-                          style = "background-color: #f0fff4; padding: 10px; border-radius: 5px;",
-                          h6(icon("filter"), " Filtrer sur lignes (optionnel)", style = "margin-bottom: 6px; color: #1a6e2e;"),
-                          uiOutput("rowCondPicker"),
-                          tags$small(style = "color: #6c757d;",
-                            icon("info-circle"), " Génère ifelse() dans la formule")
-                        )
+                             div(
+                               style = "background-color: #f0fff4; padding: 10px; border-radius: 5px;",
+                               h6(icon("filter"), " Filtrer sur lignes (optionnel)", style = "margin-bottom: 6px; color: #1a6e2e;"),
+                               uiOutput("rowCondPicker"),
+                               tags$small(style = "color: #6c757d;",
+                                          icon("info-circle"), " Génère ifelse() dans la formule")
+                             )
                       )
                     ),
                     
@@ -817,37 +817,37 @@ ui <- dashboardPage(
                     # ── Opérateurs et fonctions
                     fluidRow(
                       column(12,
-                        div(
-                          style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px;",
-                          fluidRow(
-                            column(6,
-                              h6("Opérateurs :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
-                              div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
-                                actionButton("insertPlus",  "+",  class = "btn-outline-secondary btn-sm"),
-                                actionButton("insertMoins", "-",  class = "btn-outline-secondary btn-sm"),
-                                actionButton("insertMult",  "×",  class = "btn-outline-secondary btn-sm"),
-                                actionButton("insertDiv",   "÷",  class = "btn-outline-secondary btn-sm"),
-                                actionButton("insertPow",   "^",  class = "btn-outline-secondary btn-sm"),
-                                actionButton("insertParen", "()", class = "btn-outline-secondary btn-sm")
-                              )
-                            ),
-                            column(6,
-                              h6("Fonctions :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
-                              div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
-                                actionButton("insertLog",   "log()",    class = "btn-outline-info btn-sm"),
-                                actionButton("insertLog10", "log10()",  class = "btn-outline-info btn-sm"),
-                                actionButton("insertSqrt",  "sqrt()",   class = "btn-outline-info btn-sm"),
-                                actionButton("insertAbs",   "abs()",    class = "btn-outline-info btn-sm"),
-                                actionButton("insertRound", "round()",  class = "btn-outline-info btn-sm"),
-                                actionButton("insertExp",   "exp()",    class = "btn-outline-info btn-sm"),
-                                actionButton("insertMean",  "mean()",   class = "btn-outline-info btn-sm"),
-                                actionButton("insertSum",   "sum()",    class = "btn-outline-info btn-sm"),
-                                actionButton("insertIfelse","ifelse()", class = "btn-outline-warning btn-sm"),
-                                actionButton("insertIsNA",  "is.na()",  class = "btn-outline-warning btn-sm")
-                              )
-                            )
-                          )
-                        )
+                             div(
+                               style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px;",
+                               fluidRow(
+                                 column(6,
+                                        h6("Opérateurs :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
+                                        div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
+                                            actionButton("insertPlus",  "+",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertMoins", "-",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertMult",  "×",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertDiv",   "÷",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertPow",   "^",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertParen", "()", class = "btn-outline-secondary btn-sm")
+                                        )
+                                 ),
+                                 column(6,
+                                        h6("Fonctions :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
+                                        div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
+                                            actionButton("insertLog",   "log()",    class = "btn-outline-info btn-sm"),
+                                            actionButton("insertLog10", "log10()",  class = "btn-outline-info btn-sm"),
+                                            actionButton("insertSqrt",  "sqrt()",   class = "btn-outline-info btn-sm"),
+                                            actionButton("insertAbs",   "abs()",    class = "btn-outline-info btn-sm"),
+                                            actionButton("insertRound", "round()",  class = "btn-outline-info btn-sm"),
+                                            actionButton("insertExp",   "exp()",    class = "btn-outline-info btn-sm"),
+                                            actionButton("insertMean",  "mean()",   class = "btn-outline-info btn-sm"),
+                                            actionButton("insertSum",   "sum()",    class = "btn-outline-info btn-sm"),
+                                            actionButton("insertIfelse","ifelse()", class = "btn-outline-warning btn-sm"),
+                                            actionButton("insertIsNA",  "is.na()",  class = "btn-outline-warning btn-sm")
+                                        )
+                                 )
+                               )
+                             )
                       )
                     ),
                     
@@ -865,78 +865,78 @@ ui <- dashboardPage(
                         style = "width:100%; margin-top:6px; border-collapse:collapse;",
                         # ── En-tête opérations multi-variables ──
                         tags$tr(style="background:#dbeafe;",
-                          tags$td(colspan="2",style="padding:4px 8px;color:#1e40af;font-size:11px;font-weight:bold;",
-                            icon("layer-group")," Opérations sur plusieurs variables")
+                                tags$td(colspan="2",style="padding:4px 8px;color:#1e40af;font-size:11px;font-weight:bold;",
+                                        icon("layer-group")," Opérations sur plusieurs variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;color:#555;width:52%;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "(Rendement + Biomasse) / 2")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Moyenne de 2 variables")
+                                tags$td(style="padding:3px 6px;color:#555;width:52%;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "(Rendement + Biomasse) / 2")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne de 2 variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "mean(c(Rendement, Biomasse, Poids))")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Moyenne (n variables)")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "mean(c(Rendement, Biomasse, Poids))")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne (n variables)")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "Rendement + Biomasse + Poids")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Somme de variables")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "Rendement + Biomasse + Poids")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Somme de variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "Rendement / (Biomasse + Poids)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Ratio entre variables")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "Rendement / (Biomasse + Poids)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Ratio entre variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "sqrt(Rendement * Biomasse)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Moyenne géométrique")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "sqrt(Rendement * Biomasse)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne géométrique")
                         ),
                         # ── En-tête transformations ──
                         tags$tr(style="background:#dcfce7;",
-                          tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
-                            icon("calculator")," Transformations classiques")
+                                tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
+                                        icon("calculator")," Transformations classiques")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "log(Rendement)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Logarithme naturel")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "log(Rendement)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Logarithme naturel")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "log10(Rendement + 1)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Log10 (si zéros présents)")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "log10(Rendement + 1)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Log10 (si zéros présents)")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "sqrt(Rendement)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Racine carrée")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "sqrt(Rendement)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Racine carrée")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "Rendement^2")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Mise au carré")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "Rendement^2")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Mise au carré")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                          tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "round(Rendement / Biomasse, 3)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Ratio arrondi à 3 déc.")
+                                tags$td(style="padding:3px 6px;",
+                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                                  "round(Rendement / Biomasse, 3)")),
+                                tags$td(style="padding:3px 6px;color:#666;","→ Ratio arrondi à 3 déc.")
                         ),
                         tags$tr(
                           tags$td(style="padding:3px 6px;",
-                            tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
-                              "(Rendement - mean(Rendement)) / sd(Rendement)")),
+                                  tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                                            "(Rendement - mean(Rendement)) / sd(Rendement)")),
                           tags$td(style="padding:3px 6px;color:#666;","→ Z-score")
                         )
                       )
@@ -1032,7 +1032,7 @@ ui <- dashboardPage(
                 )
               ),
               
-
+              
               # Aperçu des données nettoyées
               fluidRow(
                 box(
@@ -1044,13 +1044,13 @@ ui <- dashboardPage(
                   width = 12,
                   solidHeader = TRUE,
                   collapsible = TRUE,
-
+                  
                   withSpinner(
                     DTOutput("cleanedData"),
                     type = 6,
                     color = "#27ae60"
                   ),
-
+                  
                   footer = div(
                     style = "font-size: 12px; color: #7f8c8d;",
                     icon("info-circle"),
@@ -1473,472 +1473,565 @@ ui <- dashboardPage(
       ),
       
       # ---- Tableaux croisés dynamiques  ----
+      
       tabItem(tabName = "crosstab",
               
-              # En-tête avec instructions
+              
+              
+              # Guide d'utilisation (collapsible)
+              
+              
               fluidRow(
-                box(title = tagList(icon("info-circle"), "Guide d'utilisation"), 
-                    status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
-                    div(style = "padding: 15px;",
-                        tags$ol(
-                          tags$li(tags$strong("Sélectionnez"), " vos variables en lignes et colonnes"),
-                          tags$li(tags$strong("Choisissez"), " les analyses statistiques souhaitées"),
-                          tags$li(tags$strong("Cliquez"), " sur 'Générer l'analyse complète'"),
-                          tags$li(tags$strong("Explorez"), " les résultats dans les différents onglets"),
-                          tags$li(tags$strong("Personnalisez"), " vos graphiques si nécessaire"),
-                          tags$li(tags$strong("Téléchargez"), " vos tableaux et graphiques")
-                        )
-                    )
+                box(
+                  title       = tagList(icon("info-circle"), " Guide d'utilisation"),
+                  status      = "info", width = 12,
+                  solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  div(style = "padding:10px 20px;",
+                      tags$ol(
+                        tags$li(tags$strong("Sélectionnez"), " les variables en lignes et en colonnes."),
+                        tags$li(tags$strong("Appliquez"), " un filtre si nécessaire — sur la variable en ligne/colonne ou sur une variable tierce (filtre additionnel)."),
+                        tags$li(tags$strong("Choisissez"), " les analyses et le type de graphique souhaités."),
+                        tags$li(tags$strong("Cliquez"), " sur ", tags$em("« Générer l'analyse »"), " pour lancer le calcul."),
+                        tags$li(tags$strong("Explorez"), " les résultats dans les onglets dédiés."),
+                        tags$li(tags$strong("Personnalisez"), " les graphiques (ordre des niveaux, renommage, couleurs, axes…)."),
+                        tags$li(tags$strong("Téléchargez"), " tableaux et graphiques aux formats souhaités (jusqu'à 20 000 DPI).")
+                      )
+                  )
                 )
               ),
               
-              # Section Configuration
+              
+              
+              # Configuration + Résultats
+              
+              
               fluidRow(
-                box(title = tagList(icon("cogs"), "Configuration de l'analyse"), 
-                    status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
-                    
-                    # Sélection des variables
-                    div(class = "form-group",
-                        tags$label("Sélection des variables", 
-                                   style = "font-weight: bold; color: #2c3e50; font-size: 15px;"),
-                        uiOutput("crosstabRowVarSelect"),
-                        uiOutput("crosstabColVarSelect"),
-                        uiOutput("crosstabFilterVarSelect")
-                    ),
-                    
-                    hr(style = "border-top: 2px solid #3498db; margin: 20px 0;"),
-                    
-                    # Options d'analyse
-                    div(class = "well well-sm",
-                        tags$h5(
-                          icon("chart-bar"), 
-                          "Options d'analyse statistique",
-                          style = "font-weight: bold; color: #495057; margin-top: 5px;"
-                        ),
-                        checkboxGroupInput("analysisOptions", NULL,
-                                           choices = list(
-                                             "Proportions en lignes (%)" = "row_prop",
-                                             "Proportions en colonnes (%)" = "col_prop", 
-                                             "Proportions totales (%)" = "total_prop",
-                                             "Test du Chi-deux" = "chi_test",
-                                             "Test exact de Fisher" = "fisher_test",
-                                             "Résidus standardisés" = "residuals"
-                                           ),
-                                           selected = c("row_prop", "col_prop", "chi_test")),
-                        tags$small(
-                          class = "text-muted",
-                          icon("lightbulb"), " Note: Les résidus nécessitent le test du Chi-deux"
-                        )
-                    ),
-                    
-                    hr(style = "border-top: 2px solid #27ae60; margin: 20px 0;"),
-                    
-                    # Type de graphique
-                    div(class = "well well-sm",
-                        tags$h5(
-                          icon("paint-brush"), 
-                          "Type de représentation graphique",
-                          style = "font-weight: bold; color: #27ae60; margin-top: 5px;"
-                        ),
-                        radioButtons("plotType", NULL,
-                                     choices = c("Histogramme groupé" = "bar",
-                                                 "Histogramme empilé" = "stacked_bar",
-                                                 "Graphique mosaïque (proportions)" = "mosaic"),
-                                     selected = "bar"),
-                        selectInput("colorPalette", "Palette de couleurs :",
-                                    choices = c(
-                                      "Par défaut" = "ggplot_default",
-                                      "Noir" = "black",
-                                      "Viridis" = "viridis",
-                                      "Plasma" = "plasma",
-                                      "Inferno" = "inferno",
-                                      "Magma" = "magma",
-                                      "Set1" = "Set1",
-                                      "Set2" = "Set2",
-                                      "Pastel" = "Pastel1",
-                                      "Spectral" = "Spectral",
-                                      "Niveaux de gris" = "grey"
-                                    ),
-                                    selected = "ggplot_default",
-                                    width = "100%")
-                    ),
-                    
-                    hr(style = "border-top: 2px solid #e74c3c; margin: 20px 0;"),
-                    
-                    # Bouton de génération
-                    actionButton("generateCrosstab", 
-                                 "Générer l'analyse complète", 
-                                 class = "btn-primary btn-lg btn-block", 
-                                 icon = icon("play-circle"),
-                                 style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 10px; margin-bottom: 10px; background: linear-gradient(to right, #495057, #343a40); box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
-                ),
                 
-                # Section Résultats
-                box(title = tagList(icon("table"), "Résultats de l'analyse croisée"), 
-                    status = "primary", width = 8, solidHeader = TRUE, collapsible = TRUE,
+                # ── Panneau de configuration ────────────────────────────────
+                box(
+                  title       = tagList(icon("cogs"), " Configuration de l'analyse"),
+                  status      = "primary", width = 4,
+                  solidHeader = TRUE, collapsible = TRUE,
+                  
+                  # · Variables ·
+                  div(
+                    tags$label("Variables à croiser",
+                               style = "font-weight:bold; color:#2c3e50; font-size:15px;"),
+                    br(),
+                    uiOutput("crosstabRowVarSelect"),
+                    uiOutput("crosstabColVarSelect")
+                  ),
+                  
+                  hr(style = "border-top:2px solid #3498db; margin:18px 0;"),
+                  
+                  # · Filtre principal (sur var. en lignes ou colonnes) ·
+                  div(
+                    class = "well well-sm",
+                    style = "background:#f0f8ff; border-left:4px solid #3498db; padding:12px;",
                     
-                    tabBox(
-                      title = NULL, id = "crosstabTabs", width = 12,
-                      
-                      # Onglet Effectifs
-                      tabPanel(
-                        tagList(icon("table"), "Effectifs"), 
-                        value = "tab_effectifs",
-                        br(),
-                        DTOutput("crosstabTable"),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadCrosstabExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadCrosstabCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      ),
-                      
-                      # Onglet Proportions lignes
-                      tabPanel(
-                        tagList(icon("percentage"), "Proportions lignes"), 
-                        value = "tab_prop_lignes",
-                        br(),
-                        div(class = "alert alert-info",
-                            icon("info-circle"), 
-                            tags$strong(" Interprétation:"),
-                            " Pourcentages calculés par rapport au total de chaque ligne (somme = 100% par ligne)"
-                        ),
-                        DTOutput("crosstabRowProp"),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadRowPropExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadRowPropCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      ),
-                      
-                      # Onglet Proportions colonnes
-                      tabPanel(
-                        tagList(icon("percentage"), "Proportions colonnes"), 
-                        value = "tab_prop_colonnes",
-                        br(),
-                        div(class = "alert alert-info",
-                            icon("info-circle"), 
-                            tags$strong(" Interprétation:"),
-                            " Pourcentages calculés par rapport au total de chaque colonne (somme = 100% par colonne)"
-                        ),
-                        DTOutput("crosstabColProp"),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadColPropExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadColPropCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      ),
-                      
-                      # Onglet Proportions totales
-                      tabPanel(
-                        tagList(icon("percentage"), "Proportions totales"), 
-                        value = "tab_prop_totales",
-                        br(),
-                        div(class = "alert alert-info",
-                            icon("info-circle"), 
-                            tags$strong(" Interprétation:"),
-                            " Pourcentages calculés par rapport au total général (somme totale = 100%)"
-                        ),
-                        DTOutput("crosstabTotalProp"),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadTotalPropExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadTotalPropCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      ),
-                      
-                      # Onglet Tests statistiques
-                      tabPanel(
-                        tagList(icon("calculator"), "Tests statistiques"), 
-                        value = "tab_tests",
-                        br(),
-                        div(class = "alert alert-success",
-                            icon("check-circle"), 
-                            tags$strong(" Objectif:"),
-                            " Tester l'existence d'une association significative entre les deux variables"
-                        ),
-                        div(class = "well",
-                            style = "background-color: #f8f9fa; border-left: 4px solid #3498db; padding: 20px;",
-                            verbatimTextOutput("crosstabTests")
-                        ),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadTestsExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadTestsCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      ),
-                      
-                      # Onglet Résidus
-                      tabPanel(
-                        tagList(icon("chart-area"), "Résidus standardisés"), 
-                        value = "tab_residus",
-                        br(),
-                        div(class = "alert alert-info",
-                            icon("info-circle"),
-                            tags$strong(" Interprétation: "),
-                            "Les résidus standardisés mesurent l'écart à l'indépendance. ",
-                            tags$ul(
-                              tags$li(tags$strong("| valeur | > 2:"), " Contribution importante (significative)"),
-                              tags$li(tags$strong("Valeur positive:"), " Sur-représentation (plus que prévu)"),
-                              tags$li(tags$strong("Valeur négative:"), " Sous-représentation (moins que prévu)")
-                            )
-                        ),
-                        DTOutput("crosstabResiduals"),
-                        br(),
-                        div(class = "text-center",
-                            fluidRow(
-                              column(6,
-                                     downloadButton("downloadResidualsExcel", 
-                                                    "Télécharger Excel", 
-                                                    class = "btn-success btn-lg", 
-                                                    icon = icon("file-excel"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;")),
-                              column(6,
-                                     downloadButton("downloadResidualsCSV", 
-                                                    "Télécharger CSV", 
-                                                    class = "btn-info btn-lg", 
-                                                    icon = icon("file-csv"),
-                                                    style = "font-weight: bold; padding: 10px 20px; width: 90%;"))
-                            )
-                        )
-                      )
-                    )
-                )
-              ),
-              
-              # Section Personnalisation
-              fluidRow(
-                box(title = tagList(icon("sliders-h"), "Personnalisation des graphiques"), 
-                    status = "warning", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                    tags$h5(icon("filter"), " Filtre principal",
+                            style = "font-weight:bold; color:#3498db; margin-top:0;"),
                     
-                    fluidRow(
-                      # Titres et labels
-                      column(3,
-                             div(class = "well",
-                                 style = "background-color: #fff9e6; border-left: 4px solid #f39c12;",
-                                 tags$h5(
-                                   icon("heading"), 
-                                   "Titres et étiquettes",
-                                   style = "font-weight: bold; color: #f39c12; margin-top: 0;"
-                                 ),
-                                 textInput("crosstabTitle", 
-                                           "Titre principal :", 
-                                           placeholder = "Automatique si vide"),
-                                 textInput("crosstabXLabel", 
-                                           "Étiquette axe X :", 
-                                           placeholder = "Automatique si vide"),
-                                 textInput("crosstabYLabel", 
-                                           "Étiquette axe Y :", 
-                                           placeholder = "Automatique si vide"),
-                                 tags$small(class = "text-muted", 
-                                            icon("lightbulb"), " Laissez vide pour les titres automatiques")
-                             )
-                      ),
-                      
-                      # Tailles de police
-                      column(3,
-                             div(class = "well",
-                                 style = "background-color: #e8f4f8; border-left: 4px solid #3498db;",
-                                 tags$h5(
-                                   icon("font"), 
-                                   "Tailles des polices",
-                                   style = "font-weight: bold; color: #3498db; margin-top: 0;"
-                                 ),
-                                 sliderInput("titleSize", 
-                                             "Titre principal :", 
-                                             min = 8, max = 32, value = 16, step = 1, 
-                                             post = " pt"),
-                                 sliderInput("axisLabelSize", 
-                                             "Titres des axes :", 
-                                             min = 8, max = 24, value = 12, step = 1, 
-                                             post = " pt"),
-                                 sliderInput("axisTextSize", 
-                                             "Texte des graduations :", 
-                                             min = 6, max = 20, value = 10, step = 1, 
-                                             post = " pt"),
-                                 sliderInput("legendTextSize", 
-                                             "Texte de la légende :", 
-                                             min = 6, max = 20, value = 10, step = 1, 
-                                             post = " pt")
-                             )
-                      ),
-                      
-                      # Style des textes
-                      column(3,
-                             div(class = "well",
-                                 style = "background-color: #fdeaea; border-left: 4px solid #e74c3c;",
-                                 tags$h5(
-                                   icon("bold"), 
-                                   "Style du texte",
-                                   style = "font-weight: bold; color: #e74c3c; margin-top: 0;"
-                                 ),
-                                 tags$strong("Titres des axes :"),
-                                 checkboxInput("axisTitleBold", "Gras", value = TRUE),
-                                 checkboxInput("axisTitleItalic", "Italique", value = FALSE),
-                                 hr(style = "margin: 10px 0; border-top: 1px solid #ddd;"),
-                                 tags$strong("Graduations :"),
-                                 checkboxInput("axisTextBold", "Gras", value = FALSE),
-                                 checkboxInput("axisTextItalic", "Italique", value = FALSE)
-                             )
-                      ),
-                      
-                      # Options d'affichage
-                      column(3,
-                             div(class = "well",
-                                 style = "background-color: #e8f8f5; border-left: 4px solid #1abc9c;",
-                                 tags$h5(
-                                   icon("adjust"), 
-                                   "Options d'affichage",
-                                   style = "font-weight: bold; color: #1abc9c; margin-top: 0;"
-                                 ),
-                                 sliderInput("xAxisRotation", 
-                                             "Rotation axe X :", 
-                                             min = 0, max = 90, value = 45, step = 5, 
-                                             post = "°"),
-                                 checkboxInput("showPercentages", 
-                                               "Afficher les valeurs", 
-                                               value = TRUE),
-                                 checkboxInput("showGridLines", 
-                                               "Afficher la grille", 
-                                               value = TRUE),
-                                 tags$small(class = "help-block text-muted", 
-                                            icon("info-circle"), " Rotation à 0° = étiquettes horizontales")
-                             )
-                      )
-                    )
-                )
-              ),
-              
-              # Section Graphiques
-              fluidRow(
-                # Graphique principal 
-                box(title = tagList(icon("chart-line"), "Graphique principal"), 
-                    status = "success", width = 6, solidHeader = TRUE, collapsible = TRUE,
+                    tags$label("Filtrer par :", style = "font-weight:bold; font-size:13px;"),
+                    uiOutput("crosstabFilterTypeUI"),
                     
                     conditionalPanel(
-                      condition = "!output.crosstabPlot",
-                      div(class = "alert alert-warning text-center", 
-                          style = "margin: 50px 20px;",
-                          icon("exclamation-triangle", class = "fa-3x"),
-                          tags$h4("Aucun graphique généré", style = "margin-top: 20px;"),
-                          tags$p("Veuillez cliquer sur 'Générer l'analyse complète' pour créer le graphique")
+                      condition = "input.crosstabFilterType !== 'none'",
+                      div(
+                        style = "margin-top:10px; max-height:200px; overflow-y:auto;
+                     border:1px solid #d1ecf1; border-radius:4px; padding:8px;
+                     background:#fff;",
+                        uiOutput("crosstabFilterValueSelect")
                       )
                     ),
+                    tags$small(class = "text-muted", icon("lightbulb"),
+                               " Décochez les modalités à exclure.")
+                  ),
+                  
+                  hr(style = "border-top:2px dashed #8e44ad; margin:18px 0;"),
+                  
+                  # Filtre additionnel sur variable tierce ·
+                  div(
+                    class = "well well-sm",
+                    style = "background:#faf5ff; border-left:4px solid #8e44ad; padding:12px;",
                     
-                    plotOutput("crosstabPlot", height = "550px"),
+                    tags$h5(icon("filter"), " Filtre additionnel",
+                            style = "font-weight:bold; color:#8e44ad; margin-top:0;"),
+                    tags$small(class = "text-muted d-block mb-2",
+                               "Restreindre l'analyse à un sous-ensemble défini par une",
+                               tags$strong("autre variable"), " (non sélectionnée en ligne/colonne)."),
                     
-                    hr(style = "border-top: 2px solid #27ae60; margin: 20px 0;"),
+                    uiOutput("additionalFilterVarUI"),
                     
-                    # Paramètres d'export - Rendu conditionnel
-                    uiOutput("plotDownloadSection")
+                    div(
+                      style = "margin-top:4px;",
+                      uiOutput("additionalFilterValuesUI")
+                    ),
+                    
+                    tags$small(class = "text-muted", icon("lightbulb"),
+                               " Décochez les valeurs à exclure.")
+                  ),
+                  
+                  hr(style = "border-top:2px solid #27ae60; margin:18px 0;"),
+                  
+                  # Options d'analyse ·
+                  div(
+                    class = "well well-sm",
+                    style = "background:#f6fffa; border-left:4px solid #27ae60; padding:12px;",
+                    
+                    tags$h5(icon("chart-bar"), " Analyses à produire",
+                            style = "font-weight:bold; color:#27ae60; margin-top:0;"),
+                    
+                    checkboxGroupInput(
+                      "analysisOptions", label = NULL,
+                      choices = list(
+                        "Proportions en lignes (%)"   = "row_prop",
+                        "Proportions en colonnes (%)" = "col_prop",
+                        "Proportions totales (%)"     = "total_prop",
+                        "Test du Chi-deux (χ²)"       = "chi_test",
+                        "Test exact de Fisher"        = "fisher_test",
+                        "Résidus standardisés"        = "residuals"
+                      ),
+                      selected = c("row_prop", "col_prop", "chi_test")
+                    ),
+                    tags$small(class = "text-muted", icon("lightbulb"),
+                               " Les résidus nécessitent le test du Chi-deux.")
+                  ),
+                  
+                  hr(style = "border-top:2px solid #e74c3c; margin:18px 0;"),
+                  
+                  # Type de graphique ·
+                  div(
+                    class = "well well-sm",
+                    style = "background:#fff8f0; border-left:4px solid #e67e22; padding:12px;",
+                    
+                    tags$h5(icon("paint-brush"), " Graphique principal",
+                            style = "font-weight:bold; color:#e67e22; margin-top:0;"),
+                    
+                    tags$label("Type de représentation :", style = "font-weight:bold; font-size:13px;"),
+                    radioButtons(
+                      "plotType", label = NULL,
+                      choices = c(
+                        "Barres groupées"        = "bar",
+                        "Barres empilées"        = "stacked_bar",
+                        "Mosaïque (proportions)" = "mosaic"
+                      ),
+                      selected = "bar"
+                    ),
+                    
+                    tags$label("Données à représenter :", style = "font-weight:bold; font-size:13px;"),
+                    radioButtons(
+                      "plotDataType", label = NULL,
+                      choices = c(
+                        "Effectifs bruts"             = "counts",
+                        "Proportions en lignes (%)"   = "row_prop",
+                        "Proportions en colonnes (%)" = "col_prop"
+                      ),
+                      selected = "counts"
+                    ),
+                    tags$small(class = "text-muted", icon("info-circle"),
+                               " Non applicable au mosaïque (toujours en proportions)."),
+                    
+                    br(),
+                    selectInput(
+                      "colorPalette", "Palette de couleurs :",
+                      choices = c(
+                        "Défaut ggplot2"  = "ggplot_default",
+                        "Viridis"         = "viridis",
+                        "Plasma"          = "plasma",
+                        "Inferno"         = "inferno",
+                        "Magma"           = "magma",
+                        "Set1"            = "Set1",
+                        "Set2"            = "Set2",
+                        "Pastel"          = "Pastel1",
+                        "Spectral"        = "Spectral",
+                        "Niveaux de gris" = "grey",
+                        "Noir uniforme"   = "black"
+                      ),
+                      selected = "ggplot_default", width = "100%"
+                    )
+                  ),
+                  
+                  hr(style = "border-top:2px solid #8e44ad; margin:18px 0;"),
+                  
+                  # Bouton de génération ·
+                  actionButton(
+                    "generateCrosstab", "Générer l'analyse complète",
+                    class = "btn-primary btn-lg btn-block",
+                    icon  = icon("play-circle"),
+                    style = paste0("font-weight:bold; font-size:16px; padding:15px;",
+                                   "background:linear-gradient(to right,#2c3e50,#495057);",
+                                   "box-shadow:0 4px 6px rgba(0,0,0,.15);")
+                  )
                 ),
                 
-                # Graphique en secteurs 
-                box(title = tagList(icon("chart-pie"), "Graphique en secteurs"), 
-                    status = "info", width = 6, solidHeader = TRUE, collapsible = TRUE,
+                # ── Panneau des résultats ────────────────────────────────────
+                box(
+                  title       = tagList(icon("table"), " Résultats"),
+                  status      = "primary", width = 8,
+                  solidHeader = TRUE, collapsible = TRUE,
+                  
+                  tabBox(
+                    title = NULL, id = "crosstabTabs", width = 12,
                     
-                    selectInput("pieVariable", 
-                                "Variable à représenter :",
-                                choices = c(
-                                  "Variable en lignes" = "row", 
-                                  "Variable en colonnes" = "col"
-                                ),
-                                width = "100%"),
-                    
-                    selectInput("pieColorPalette", 
-                                "Palette de couleurs :",
-                                choices = c(
-                                  "Par défaut" = "ggplot_default",
-                                  "Noir" = "black",
-                                  "Viridis" = "viridis",
-                                  "Plasma" = "plasma",
-                                  "Inferno" = "inferno",
-                                  "Set1" = "Set1",
-                                  "Set2" = "Set2",
-                                  "Pastel" = "Pastel1",
-                                  "Spectral" = "Spectral"
-                                ),
-                                selected = "ggplot_default",
-                                width = "100%"),
-                    
-                    conditionalPanel(
-                      condition = "!output.crosstabPiePlot",
-                      div(class = "alert alert-warning text-center", 
-                          style = "margin: 50px 20px;",
-                          icon("exclamation-triangle", class = "fa-3x"),
-                          tags$h4("Aucun graphique généré", style = "margin-top: 20px;"),
-                          tags$p("Veuillez cliquer sur 'Générer l'analyse complète' pour créer le graphique")
+                    # ── Effectifs ──
+                    tabPanel(
+                      tagList(icon("table"), " Effectifs"),
+                      value = "tab_effectifs",
+                      br(),
+                      DTOutput("crosstabTable"),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadCrosstabExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadCrosstabCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
                       )
                     ),
                     
-                    plotOutput("crosstabPiePlot", height = "450px"),
+                    # ── Proportions lignes ──
+                    tabPanel(
+                      tagList(icon("percent"), " Prop. lignes"),
+                      value = "tab_prop_lignes",
+                      br(),
+                      div(class = "alert alert-info",
+                          icon("info-circle"),
+                          tags$strong(" Interprétation : "),
+                          "Pourcentages calculés sur le total de chaque ligne (somme = 100 % par ligne)."),
+                      DTOutput("crosstabRowProp"),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadRowPropExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadRowPropCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
+                      )
+                    ),
                     
-                    hr(style = "border-top: 2px solid #3498db; margin: 20px 0;"),
+                    # ── Proportions colonnes ──
+                    tabPanel(
+                      tagList(icon("percent"), " Prop. colonnes"),
+                      value = "tab_prop_colonnes",
+                      br(),
+                      div(class = "alert alert-info",
+                          icon("info-circle"),
+                          tags$strong(" Interprétation : "),
+                          "Pourcentages calculés sur le total de chaque colonne (somme = 100 % par colonne)."),
+                      DTOutput("crosstabColProp"),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadColPropExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadColPropCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
+                      )
+                    ),
                     
-                    # Paramètres d'export - Rendu conditionnel
-                    uiOutput("pieDownloadSection")
+                    # ── Proportions totales ──
+                    tabPanel(
+                      tagList(icon("percent"), " Prop. totales"),
+                      value = "tab_prop_totales",
+                      br(),
+                      div(class = "alert alert-info",
+                          icon("info-circle"),
+                          tags$strong(" Interprétation : "),
+                          "Pourcentages calculés sur le total général (somme globale = 100 %)."),
+                      DTOutput("crosstabTotalProp"),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadTotalPropExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadTotalPropCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
+                      )
+                    ),
+                    
+                    # ── Tests statistiques ──
+                    tabPanel(
+                      tagList(icon("calculator"), " Tests"),
+                      value = "tab_tests",
+                      br(),
+                      div(class = "alert alert-success",
+                          icon("check-circle"),
+                          tags$strong(" Objectif : "),
+                          "Tester l'existence d'une association significative entre les deux variables."),
+                      div(
+                        class = "well",
+                        style = "background:#f8f9fa; border-left:4px solid #3498db; padding:20px;",
+                        verbatimTextOutput("crosstabTests")
+                      ),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadTestsExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadTestsCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
+                      )
+                    ),
+                    
+                    # ── Résidus standardisés ──
+                    tabPanel(
+                      tagList(icon("chart-area"), " Résidus"),
+                      value = "tab_residus",
+                      br(),
+                      div(class = "alert alert-info",
+                          icon("info-circle"),
+                          tags$strong(" Interprétation : "),
+                          "Les résidus standardisés mesurent l'écart à l'indépendance.",
+                          tags$ul(
+                            tags$li(tags$strong("|valeur| > 2 :"), " contribution significative"),
+                            tags$li(tags$strong("Valeur positive :"), " sur-représentation (plus qu'attendu)"),
+                            tags$li(tags$strong("Valeur négative :"), " sous-représentation (moins qu'attendu)")
+                          )),
+                      DTOutput("crosstabResiduals"),
+                      br(),
+                      fluidRow(
+                        column(6, downloadButton("downloadResidualsExcel", "Excel",
+                                                 class = "btn-success btn-block",
+                                                 icon  = icon("file-excel"))),
+                        column(6, downloadButton("downloadResidualsCSV",   "CSV",
+                                                 class = "btn-info btn-block",
+                                                 icon  = icon("file-csv")))
+                      )
+                    )
+                  )
+                )
+              ),
+              
+              
+              
+              # Personnalisation graphique 
+              
+              fluidRow(
+                box(
+                  title       = tagList(icon("sliders-h"), " Personnalisation des graphiques"),
+                  status      = "warning", width = 12,
+                  solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  fluidRow(
+                    
+                    # · Titres et étiquettes ·
+                    column(3,
+                           div(class = "well",
+                               style = "background:#fff9e6; border-left:4px solid #f39c12; padding:12px;",
+                               tags$h5(icon("heading"), " Titres et étiquettes",
+                                       style = "font-weight:bold; color:#f39c12; margin-top:0;"),
+                               textInput("crosstabTitle",       "Titre principal :",
+                                         placeholder = "Automatique si vide"),
+                               textInput("crosstabXLabel",      "Étiquette axe X :",
+                                         placeholder = "Automatique si vide"),
+                               textInput("crosstabYLabel",      "Étiquette axe Y :",
+                                         placeholder = "Automatique si vide"),
+                               # BUG FIX : champ manquant dans l'UI d'origine
+                               textInput("crosstabLegendTitle", "Titre de la légende :",
+                                         placeholder = "Automatique si vide"),
+                               hr(style = "margin:8px 0;"),
+                               tags$strong("Graphique en secteurs :", style = "font-size:12px;"),
+                               # BUG FIX : champs manquants dans l'UI d'origine
+                               textInput("piePlotTitle",   "Titre (secteurs) :",
+                                         placeholder = "Automatique si vide"),
+                               textInput("pieLegendTitle", "Légende (secteurs) :",
+                                         placeholder = "Automatique si vide")
+                           )
+                    ),
+                    
+                    # · Tailles de police ·
+                    column(3,
+                           div(class = "well",
+                               style = "background:#e8f4f8; border-left:4px solid #3498db; padding:12px;",
+                               tags$h5(icon("font"), " Tailles de police",
+                                       style = "font-weight:bold; color:#3498db; margin-top:0;"),
+                               sliderInput("titleSize",      "Titre :",
+                                           min = 8, max = 32, value = 16, step = 1, post = " pt"),
+                               sliderInput("axisLabelSize",  "Titres des axes :",
+                                           min = 8, max = 24, value = 12, step = 1, post = " pt"),
+                               sliderInput("axisTextSize",   "Graduations :",
+                                           min = 6, max = 20, value = 10, step = 1, post = " pt"),
+                               sliderInput("legendTextSize", "Légende :",
+                                           min = 6, max = 20, value = 10, step = 1, post = " pt"),
+                               # BUG FIX : labelSize manquant dans l'UI d'origine
+                               sliderInput("labelSize",      "Étiquettes sur barres :",
+                                           min = 1, max = 10, value = 3.5, step = 0.5, post = " pt")
+                           )
+                    ),
+                    
+                    # · Style des textes ·
+                    column(3,
+                           div(class = "well",
+                               style = "background:#fdeaea; border-left:4px solid #e74c3c; padding:12px;",
+                               tags$h5(icon("bold"), " Style du texte",
+                                       style = "font-weight:bold; color:#e74c3c; margin-top:0;"),
+                               tags$strong("Titres des axes :"),
+                               checkboxInput("axisTitleBold",   "Gras",     value = TRUE),
+                               checkboxInput("axisTitleItalic", "Italique", value = FALSE),
+                               hr(style = "margin:8px 0;"),
+                               tags$strong("Valeurs des axes :"),
+                               checkboxInput("axisTextBold",    "Gras",     value = FALSE),
+                               checkboxInput("axisTextItalic",  "Italique", value = FALSE)
+                           )
+                    ),
+                    
+                    # · Options d'affichage ·
+                    column(3,
+                           div(class = "well",
+                               style = "background:#e8f8f5; border-left:4px solid #1abc9c; padding:12px;",
+                               tags$h5(icon("adjust"), " Options d'affichage",
+                                       style = "font-weight:bold; color:#1abc9c; margin-top:0;"),
+                               sliderInput("xAxisRotation", "Rotation axe X :",
+                                           min = 0, max = 90, value = 45, step = 5, post = "°"),
+                               checkboxInput("showPercentages", "Afficher les valeurs sur les barres",
+                                             value = TRUE),
+                               checkboxInput("showGridLines",   "Afficher la grille de fond",
+                                             value = TRUE),
+                               hr(style = "margin:8px 0;"),
+                               # NOUVEAU (Feature 4) : axes et graduations en noir
+                               tags$strong("Axes et graduations :",
+                                           style = "font-size:13px; color:#117a65;"),
+                               checkboxInput("blackAxes",
+                                             tagList(icon("minus"), " Tracer les axes en noir"),
+                                             value = FALSE),
+                               checkboxInput("blackTicks",
+                                             tagList(icon("grip-lines-vertical"), " Graduations en noir"),
+                                             value = FALSE),
+                               tags$small(class = "text-muted",
+                                          icon("info-circle"),
+                                          " « Graduations en noir » colore également les labels des axes.")
+                           )
+                    )
+                  )
+                )
+              ),
+              
+              
+              
+              # Ordre et renommage des niveaux
+              
+              fluidRow(
+                box(
+                  title       = tagList(icon("sort-alpha-down"), " Ordre et renommage des niveaux"),
+                  status      = "primary", width = 12,
+                  solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  tags$p(class = "text-muted",
+                         style = "margin-bottom:16px;",
+                         icon("info-circle"),
+                         " Ces options sont disponibles après avoir cliqué sur",
+                         tags$strong(" « Générer l'analyse ».")),
+                  
+                  fluidRow(
+                    
+                    # ── Ordre axe X ──
+                    column(3,
+                           div(class = "well",
+                               style = "background:#eaf4fb; border-left:4px solid #2e86c1; padding:12px; min-height:180px;",
+                               uiOutput("xLevelsOrderUI")
+                           )
+                    ),
+                    
+                    # ── Ordre légende ──
+                    column(3,
+                           div(class = "well",
+                               style = "background:#eaf4fb; border-left:4px solid #2e86c1; padding:12px; min-height:180px;",
+                               uiOutput("colLevelsOrderUI")
+                           )
+                    ),
+                    
+                    # ── NOUVEAU (Feature 5) : Renommer niveaux axe X ──
+                    column(3,
+                           div(class = "well",
+                               style = "background:#eaf7ff; border-left:4px solid #1a5276; padding:12px;
+                       max-height:340px; overflow-y:auto;",
+                               uiOutput("xLevelRenameUI")
+                           )
+                    ),
+                    
+                    # ── NOUVEAU (Feature 2) : Renommer niveaux légende ──
+                    column(3,
+                           div(class = "well",
+                               style = "background:#eaf7ff; border-left:4px solid #1a5276; padding:12px;
+                       max-height:340px; overflow-y:auto;",
+                               uiOutput("legendLevelRenameUI")
+                           )
+                    )
+                  )
+                )
+              ),
+              
+              
+              
+              # Graphiques
+              
+              
+              fluidRow(
+                
+                # ── Graphique principal ──────────────────────────────────────
+                box(
+                  title       = tagList(icon("chart-bar"), " Graphique principal"),
+                  status      = "success", width = 6,
+                  solidHeader = TRUE, collapsible = TRUE,
+                  
+                  plotOutput("crosstabPlot", height = "520px"),
+                  
+                  hr(style = "border-top:2px solid #27ae60; margin:20px 0;"),
+                  
+                  uiOutput("plotDownloadSection")
+                ),
+                
+                # ── Graphique en secteurs ────────────────────────────────────
+                box(
+                  title       = tagList(icon("chart-pie"), " Graphique en secteurs"),
+                  status      = "info", width = 6,
+                  solidHeader = TRUE, collapsible = TRUE,
+                  
+                  fluidRow(
+                    column(6,
+                           selectInput("pieVariable", "Variable à représenter :",
+                                       choices = c("Variable en lignes"   = "row",
+                                                   "Variable en colonnes" = "col"),
+                                       width = "100%")),
+                    column(6,
+                           selectInput("pieColorPalette", "Palette de couleurs :",
+                                       choices = c(
+                                         "Défaut ggplot2"  = "ggplot_default",
+                                         "Viridis"         = "viridis",
+                                         "Plasma"          = "plasma",
+                                         "Inferno"         = "inferno",
+                                         "Set1"            = "Set1",
+                                         "Set2"            = "Set2",
+                                         "Pastel"          = "Pastel1",
+                                         "Spectral"        = "Spectral",
+                                         "Niveaux de gris" = "grey"
+                                       ),
+                                       selected = "ggplot_default",
+                                       width = "100%"))
+                  ),
+                  
+                  # Ordre des niveaux du graphique en secteurs
+                  # BUG FIX : cet uiOutput n'était jamais appelé dans l'UI d'origine
+                  div(
+                    style = "background:#f4f6f7; border-radius:6px; padding:10px 14px; margin-bottom:14px;",
+                    uiOutput("pieLevelsOrderUI")
+                  ),
+                  
+                  plotOutput("crosstabPiePlot", height = "420px"),
+                  
+                  hr(style = "border-top:2px solid #3498db; margin:20px 0;"),
+                  
+                  uiOutput("pieDownloadSection")
                 )
               )
+              
       ),
       # ---- Visualisation des données ----
       tabItem(tabName = "visualization",
@@ -3134,30 +3227,187 @@ ui <- dashboardPage(
                       column(4,
                              h4("Tests sur données brutes", style = "color: #3c8dbc;"),
                              div(style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;",
-                               actionButton("testNormalityRaw",   "Test de normalité",     class = "btn-warning btn-block", icon = icon("chart-line")),
-                               actionButton("testHomogeneityRaw", "Test d'homogénéité",    class = "btn-warning btn-block", icon = icon("balance-scale"))
+                                 actionButton("testNormalityRaw",   "Test de normalité",     class = "btn-warning btn-block", icon = icon("chart-line")),
+                                 actionButton("testHomogeneityRaw", "Test d'homogénéité",    class = "btn-warning btn-block", icon = icon("balance-scale"))
                              ),
                              h4("Tests paramétriques", style = "color: #00a65a;"),
                              div(style="display:flex; flex-direction:column; gap:8px;",
-                               actionButton("testT",    "Test t de Student",           class = "btn-success btn-block", icon = icon("check")),
-                               actionButton("testANOVA","ANOVA",                        class = "btn-success btn-block", icon = icon("check")),
-                               actionButton("testLM",   "Régression linéaire",          class = "btn-success btn-block", icon = icon("check")),
-                               actionButton("testGLM",  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check"))
+                                 actionButton("testT",    "Test t de Student",           class = "btn-success btn-block", icon = icon("check")),
+                                 actionButton("testANOVA","ANOVA",                        class = "btn-success btn-block", icon = icon("check")),
+                                 actionButton("testLM",   "Régression linéaire",          class = "btn-success btn-block", icon = icon("check")),
+                                 actionButton("testGLM",  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check"))
                              )
                       ),
                       column(4,
                              h4("Tests non-paramétriques", style = "color: #f39c12;"),
                              div(style="display:flex; flex-direction:column; gap:8px;",
-                               actionButton("testWilcox",          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
-                               actionButton("testKruskal",         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
-                               actionButton("testScheirerRayHare", "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check"))
+                                 actionButton("testWilcox",          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
+                                 actionButton("testKruskal",         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
+                                 actionButton("testScheirerRayHare", "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check"))
                              )
                       )
                     )
                 )
               ),
+              # ================================================================
+              # BOX TRANSFORMATION DES VARIABLES
+              # S'ouvre en cas de non-respect des conditions paramétriques
+              # ================================================================
               fluidRow(
-                box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
+                box(
+                  title = div(
+                    icon("magic", style = "color:#f57c00; margin-right:6px;"),
+                    tags$span("Transformation des variables",
+                              style = "font-size:14px; font-weight:bold;"),
+                    tags$span(
+                      style = paste0("font-size:10px; font-weight:normal; color:#fff;",
+                                     "background:#ef6c00; padding:2px 7px;",
+                                     "border-radius:10px; margin-left:8px;"),
+                      "Tests param\u00e9triques uniquement"
+                    )
+                  ),
+                  status = "warning", width = 12,
+                  solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  # Bandeau d'information contextuel
+                  div(
+                    style = paste0("padding:10px 14px;background:#fff3e0;",
+                                   "border-left:4px solid #fb8c00;border-radius:4px;",
+                                   "margin-bottom:14px;font-size:12px;"),
+                    icon("lightbulb", style = "color:#e65100;"),
+                    tags$b(style = "color:#bf360c;", " Quand utiliser ?"),
+                    tags$br(),
+                    tags$span(style = "color:#6d4c41;",
+                              "Apr\u00e8s avoir test\u00e9 la normalit\u00e9/homog\u00e9n\u00e9it\u00e9 — si les conditions ne sont ",
+                              tags$b("pas"), " remplies, appliquez une transformation.",
+                              " La variable transform\u00e9e appara\u00eet dans les s\u00e9lecteurs.",
+                              " Retestez ensuite les conditions sur la variable transform\u00e9e."
+                    )
+                  ),
+                  
+                  fluidRow(
+                    
+                    # Col 1 : Sélection + méthode + bouton
+                    column(4,
+                           h5(icon("sliders-h"), " Variable & m\u00e9thode",
+                              style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
+                           uiOutput("transformVarSelect"),
+                           br(),
+                           selectInput(
+                             "transformMethod",
+                             tags$span(icon("flask"), " Transformation :"),
+                             choices = list(
+                               "\u2500\u2500\u2500 Asym\u00e9trie positive (rendements, concentrations) \u2500\u2500\u2500" = list(
+                                 "Logarithme naturel  log(x)  [x > 0]"          = "log",
+                                 "log(x+1) \u2014 tol\u00e8re les z\u00e9ros  [x \u2265 0]"        = "log1p",
+                                 "Log base 10  log10(x)  [x > 0]"              = "log10"
+                               ),
+                               "\u2500\u2500\u2500 Comptage / Asym\u00e9trie mod\u00e9r\u00e9e \u2500\u2500\u2500" = list(
+                                 "Racine carr\u00e9e  sqrt(x)  [x \u2265 0]"            = "sqrt",
+                                 "Racine cubique  x^(1/3)  [toutes valeurs]"   = "cuberoot"
+                               ),
+                               "\u2500\u2500\u2500 Transformations optimales (automatiques) \u2500\u2500\u2500" = list(
+                                 "Box-Cox  (\u03bb optimal MV)  [x > 0]"             = "boxcox",
+                                 "Yeo-Johnson  (bestNormalize)  [toutes valeurs]" = "yeojohnson"
+                               ),
+                               "\u2500\u2500\u2500 Proportions & taux \u2500\u2500\u2500" = list(
+                                 "Arcsinus  asin(sqrt(x))  [0 \u2264 x \u2264 1]"       = "arcsin",
+                                 "Logit  log(p/(1-p))  [0 < x < 1]"           = "logit"
+                               )
+                             ),
+                             selected = "log"
+                           ),
+                           uiOutput("transformFeasibilityCheck"),
+                           br(),
+                           actionButton(
+                             "applyTransformation",
+                             HTML("<i class='fa fa-magic'></i>&nbsp;<b>Appliquer la transformation</b>"),
+                             class = "btn-warning btn-lg btn-block",
+                             style = "height:50px;box-shadow:0 3px 5px rgba(0,0,0,0.2);"
+                           )
+                    ),
+                    
+                    # Col 2 : Journal des transformations actives
+                    column(4,
+                           h5(icon("history"), " Transformations actives",
+                              style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
+                           div(style = "min-height:120px;", uiOutput("transformationLogDisplay")),
+                           uiOutput("removeTransformSelect")
+                    ),
+                    
+                    # Col 3 : Guide de sélection
+                    column(4,
+                           h5(icon("book-open"), " Guide de s\u00e9lection",
+                              style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
+                           tags$table(
+                             style = "width:100%;border-collapse:collapse;font-size:11px;",
+                             tags$thead(
+                               tags$tr(
+                                 style = "background:#ef6c00;color:white;",
+                                 tags$th(style = "padding:4px 6px;", "M\u00e9thode"),
+                                 tags$th(style = "padding:4px 6px;", "Donn\u00e9es"),
+                                 tags$th(style = "padding:4px 6px;text-align:center;", "N\u00e9gatifs ?")
+                               )
+                             ),
+                             tags$tbody(
+                               tags$tr(style="background:#fff8e1;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
+                                       tags$td(style="padding:3px 6px;","Tr\u00e8s asym., rendements"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                               tags$tr(style="background:#fffff0;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
+                                       tags$td(style="padding:3px 6px;","Idem + z\u00e9ros"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                               tags$tr(style="background:#fff8e1;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
+                                       tags$td(style="padding:3px 6px;","Comptage, Poisson"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                               tags$tr(style="background:#fffff0;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
+                                       tags$td(style="padding:3px 6px;","Toutes valeurs"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","\u2713")),
+                               tags$tr(style="background:#fff8e1;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
+                                       tags$td(style="padding:3px 6px;","\u03bb optimal (MV)"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                               tags$tr(style="background:#fffff0;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
+                                       tags$td(style="padding:3px 6px;","Optimale g\u00e9n\u00e9ralis\u00e9e"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","\u2713")),
+                               tags$tr(style="background:#fff8e1;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","asin(\u221ax)"),
+                                       tags$td(style="padding:3px 6px;","Proportions [0,1]"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                               tags$tr(style="background:#fffff0;",
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
+                                       tags$td(style="padding:3px 6px;","Taux ]0,1["),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717"))
+                             )
+                           ),
+                           br(),
+                           div(
+                             style = paste0("padding:8px 10px;background:#e8f5e9;",
+                                            "border-left:3px solid #43a047;border-radius:4px;font-size:11px;"),
+                             icon("route", style = "color:#2e7d32;"),
+                             tags$b(style = "color:#1b5e20;", " Workflow :"),
+                             tags$ol(
+                               style = "margin:4px 0 0 0;padding-left:16px;color:#33691e;line-height:1.6;",
+                               tags$li("Tester normalit\u00e9 (donn\u00e9es brutes)"),
+                               tags$li("Si p < 0.05 \u2192 transformer"),
+                               tags$li("Retester sur var. transform\u00e9e"),
+                               tags$li("Lancer le test param\u00e9trique"),
+                               tags$li("PostHoc sur var. transform\u00e9e")
+                             )
+                           )
+                    )
+                  )  # fin fluidRow interne
+                )  # fin box transformation
+              ),
+              # ================================================================
+              # FIN BOX TRANSFORMATION
+              # ================================================================
+              fluidRow(
+                box(title = "R\u00e9sultats des tests", status = "danger", width = 12, solidHeader = TRUE,
                     DTOutput("testResultsDF"),
                     br(),
                     downloadButton("downloadTestsExcel", "Télécharger les résultats (Excel)", class = "btn-info"))
@@ -3230,7 +3480,9 @@ ui <- dashboardPage(
                     div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
                         h4(style = "color: #2c3e50; margin-top: 0;", icon("chart-line"), " Sélection des variables"),
                         uiOutput("multiResponseSelect"),
-                        uiOutput("multiFactorSelect")
+                        uiOutput("multiFactorSelect"),
+                        # Bandeau info transformations actives (affiché si variables transformées sélectionnées)
+                        uiOutput("postHocTransformInfo")
                     ),
                     
                     
@@ -3275,6 +3527,29 @@ ui <- dashboardPage(
                                       ),
                                       selected = "dunn"
                           )
+                        ),
+                        # Option retro-transformation — visible uniquement si des variables
+                        # transformées sont sélectionnées dans multiResponse
+                        conditionalPanel(
+                          condition = "output.hasTransformedVarsSelected",
+                          div(
+                            style = paste0("margin-top:10px;padding:10px 12px;",
+                                           "background:#fff8e1;border:1px solid #ffb300;",
+                                           "border-radius:6px;"),
+                            checkboxInput(
+                              "showBackTransformed",
+                              HTML(paste0(
+                                "<b style='color:#e65100;'>",
+                                "<i class='fa fa-exchange-alt'></i>&nbsp;",
+                                "Retro-transformer les moyennes</b><br>",
+                                "<small style='color:#6d4c41;font-weight:normal;'>",
+                                "Affiche les moyennes sur l'\u00e9chelle originale (interpr\u00e9tation).",
+                                "<br>Les lettres de comparaison restent sur l'\u00e9chelle transform\u00e9e.",
+                                "</small>"
+                              )),
+                              value = FALSE
+                            )
+                          )
                         )
                     ),
                     
@@ -3291,7 +3566,7 @@ ui <- dashboardPage(
                           condition = "input.posthocInteraction == true",
                           div(style = "margin-top: 8px; padding: 8px 10px; background:#fff3e0; border-left:3px solid #ff9800; border-radius:4px;",
                               tags$small(style="color:#e65100;",
-                                icon("info-circle"), " Sélectionnez ≥ 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
+                                         icon("info-circle"), " Sélectionnez ≥ 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
                               )
                           )
                         )
@@ -3475,163 +3750,163 @@ ui <- dashboardPage(
                                   
                                   # ── Options du graphique
                                   div(style = "border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;",
-                                    div(
-                                      class = "panel-heading",
-                                      style = "background-color: #343a40; color: white; padding: 12px 18px; cursor: pointer; display: flex; align-items: center;",
-                                      `data-toggle` = "collapse",
-                                      `data-target` = "#graphOptionsPanel",
-                                      icon("sliders-h", style = "margin-right: 8px;"),
-                                      tags$strong("Options du graphique"),
-                                      tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.75;",
-                                                icon("chevron-down"), " Développer / Réduire")
-                                    ),
-                                    div(id = "graphOptionsPanel", class = "collapse",
-                                      div(style = "padding: 20px; background-color: #fdfdfd;",
-                                        
-                                        fluidRow(
-                                          # COL 1 : Type + Couleurs
-                                          column(4,
-                                            div(style = "padding-right: 15px; border-right: 1px solid #e9ecef;",
-                                              h6(icon("palette"), " Type et couleurs",
-                                                 style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                              selectInput("boxColor", "Palette",
-                                                choices = c("Défaut" = "default", "Bleu" = "Blues",
-                                                            "Vert" = "Greens", "Rouge" = "Reds",
-                                                            "Set1" = "Set1", "Pastel" = "Pastel1",
-                                                            "Paired" = "Paired"),
-                                                selected = "Set1"),
-                                              radioButtons("plotType", "Type de graphique",
-                                                choices = c("Boxplot" = "box", "Violon" = "violin",
-                                                            "Points + barres" = "point", "Barres" = "hist"),
-                                                selected = "box", inline = TRUE),
-                                              radioButtons("errorType", "Barres d'erreur",
-                                                choices = c("SE" = "se", "SD" = "sd",
-                                                            "IC 95%" = "ci", "Aucune" = "none"),
-                                                selected = "se", inline = TRUE),
-                                              checkboxInput("colorByGroups",
-                                                HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
-                                                value = FALSE)
-                                            )
-                                          ),
-                                          
-                                          # COL 2 : Titres + Tailles
-                                          column(4,
-                                            div(style = "padding-left: 15px; padding-right: 15px; border-right: 1px solid #e9ecef;",
-                                              h6(icon("heading"), " Titres et tailles",
-                                                 style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                              textInput("customTitle", "Titre", placeholder = "Auto"),
-                                              textInput("customSubtitle", "Sous-titre", placeholder = "Optionnel"),
+                                      div(
+                                        class = "panel-heading",
+                                        style = "background-color: #343a40; color: white; padding: 12px 18px; cursor: pointer; display: flex; align-items: center;",
+                                        `data-toggle` = "collapse",
+                                        `data-target` = "#graphOptionsPanel",
+                                        icon("sliders-h", style = "margin-right: 8px;"),
+                                        tags$strong("Options du graphique"),
+                                        tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.75;",
+                                                  icon("chevron-down"), " Développer / Réduire")
+                                      ),
+                                      div(id = "graphOptionsPanel", class = "collapse",
+                                          div(style = "padding: 20px; background-color: #fdfdfd;",
+                                              
                                               fluidRow(
-                                                column(6, textInput("customXLabel", "Label X", placeholder = "Auto")),
-                                                column(6, textInput("customYLabel", "Label Y", placeholder = "Auto"))
-                                              ),
-                                              textInput("customLegendTitle", "Titre légende", placeholder = "Auto"),
-                                              fluidRow(
-                                                column(6, sliderInput("titleSize", "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
-                                                column(6, sliderInput("axisTitleSize", "Axes titres", min = 8, max = 28, value = 14, step = 1, ticks = FALSE))
-                                              ),
-                                              fluidRow(
-                                                column(6, sliderInput("axisTextSize", "Texte axes", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                column(6, sliderInput("graphValueSize", "Lettres (a,b,c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE))
-                                              ),
-                                              sliderInput("meanValueSize", "Taille moyennes dans barres",
-                                                min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE),
-                                              # Styles de police
-                                              fluidRow(
-                                                column(6,
-                                                  selectInput("titleFontStyle", "Style titre",
-                                                    choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                    selected = "bold")
+                                                # COL 1 : Type + Couleurs
+                                                column(4,
+                                                       div(style = "padding-right: 15px; border-right: 1px solid #e9ecef;",
+                                                           h6(icon("palette"), " Type et couleurs",
+                                                              style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
+                                                           selectInput("boxColor", "Palette",
+                                                                       choices = c("Défaut" = "default", "Bleu" = "Blues",
+                                                                                   "Vert" = "Greens", "Rouge" = "Reds",
+                                                                                   "Set1" = "Set1", "Pastel" = "Pastel1",
+                                                                                   "Paired" = "Paired"),
+                                                                       selected = "Set1"),
+                                                           radioButtons("plotType", "Type de graphique",
+                                                                        choices = c("Boxplot" = "box", "Violon" = "violin",
+                                                                                    "Points + barres" = "point", "Barres" = "hist"),
+                                                                        selected = "box", inline = TRUE),
+                                                           radioButtons("errorType", "Barres d'erreur",
+                                                                        choices = c("SE" = "se", "SD" = "sd",
+                                                                                    "IC 95%" = "ci", "Aucune" = "none"),
+                                                                        selected = "se", inline = TRUE),
+                                                           checkboxInput("colorByGroups",
+                                                                         HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
+                                                                         value = FALSE)
+                                                       )
                                                 ),
-                                                column(6,
-                                                  selectInput("axisTitleFontStyle", "Style titres axes",
-                                                    choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                    selected = "plain")
-                                                )
-                                              ),
-                                              fluidRow(
-                                                column(6,
-                                                  selectInput("graphValueFontStyle", "Style lettres (a,b,c)",
-                                                    choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                    selected = "bold")
+                                                
+                                                # COL 2 : Titres + Tailles
+                                                column(4,
+                                                       div(style = "padding-left: 15px; padding-right: 15px; border-right: 1px solid #e9ecef;",
+                                                           h6(icon("heading"), " Titres et tailles",
+                                                              style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
+                                                           textInput("customTitle", "Titre", placeholder = "Auto"),
+                                                           textInput("customSubtitle", "Sous-titre", placeholder = "Optionnel"),
+                                                           fluidRow(
+                                                             column(6, textInput("customXLabel", "Label X", placeholder = "Auto")),
+                                                             column(6, textInput("customYLabel", "Label Y", placeholder = "Auto"))
+                                                           ),
+                                                           textInput("customLegendTitle", "Titre légende", placeholder = "Auto"),
+                                                           fluidRow(
+                                                             column(6, sliderInput("titleSize", "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
+                                                             column(6, sliderInput("axisTitleSize", "Axes titres", min = 8, max = 28, value = 14, step = 1, ticks = FALSE))
+                                                           ),
+                                                           fluidRow(
+                                                             column(6, sliderInput("axisTextSize", "Texte axes", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
+                                                             column(6, sliderInput("graphValueSize", "Lettres (a,b,c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE))
+                                                           ),
+                                                           sliderInput("meanValueSize", "Taille moyennes dans barres",
+                                                                       min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE),
+                                                           # Styles de police
+                                                           fluidRow(
+                                                             column(6,
+                                                                    selectInput("titleFontStyle", "Style titre",
+                                                                                choices = c("Normal" = "plain", "Gras" = "bold",
+                                                                                            "Italique" = "italic", "Gras+Italique" = "bold.italic"),
+                                                                                selected = "bold")
+                                                             ),
+                                                             column(6,
+                                                                    selectInput("axisTitleFontStyle", "Style titres axes",
+                                                                                choices = c("Normal" = "plain", "Gras" = "bold",
+                                                                                            "Italique" = "italic", "Gras+Italique" = "bold.italic"),
+                                                                                selected = "plain")
+                                                             )
+                                                           ),
+                                                           fluidRow(
+                                                             column(6,
+                                                                    selectInput("graphValueFontStyle", "Style lettres (a,b,c)",
+                                                                                choices = c("Normal" = "plain", "Gras" = "bold",
+                                                                                            "Italique" = "italic", "Gras+Italique" = "bold.italic"),
+                                                                                selected = "bold")
+                                                             ),
+                                                             column(6,
+                                                                    checkboxInput("rotateXLabels", "Labels X à 45°", value = TRUE)
+                                                             )
+                                                           )
+                                                       )
                                                 ),
-                                                column(6,
-                                                  checkboxInput("rotateXLabels", "Labels X à 45°", value = TRUE)
+                                                
+                                                # COL 3 : Axes + Ordre
+                                                column(4,
+                                                       div(style = "padding-left: 15px;",
+                                                           h6(icon("ruler-combined"), " Axes et ordre",
+                                                              style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
+                                                           checkboxInput("customAxisLimits", "Personnaliser les limites des axes", value = FALSE),
+                                                           conditionalPanel(
+                                                             condition = "input.customAxisLimits == true",
+                                                             fluidRow(
+                                                               column(6, numericInput("yAxisMin", "Y min", value = NULL, step = 0.1)),
+                                                               column(6, numericInput("yAxisMax", "Y max", value = NULL, step = 0.1))
+                                                             )
+                                                           ),
+                                                           checkboxInput("customAxisBreaks", "Personnaliser les graduations", value = FALSE),
+                                                           conditionalPanel(
+                                                             condition = "input.customAxisBreaks == true",
+                                                             fluidRow(
+                                                               column(6, numericInput("yAxisBreakStep", "Pas Y", value = NULL, step = 0.1, min = 0.01)),
+                                                               column(6, numericInput("xAxisBreakStep", "Pas X", value = NULL, step = 0.1, min = 0.01))
+                                                             )
+                                                           ),
+                                                           hr(style = "margin: 10px 0;"),
+                                                           checkboxInput("customXOrder", "Personnaliser l'ordre axe X", value = FALSE),
+                                                           conditionalPanel(
+                                                             condition = "input.customXOrder == true",
+                                                             uiOutput("xAxisOrderUI")
+                                                           ),
+                                                           hr(style = "margin: 10px 0;"),
+                                                           # Inputs légende
+                                                           fluidRow(
+                                                             column(6, sliderInput("legendTitleSize", "Titre légende", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
+                                                             column(6, sliderInput("legendTextSize", "Texte légende", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
+                                                           ),
+                                                           sliderInput("legendSpacing", "Espacement légende",
+                                                                       min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE),
+                                                           # Inputs masqués pour export + styles supplémentaires
+                                                           tags$div(style = "display:none;",
+                                                                    numericInput("plotWidth",  "Largeur", value = 8,   min = 3, max = 20),
+                                                                    numericInput("plotHeight", "Hauteur", value = 6,   min = 3, max = 20),
+                                                                    numericInput("plotDPI",    "DPI",     value = 300, min = 72, max = 600),
+                                                                    numericInput("xAxisMin", "X min", value = NULL, step = 0.1),
+                                                                    numericInput("xAxisMax", "X max", value = NULL, step = 0.1),
+                                                                    sliderInput("subtitleSize", "Sous-titre", min = 6, max = 28, value = 12, step = 1),
+                                                                    selectInput("subtitleFontStyle", "Style sous-titre",
+                                                                                choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
+                                                                                selected = "italic"),
+                                                                    selectInput("axisTextXFontStyle", "Style axe X",
+                                                                                choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
+                                                                                selected = "plain"),
+                                                                    selectInput("axisTextYFontStyle", "Style axe Y",
+                                                                                choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
+                                                                                selected = "plain"),
+                                                                    selectInput("legendTitleFontStyle", "Style titre légende",
+                                                                                choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
+                                                                                selected = "bold"),
+                                                                    selectInput("legendTextFontStyle", "Style texte légende",
+                                                                                choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
+                                                                                selected = "plain"),
+                                                                    selectInput("subtitlePosition", "Position sous-titre",
+                                                                                choices = list("Centré"="0.5","Gauche"="0","Droite"="1"), selected="0.5"),
+                                                                    numericInput("legendKeySize", "Icône légende", value=0.5, min=0.1, max=3, step=0.1)
+                                                           )
+                                                       )
                                                 )
                                               )
-                                            )
-                                          ),
-                                          
-                                          # COL 3 : Axes + Ordre
-                                          column(4,
-                                            div(style = "padding-left: 15px;",
-                                              h6(icon("ruler-combined"), " Axes et ordre",
-                                                 style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                              checkboxInput("customAxisLimits", "Personnaliser les limites des axes", value = FALSE),
-                                              conditionalPanel(
-                                                condition = "input.customAxisLimits == true",
-                                                fluidRow(
-                                                  column(6, numericInput("yAxisMin", "Y min", value = NULL, step = 0.1)),
-                                                  column(6, numericInput("yAxisMax", "Y max", value = NULL, step = 0.1))
-                                                )
-                                              ),
-                                              checkboxInput("customAxisBreaks", "Personnaliser les graduations", value = FALSE),
-                                              conditionalPanel(
-                                                condition = "input.customAxisBreaks == true",
-                                                fluidRow(
-                                                  column(6, numericInput("yAxisBreakStep", "Pas Y", value = NULL, step = 0.1, min = 0.01)),
-                                                  column(6, numericInput("xAxisBreakStep", "Pas X", value = NULL, step = 0.1, min = 0.01))
-                                                )
-                                              ),
-                                              hr(style = "margin: 10px 0;"),
-                                              checkboxInput("customXOrder", "Personnaliser l'ordre axe X", value = FALSE),
-                                              conditionalPanel(
-                                                condition = "input.customXOrder == true",
-                                                uiOutput("xAxisOrderUI")
-                                              ),
-                                              hr(style = "margin: 10px 0;"),
-                                              # Inputs légende
-                                              fluidRow(
-                                                column(6, sliderInput("legendTitleSize", "Titre légende", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                column(6, sliderInput("legendTextSize", "Texte légende", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
-                                              ),
-                                              sliderInput("legendSpacing", "Espacement légende",
-                                                min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE),
-                                              # Inputs masqués pour export + styles supplémentaires
-                                              tags$div(style = "display:none;",
-                                                numericInput("plotWidth",  "Largeur", value = 8,   min = 3, max = 20),
-                                                numericInput("plotHeight", "Hauteur", value = 6,   min = 3, max = 20),
-                                                numericInput("plotDPI",    "DPI",     value = 300, min = 72, max = 600),
-                                                numericInput("xAxisMin", "X min", value = NULL, step = 0.1),
-                                                numericInput("xAxisMax", "X max", value = NULL, step = 0.1),
-                                                sliderInput("subtitleSize", "Sous-titre", min = 6, max = 28, value = 12, step = 1),
-                                                selectInput("subtitleFontStyle", "Style sous-titre",
-                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                  selected = "italic"),
-                                                selectInput("axisTextXFontStyle", "Style axe X",
-                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                  selected = "plain"),
-                                                selectInput("axisTextYFontStyle", "Style axe Y",
-                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                  selected = "plain"),
-                                                selectInput("legendTitleFontStyle", "Style titre légende",
-                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                  selected = "bold"),
-                                                selectInput("legendTextFontStyle", "Style texte légende",
-                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                  selected = "plain"),
-                                                selectInput("subtitlePosition", "Position sous-titre",
-                                                  choices = list("Centré"="0.5","Gauche"="0","Droite"="1"), selected="0.5"),
-                                                numericInput("legendKeySize", "Icône légende", value=0.5, min=0.1, max=3, step=0.1)
-                                              )
-                                            )
                                           )
-                                        )
                                       )
-                                    )
                                   ),
                                   
                                   br(),
@@ -3699,6 +3974,41 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "Analyse en Composantes Principales (ACP)", status = "info", width = 6, solidHeader = TRUE,
                     
+                    # ── Panneau Info ACP ──────────────────────────────────────────────────
+                    div(style = "margin-bottom:10px;",
+                        div(
+                          style = "cursor:pointer; background:linear-gradient(135deg,#1565c0,#1976d2); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
+                          onclick = "var c=document.getElementById('pca-info-body'); c.style.display=(c.style.display==='none'?'block':'none');",
+                          icon("info-circle"), " Principes, objectifs & conditions de l'ACP ",
+                          icon("chevron-down")
+                        ),
+                        div(id = "pca-info-body", style = "display:none; background:#e8f4f8; border:1px solid #90caf9; border-radius:0 0 6px 6px; padding:12px; font-size:12px;",
+                            fluidRow(
+                              column(6,
+                                     tags$b(style="color:#1565c0;", icon("drafting-compass"), " Principes :"),
+                                     tags$p(style="margin:2px 0 6px 0; color:#333;", "Réduction dimensionnelle par rotation orthogonale maximisant la variance. Transforme p variables corrélées en composantes principales indépendantes (valeurs propres de la matrice de corrélation)."),
+                                     tags$b(style="color:#1565c0;", icon("bullseye"), " Objectifs :"),
+                                     tags$p(style="margin:2px 0 0 0; color:#333;", "Explorer la structure, identifier des patterns, visualiser des données multivariées, réduire la dimensionnalité avant classification.")
+                              ),
+                              column(6,
+                                     tags$b(style="color:#1565c0;", icon("ruler"), " Taille nécessaire :"),
+                                     tags$ul(style="margin:2px 0 6px 12px; padding:0; color:#333;",
+                                             tags$li("Minimum absolu : n", icon("arrow-right"), "30"),
+                                             tags$li("Recommandé : n", icon("arrow-right"), "max(50, 5×p)"),
+                                             tags$li("Idéal : n", icon("arrow-right"), "100 pour stabilité")
+                                     ),
+                                     tags$b(style="color:#1565c0;", icon("hashtag"), " Variables minimales :"),
+                                     tags$ul(style="margin:2px 0 0 12px; padding:0; color:#333;",
+                                             tags$li("Minimum absolu : p", icon("arrow-right"), "2"),
+                                             tags$li("Recommandé : p", icon("arrow-right"), "3–5"),
+                                             tags$li("Toutes doivent être numériques")
+                                     )
+                              )
+                            ),
+                            uiOutput("pcaConditionsCheck")
+                        )
+                    ),
+                    
                     uiOutput("pcaVarSelect"),
                     
                     # Panel colinéarité (affiché dynamiquement si colinéarité détectée)
@@ -3721,6 +4031,19 @@ ui <- dashboardPage(
                     radioButtons("pcaPlotType", "Type de visualisation:",
                                  choices = c("Variables" = "var", "Individus" = "ind", "Biplot" = "biplot"),
                                  selected = "var", inline = TRUE),
+                    
+                    # ── Coloration ────────────────────────────────────────────────────────
+                    div(style = "background:#f0f7ff; border-left:3px solid #2196f3; padding:8px 12px; margin:6px 0 10px 0; border-radius:0 4px 4px 0;",
+                        selectInput("pcaColorBy", 
+                                    tagList(icon("palette"), " Colorer les éléments par :"),
+                                    choices = c(
+                                      "Contribution (% à la composante)"       = "contrib",
+                                      "Cos² (qualité de représentation)"       = "cos2",
+                                      "Indice de saturation (|corrélation|)"   = "sat"
+                                    ),
+                                    selected = "contrib"),
+                        uiOutput("pcaColorByLegend")
+                    ),
                     numericInput("pcaComponents", "Nombre de composantes:", value = 5, min = 2, max = 10),
                     
                     # Options rotation orthogonale
@@ -3814,21 +4137,21 @@ ui <- dashboardPage(
                     # Métriques de validation ACP en ordre logique
                     div(style = "background-color: #f8f9fa; border-left: 5px solid #495057; padding: 12px; margin: 10px 0;",
                         h5(style = "color: #343a40; font-weight: bold; margin-top: 0;",
-                           icon("clipboard-check"), " Validation de l'ACP — Ordre d'analyse recommandé"),
+                           icon("clipboard-check"), " Métriques de validation de l'ACP"),
                         p(style = "font-size: 11px; color: #555; margin-bottom: 0;",
-                          "1. Vérifiez l'adéquation des données (Bartlett + KMO) → 2. Choisissez le nombre de composantes (Scree plot + Analyse parallèle) → 3. Examinez les contributions (CTR) → 4. Appliquez la rotation pour affiner l'interprétation.")
+                          "Les métriques suivantes permettent d'évaluer la qualité et la robustesse de l'analyse. Elles doivent être analysées dans l'ordre présenté.")
                     ),
                     
                     # 1. Bartlett + KMO
                     h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
-                       icon("check-circle"), " 1. Adéquation des données à l'ACP"),
+                       icon("check-circle"), " Adéquation des données à l'ACP"),
                     uiOutput("pcaBartlettKMO"),
                     
                     # 2. Scree plot
                     h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
-                       icon("chart-line"), " 2. Graphique des éboulis (Scree Plot)"),
+                       icon("chart-line"), " Graphique des éboulis (Scree Plot)"),
                     p(style = "font-size: 11px; color: #666; font-style: italic;",
-                      "Critère de Kaiser (λ ≥ 1) : les composantes en vert sont retenues. Cherchez le 'coude' de la courbe."),
+                      "Critère de Kaiser (valeur propre min. 1) : les composantes en vert sont retenues. Cherchez le 'coude' de la courbe."),
                     plotOutput("pcaScreePlot", height = "320px"),
                     fluidRow(
                       column(6, selectInput("pcaScree_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
@@ -3840,7 +4163,7 @@ ui <- dashboardPage(
                     
                     # 3. Analyse parallèle
                     h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
-                       icon("random"), " 3. Analyse parallèle de Horn"),
+                       icon("random"), " Analyse parallèle de Horn"),
                     p(style = "font-size: 11px; color: #666; font-style: italic;",
                       "Méthode plus rigoureuse que Kaiser : retenir les composantes dont la valeur propre observée dépasse le percentile 95 des simulations aléatoires."),
                     plotOutput("pcaParallelPlot", height = "320px"),
@@ -3854,7 +4177,7 @@ ui <- dashboardPage(
                     
                     # 4. CTR
                     h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
-                       icon("percentage"), " 4. Contributions absolues (CTR) des variables"),
+                       icon("percentage"), " Contributions absolues (CTR) des variables"),
                     p(style = "font-size: 11px; color: #666; font-style: italic;",
                       "Seuil théorique = 100% / nb variables. Les variables au-dessus du seuil (en vert) structurent principalement l'axe."),
                     uiOutput("pcaCTRAxisSelect"),
@@ -3869,9 +4192,9 @@ ui <- dashboardPage(
                     
                     # 5. Rotation
                     h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
-                       icon("sync-alt"), " 5. Résultats de la rotation orthogonale"),
+                       icon("sync-alt"), " Résultats de la rotation orthogonale"),
                     p(style = "font-size: 11px; color: #666; font-style: italic;",
-                      "La rotation simplifie la structure : un loading |x| ≥ 0,70 indique une contribution forte, |x| de 0,40 à 0,70 une contribution modérée."),
+                      "La rotation simplifie la structure : un loading |x| min. 0,70 indique une contribution forte, |x| de 0,40 à 0,70 une contribution modérée."),
                     div(style = "max-height: 350px; overflow-y: auto; font-size: 11px;",
                         verbatimTextOutput("pcaRotationResult")),
                     
@@ -3907,6 +4230,41 @@ ui <- dashboardPage(
                 box(title = "Classification Hierarchique sur Composantes Principales (HCPC)", 
                     status = "success", width = 12, solidHeader = TRUE,
                     p("Cette analyse combine l'ACP avec une classification hierarchique automatique."),
+                    
+                    # ── Panneau Info HCPC ─────────────────────────────────────────────────
+                    div(style = "margin-bottom:10px;",
+                        div(
+                          style = "cursor:pointer; background:linear-gradient(135deg,#2e7d32,#388e3c); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
+                          onclick = "var c=document.getElementById('hcpc-info-body'); c.style.display=(c.style.display==='none'?'block':'none');",
+                          icon("info-circle"), " Principes, objectifs & conditions de la HCPC ",
+                          icon("chevron-down")
+                        ),
+                        div(id = "hcpc-info-body", style = "display:none; background:#e8f5e9; border:1px solid #a5d6a7; border-radius:0 0 6px 6px; padding:12px; font-size:12px;",
+                            fluidRow(
+                              column(6,
+                                     tags$b(style="color:#2e7d32;", icon("drafting-compass"), " Principes :"),
+                                     tags$p(style="margin:2px 0 6px 0; color:#333;", "Classification ascendante hiérarchique (critère de Ward) appliquée aux coordonnées ACP. Minimise la variance intra-cluster à chaque fusion. La coupure optimale est déterminée par le saut maximal des hauteurs."),
+                                     tags$b(style="color:#2e7d32;", icon("bullseye"), " Objectifs :"),
+                                     tags$p(style="margin:2px 0 0 0; color:#333;", "Identifier des groupes naturels (typologies), profiler les individus similaires, réduire les données individuelles en groupes interprétables.")
+                              ),
+                              column(6,
+                                     tags$b(style="color:#2e7d32;", icon("ruler"), " Taille nécessaire :"),
+                                     tags$ul(style="margin:2px 0 6px 12px; padding:0; color:#333;",
+                                             tags$li("Minimum absolu : n", icon("arrow-right"), "2×k (k=clusters)"),
+                                             tags$li("Recommandé : n", icon("arrow-right"), "10×k pour stabilité"),
+                                             tags$li("Hérite des conditions de l'ACP")
+                                     ),
+                                     tags$b(style="color:#2e7d32;", icon("hashtag"), " Composantes nécessaires :"),
+                                     tags$ul(style="margin:2px 0 0 12px; padding:0; color:#333;",
+                                             tags$li("Minimum : ", icon("arrow-right"), "1 composante ACP"),
+                                             tags$li("Recommandé : ", icon("arrow-right"), "2 composantes retenues (", tags$em("\u03bb"), " ", icon("arrow-right"), "1)"),
+                                             tags$li("Utilise les composantes de l'ACP précédente")
+                                     )
+                              )
+                            ),
+                            uiOutput("hcpcConditionsCheck")
+                        )
+                    ),
                     
                     fluidRow(
                       column(4,
@@ -4057,7 +4415,7 @@ ui <- dashboardPage(
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #2980b9; color: white;",
                             h4(class = "box-title", style = "color: white;",
-                               icon("chart-area"), " 1. Graphique des hauteurs de fusion")
+                               icon("chart-area"), " Graphique des hauteurs de fusion")
                         ),
                         div(class = "box-body",
                             p(style = "font-size: 12px; color: #555; font-style: italic;",
@@ -4080,7 +4438,7 @@ ui <- dashboardPage(
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #8e44ad; color: white;",
                             h4(class = "box-title", style = "color: white;",
-                               icon("ruler-combined"), " 2. Indices de validation des clusters")
+                               icon("ruler-combined"), " Indices de validation des clusters")
                         ),
                         div(class = "box-body",
                             p(style = "font-size: 12px; color: #555; font-style: italic; margin-bottom: 12px;",
@@ -4093,7 +4451,7 @@ ui <- dashboardPage(
                     div(class = "box box-solid",
                         div(class = "box-header with-border", style = "background-color: #16a085; color: white;",
                             h4(class = "box-title", style = "color: white;",
-                               icon("shield-alt"), " 3. Stabilité par sous-échantillonnage")
+                               icon("shield-alt"), " Stabilité par sous-échantillonnage")
                         ),
                         div(class = "box-body",
                             p(style = "font-size: 12px; color: #555; font-style: italic; margin-bottom: 12px;",
@@ -4129,6 +4487,43 @@ ui <- dashboardPage(
                 box(title = "Analyse Factorielle Discriminante (AFD)", 
                     status = "primary", width = 12, solidHeader = TRUE,
                     
+                    # ── Panneau Info AFD ──────────────────────────────────────────────────
+                    div(style = "margin-bottom:12px;",
+                        div(
+                          style = "cursor:pointer; background:linear-gradient(135deg,#1a237e,#283593); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
+                          onclick = "var c=document.getElementById('afd-info-body'); c.style.display=(c.style.display==='none'?'block':'none');",
+                          icon("info-circle"), " Principes, objectifs & conditions de l'AFD ",
+                          icon("chevron-down")
+                        ),
+                        div(id = "afd-info-body", style = "display:none; background:#e8eaf6; border:1px solid #9fa8da; border-radius:0 0 6px 6px; padding:12px; font-size:12px;",
+                            fluidRow(
+                              column(6,
+                                     tags$b(style="color:#1a237e;", icon("drafting-compass"), " Principes :"),
+                                     tags$p(style="margin:2px 0 6px 0; color:#333;", "Recherche les combinaisons linéaires de variables (fonctions discriminantes) maximisant le ratio variance inter-groupes / variance intra-groupes (critère de Fisher-Rao). Généralisation multivariée de l'ANOVA."),
+                                     tags$b(style="color:#1a237e;", icon("bullseye"), " Objectifs :"),
+                                     tags$p(style="margin:2px 0 0 0; color:#333;", "Discriminer des individus dans des groupes prédéfinis, identifier les variables les plus discriminantes, prédire l'appartenance à un groupe pour de nouveaux individus.")
+                              ),
+                              column(6,
+                                     tags$b(style="color:#1a237e;", icon("ruler"), " Taille nécessaire :"),
+                                     tags$ul(style="margin:2px 0 6px 12px; padding:0; color:#333;",
+                                             tags$li("Minimum absolu : n > p + g - 1"),
+                                             tags$li("Recommandé : min. 20 obs. par groupe"),
+                                             tags$li("Idéal : ratio n/p min. 10"),
+                                             tags$li(tags$em("p = nb variables, g = nb groupes"))
+                                     ),
+                                     tags$b(style="color:#1a237e;", icon("hashtag"), " Variables minimales :"),
+                                     tags$ul(style="margin:2px 0 0 12px; padding:0; color:#333;",
+                                             tags$li("Minimum absolu : p min. 1"),
+                                             tags$li("Recommandé : p min. 2"),
+                                             tags$li("Maximum : p < n - g"),
+                                             tags$li("Groupes minimum : g min. 2")
+                                     )
+                              )
+                            ),
+                            uiOutput("afdConditionsCheck")
+                        )
+                    ),
+                    
                     # Sélection du facteur discriminant 
                     div(style = "background-color: #f8f9fa; border-left: 4px solid #343a40; padding: 15px; margin-bottom: 15px;",
                         h4(style = "color: #343a40; margin-top: 0;",
@@ -4143,7 +4538,7 @@ ui <- dashboardPage(
                     # Sélection des variables quantitatives
                     div(style = "background-color: #f8f9fa; border-left: 4px solid #495057; padding: 15px; margin-bottom: 15px;",
                         h4(style = "color: #495057; margin-top: 0;",
-                           icon("chart-line"), " ÉTAPE 2 : Variables quantitatives (OBLIGATOIRE)"),
+                           icon("chart-line"), " Variables quantitatives (OBLIGATOIRE)"),
                         p(style = "margin: 5px 0; font-size: 13px; color: #555;",
                           "Sélectionnez les variables numériques qui serviront à discriminer les groupes. Plus il y a de variables pertinentes, meilleure sera la discrimination."),
                         uiOutput("afdVarSelect"),
@@ -4155,7 +4550,7 @@ ui <- dashboardPage(
                     uiOutput("afdCollinearityPanel"),
                     
                     hr(),
-                    h4(style = "color: #6c757d; margin-top: 10px;", icon("cogs"), " ÉTAPE 3 : Options avancées (optionnel)"),
+                    h4(style = "color: #6c757d; margin-top: 10px;", icon("cogs"), " Options avancées (optionnel)"),
                     checkboxInput("afdUseMeans", "Utiliser les moyennes par groupe", FALSE),
                     conditionalPanel(
                       condition = "input.afdUseMeans == true",
@@ -4324,9 +4719,9 @@ ui <- dashboardPage(
                             # Guide d'interprétation en entête
                             div(style = "background-color: #fdf2f8; border-left: 5px solid #d9534f; padding: 12px; margin-bottom: 15px;",
                                 h5(style = "color: #922b21; font-weight: bold; margin-top: 0;",
-                                   icon("list-ol"), " Ordre d'analyse recommandé"),
+                                   icon("microscope"), " Métriques de validation de la classification"),
                                 p(style = "font-size: 12px; color: #555; margin-bottom: 0;",
-                                  "1. Vérifiez la variance expliquée et les corrélations canoniques (Section 1) → 2. Évaluez la force de discrimination via eta² (Section 2b) → 3. Analysez la qualité de classification avec l'accuracy et le Kappa (Section 3) → 4. Interprétez les coefficients et la matrice de structure (Section 2) → 5. Vérifiez la validation croisée (Section 4).")
+                                  "Les métriques suivantes permettent d'évaluer la qualité et la robustesse de la partition obtenue. Elles doivent être analysées dans l'ordre présenté.")
                             ),
                             div(style = "max-height: 700px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
                                 uiOutput("afdSummary"))

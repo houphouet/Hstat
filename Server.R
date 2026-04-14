@@ -1,5 +1,5 @@
 server <- function(input, output, session) {
-
+  
   auto_quote_colnames <- function(formula_str, col_names) {
     # ── 1. Protéger les noms de colonnes spéciaux
     cols_sorted <- col_names[order(nchar(col_names), decreasing = TRUE)]
@@ -42,12 +42,12 @@ server <- function(input, output, session) {
     
     formula_str
   }
-
+  
   options(shiny.error = function() {
     msg <- tryCatch(conditionMessage(sys.call()), error = function(e) "Erreur inconnue")
     shinyjs::logjs(paste("[HStat] Erreur non capturée:", msg))
   })
-
+  
   values <- reactiveValues(
     data = NULL, cleanData = NULL, filteredData = NULL, descStats = NULL,
     normResults = NULL, leveneResults = NULL, testResults = NULL,
@@ -70,23 +70,24 @@ server <- function(input, output, session) {
     y2Vars = NULL,
     dualAxisActive = FALSE,
     y2VarsActive = NULL,
-    postHocSyncTrigger = NULL
+    postHocSyncTrigger = NULL,
+    transformationLog  = list()   # Journal des transformations appliquées
   )
   
   values$customXLevels <- reactiveVal(NULL)
   
-
+  
   # Format d'affichage des dates
   get_date_display_fmt <- function() {
     fmt <- input$xDateDisplayFormat %||% "%d-%m-%Y"
     if (viz_valid_date_fmt(fmt)) fmt else "%d-%m-%Y"
   }
-
+  
   # Thème ggplot2 
   get_plot_theme <- function(base_size = 12) {
     viz_get_theme(input$plotTheme %||% "minimal", base_size = base_size)
   }
-
+  
   get_x_scale <- function(data, x_var) {
     viz_get_x_scale(
       x_col      = data[[x_var]],
@@ -145,6 +146,7 @@ server <- function(input, output, session) {
           values$modelsList <- list()
           values$normalityResultsPerVar <- list()
           values$homogeneityResultsPerVar <- list()
+          values$transformationLog <- list()   # reset transformations
           
           reset("file")
           updateTabItems(session, "tabs", "load")
@@ -859,8 +861,8 @@ server <- function(input, output, session) {
         condition = "input.rowCondCol != ''",
         fluidRow(
           column(6, selectInput("rowCondOp", "Opérateur :",
-            choices = c("==" = "==", "!=" = "!=", ">" = ">", ">=" = ">=", "<" = "<", "<=" = "<=", "is.na" = "is.na"),
-            selected = "==")),
+                                choices = c("==" = "==", "!=" = "!=", ">" = ">", ">=" = ">=", "<" = "<", "<=" = "<=", "is.na" = "is.na"),
+                                selected = "==")),
           column(6, textInput("rowCondVal", "Valeur :", placeholder = "ex: 'A' ou 10"))
         ),
         actionButton("insertRowCond", tagList(icon("filter"), " Insérer condition"),
@@ -881,7 +883,7 @@ server <- function(input, output, session) {
     }
     cur <- input$calcFormula %||% ""
     updateTextInput(session, "calcFormula",
-      value = paste0("ifelse(", cond, ", ", cur, ", NA)"))
+                    value = paste0("ifelse(", cond, ", ", cur, ", NA)"))
   })
   
   observeEvent(input$addCalcVar, {
@@ -1155,7 +1157,7 @@ server <- function(input, output, session) {
     req(values$cleanData)
     txt <- input$deleteRowsInput %||% ""
     if (nchar(trimws(txt)) == 0) return(NULL)
-
+    
     max_rows <- nrow(values$cleanData)
     rows <- tryCatch(
       parseRowSelection(txt, max_rows),
@@ -1173,7 +1175,7 @@ server <- function(input, output, session) {
     preview_ids <- head(rows, 8)
     preview_str <- paste(preview_ids, collapse = ", ")
     if (n > 8) preview_str <- paste0(preview_str, " ... (", n - 8, " de plus)")
-
+    
     div(
       style = "margin-top: 8px; padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
       icon("info-circle", style = "color: #f57c00;"),
@@ -1182,14 +1184,14 @@ server <- function(input, output, session) {
       tags$code(style = "font-size: 11px;", preview_str)
     )
   })
-
+  
   # Supprimer les lignes sélectionnées de cleanData et filteredData
   observeEvent(input$applyDeleteRows, {
     req(values$cleanData, input$deleteRowsInput)
     tryCatch({
       max_rows <- nrow(values$cleanData)
       rows_to_delete <- parseRowSelection(input$deleteRowsInput, max_rows)
-
+      
       if (length(rows_to_delete) == 0) {
         showNotification("Aucune ligne sélectionnée.", type = "warning", duration = 4)
         return()
@@ -1198,10 +1200,10 @@ server <- function(input, output, session) {
         showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
         return()
       }
-
+      
       values$cleanData    <- values$cleanData[-rows_to_delete, ]
       values$filteredData <- values$cleanData
-
+      
       showNotification(
         paste0(length(rows_to_delete), " ligne(s) supprimée(s). ",
                nrow(values$cleanData), " lignes restantes."),
@@ -1268,7 +1270,7 @@ server <- function(input, output, session) {
       paste0(length(sel), " ligne(s) supprimée(s). ", nrow(values$cleanData), " lignes restantes."),
       type = "message", duration = 5)
   })
-
+  
   #  Filtre par valeur(s) 
   
   # Permet de rechercher des lignes contenant une ou plusieurs valeurs spécifiques
@@ -1344,7 +1346,7 @@ server <- function(input, output, session) {
   })
   
   #  Filtre par sélection de colonnes 
-
+  
   output$columnSelectUI <- renderUI({
     req(values$cleanData)
     col_names <- names(values$cleanData)
@@ -2001,7 +2003,7 @@ server <- function(input, output, session) {
     print(p)
   }, res = 96)
   
-
+  
   # Téléchargement graphique descriptif 
   output$downloadDescPlot <- downloadHandler(
     filename = function() paste0("graphique_descriptif_", Sys.Date(), ".", input$descPlot_format),
@@ -2014,508 +2016,851 @@ server <- function(input, output, session) {
                               dpi = dpi, units = "cm"))
     }
   )
-  # ---- Tableaux croisés dynamiques ----
+  # ---- Tableaux croisés dynamiques  ----
   
-  # Variables reactives
+  # Opérateur null-coalescing (défini localement si absent du scope global)
+  if (!exists("%||%", mode = "function")) {
+    `%||%` <- function(a, b) if (!is.null(a) && length(a) > 0) a else b
+  }
+  
+  
+  
+  # 1. VALEURS RÉACTIVES
+  
+  
   crosstab_values <- reactiveValues(
-    contingency_table = NULL,
-    row_proportions = NULL,
-    col_proportions = NULL,
-    total_proportions = NULL,
-    chi_test = NULL,
-    fisher_test = NULL,
-    residuals = NULL,
-    current_plot = NULL,
-    current_pie_plot = NULL
+    contingency_table  = NULL,
+    raw_table          = NULL,   # table sans addmargins (pour calculs internes)
+    row_proportions    = NULL,
+    col_proportions    = NULL,
+    total_proportions  = NULL,
+    chi_test           = NULL,
+    fisher_test        = NULL,
+    residuals          = NULL,
+    current_plot       = NULL,
+    current_pie_plot   = NULL
   )
   
-  # Interface de selection des variables
+  
+  
+  # 2. SÉLECTION DYNAMIQUE DES VARIABLES (renderUI)
+  
+  
   output$crosstabRowVarSelect <- renderUI({
     req(values$filteredData)
     all_cols <- names(values$filteredData)
-    selectInput("crosstabRowVar", "Variable en lignes :", 
-                choices = all_cols,
+    selectInput("crosstabRowVar", "Variable en lignes :",
+                choices  = all_cols,
                 selected = all_cols[1],
-                width = "100%")
+                width    = "100%")
   })
   
   output$crosstabColVarSelect <- renderUI({
     req(values$filteredData)
     all_cols <- names(values$filteredData)
-    selectInput("crosstabColVar", "Variable en colonnes :", 
-                choices = all_cols,
-                selected = if(length(all_cols) > 1) all_cols[2] else all_cols[1],
-                width = "100%")
+    selectInput("crosstabColVar", "Variable en colonnes :",
+                choices  = all_cols,
+                selected = if (length(all_cols) > 1) all_cols[2] else all_cols[1],
+                width    = "100%")
   })
   
-  output$crosstabFilterVarSelect <- renderUI({
+  # ── Filtre principal (sur variable en lignes ou en colonnes) ─────────────────
+  output$crosstabFilterTypeUI <- renderUI({
     req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    selectInput("crosstabFilterVar", "Filtrer par (optionnel) :", 
-                choices = c("Aucun" = "", fac_cols),
-                width = "100%")
+    radioButtons(
+      "crosstabFilterType",
+      label    = NULL,
+      choices  = c("Aucun filtre"                        = "none",
+                   "Filtrer sur la variable en lignes"   = "row",
+                   "Filtrer sur la variable en colonnes" = "col"),
+      selected = "none"
+    )
   })
   
-  # Generation des analyses statistiques
+  output$crosstabFilterValueSelect <- renderUI({
+    req(values$filteredData, input$crosstabFilterType)
+    if (input$crosstabFilterType == "none") return(NULL)
+    
+    filter_var <- if (input$crosstabFilterType == "row") {
+      req(input$crosstabRowVar); input$crosstabRowVar
+    } else {
+      req(input$crosstabColVar); input$crosstabColVar
+    }
+    
+    vals <- sort(unique(as.character(values$filteredData[[filter_var]])))
+    vals <- vals[!is.na(vals)]
+    if (length(vals) == 0) return(NULL)
+    
+    tagList(
+      tags$label(
+        paste0("Modalités de « ", filter_var, " » à conserver :"),
+        style = "font-weight:bold; color:#2c3e50; margin-top:8px;"
+      ),
+      div(style = "max-height:200px; overflow-y:auto; border:1px solid #d1ecf1;
+                 border-radius:4px; padding:8px; background:#fff;",
+          checkboxGroupInput("crosstabFilterValues", label = NULL,
+                             choices = vals, selected = vals)
+      )
+    )
+  })
+  
+  # ── NOUVEAU (Feature 1) : Filtre additionnel sur une variable tierce ─────────
+  output$additionalFilterVarUI <- renderUI({
+    req(values$filteredData, input$crosstabRowVar, input$crosstabColVar)
+    all_cols   <- names(values$filteredData)
+    other_cols <- setdiff(all_cols, c(input$crosstabRowVar, input$crosstabColVar))
+    
+    if (length(other_cols) == 0) {
+      return(tags$p(class = "text-muted",
+                    style = "font-size:12px; margin:4px 0;",
+                    icon("info-circle"), " Aucune autre variable disponible."))
+    }
+    
+    selectInput("additionalFilterVar",
+                label   = "Filtrer l'analyse par :",
+                choices  = c("— Aucun filtre additionnel —" = "", other_cols),
+                selected = "",
+                width    = "100%")
+  })
+  
+  output$additionalFilterValuesUI <- renderUI({
+    req(values$filteredData)
+    var <- input$additionalFilterVar
+    if (is.null(var) || !nzchar(var)) return(NULL)
+    
+    vals <- sort(unique(as.character(values$filteredData[[var]])))
+    vals <- vals[!is.na(vals)]
+    if (length(vals) == 0) return(NULL)
+    
+    tagList(
+      tags$label(
+        paste0("Valeurs de « ", var, " » à conserver :"),
+        style = "font-weight:bold; color:#6c3483; margin-top:8px; font-size:13px;"
+      ),
+      div(style = "max-height:160px; overflow-y:auto; border:1px solid #d7bde2;
+                 border-radius:4px; padding:8px; background:#faf5ff;",
+          checkboxGroupInput("additionalFilterValues", label = NULL,
+                             choices = vals, selected = vals)
+      )
+    )
+  })
+  
+  # ── Ordre des niveaux : axe X ────────────────────────────────────────────────
+  output$xLevelsOrderUI <- renderUI({
+    req(crosstab_values$raw_table)
+    lvls <- rownames(crosstab_values$raw_table)
+    tagList(
+      tags$label("Ordre des niveaux — Axe X :",
+                 style = "font-weight:bold; color:#2c3e50; font-size:13px;"),
+      tags$small(class = "text-muted d-block mb-1",
+                 icon("hand-pointer"), " Glissez-déposez pour réordonner."),
+      selectizeInput(
+        "xLevelsOrder", label = NULL,
+        choices = lvls, selected = lvls,
+        multiple = TRUE, width = "100%",
+        options = list(plugins = list("drag_drop"),
+                       placeholder = "Glisser pour réordonner…")
+      )
+    )
+  })
+  
+  # ── Ordre des niveaux : légende / fill ───────────────────────────────────────
+  output$colLevelsOrderUI <- renderUI({
+    req(crosstab_values$raw_table)
+    lvls <- colnames(crosstab_values$raw_table)
+    tagList(
+      tags$label("Ordre des niveaux — Légende :",
+                 style = "font-weight:bold; color:#2c3e50; font-size:13px;"),
+      tags$small(class = "text-muted d-block mb-1",
+                 icon("hand-pointer"), " Glissez-déposez pour réordonner."),
+      selectizeInput(
+        "colLevelsOrder", label = NULL,
+        choices = lvls, selected = lvls,
+        multiple = TRUE, width = "100%",
+        options = list(plugins = list("drag_drop"),
+                       placeholder = "Glisser pour réordonner…")
+      )
+    )
+  })
+  
+  # ── Ordre des niveaux : graphique en secteurs ────────────────────────────────
+  output$pieLevelsOrderUI <- renderUI({
+    req(crosstab_values$raw_table, input$pieVariable)
+    lvls <- if (input$pieVariable == "row") {
+      rownames(crosstab_values$raw_table)
+    } else {
+      colnames(crosstab_values$raw_table)
+    }
+    tagList(
+      tags$label("Ordre des niveaux — Légende (secteurs) :",
+                 style = "font-weight:bold; color:#2c3e50; font-size:13px;"),
+      tags$small(class = "text-muted d-block mb-1",
+                 icon("hand-pointer"), " Glissez-déposez pour réordonner."),
+      selectizeInput(
+        "pieLevelsOrder", label = NULL,
+        choices = lvls, selected = lvls,
+        multiple = TRUE, width = "100%",
+        options = list(plugins = list("drag_drop"),
+                       placeholder = "Glisser pour réordonner…")
+      )
+    )
+  })
+  
+  # ── NOUVEAU (Feature 5) : Renommer les niveaux de l'axe X ────────────────────
+  output$xLevelRenameUI <- renderUI({
+    req(crosstab_values$raw_table)
+    lvls <- rownames(crosstab_values$raw_table)
+    
+    tagList(
+      tags$label("Renommer les niveaux — Axe X :",
+                 style = "font-weight:bold; color:#1a5276; font-size:13px;"),
+      tags$small(class = "text-muted d-block mb-2",
+                 icon("info-circle"),
+                 " Laissez vide pour conserver le nom d'origine."),
+      lapply(lvls, function(lv) {
+        div(style = "margin-bottom:6px;",
+            textInput(
+              inputId     = paste0("xRename_", make.names(lv)),
+              label       = tags$span(style = "font-size:11px; color:#555;", lv),
+              value       = "",
+              placeholder = lv,
+              width       = "100%"
+            )
+        )
+      })
+    )
+  })
+  
+  # ── NOUVEAU (Feature 2) : Renommer les niveaux de la légende ─────────────────
+  output$legendLevelRenameUI <- renderUI({
+    req(crosstab_values$raw_table)
+    lvls <- colnames(crosstab_values$raw_table)
+    
+    tagList(
+      tags$label("Renommer les niveaux — Légende :",
+                 style = "font-weight:bold; color:#1a5276; font-size:13px;"),
+      tags$small(class = "text-muted d-block mb-2",
+                 icon("info-circle"),
+                 " Laissez vide pour conserver le nom d'origine."),
+      lapply(lvls, function(lv) {
+        div(style = "margin-bottom:6px;",
+            textInput(
+              inputId     = paste0("colRename_", make.names(lv)),
+              label       = tags$span(style = "font-size:11px; color:#555;", lv),
+              value       = "",
+              placeholder = lv,
+              width       = "100%"
+            )
+        )
+      })
+    )
+  })
+  
+  
+  
+  # 3. FONCTIONS AUXILIAIRES
+  
+  
+  # Crée un element_text() avec les styles demandés
+  create_text_element <- function(size, bold = FALSE, italic = FALSE, color = NULL) {
+    face <- dplyr::case_when(
+      bold & italic ~ "bold.italic",
+      bold          ~ "bold",
+      italic        ~ "italic",
+      TRUE          ~ "plain"
+    )
+    args <- list(size = size, face = face)
+    if (!is.null(color)) args$color <- color
+    do.call(element_text, args)
+  }
+  
+  # Applique une palette de couleurs à un objet ggplot
+  apply_color_palette <- function(p, palette_choice, n_colors = NULL) {
+    if (is.null(palette_choice) || palette_choice == "ggplot_default") return(p)
+    
+    if (palette_choice == "grey") {
+      return(p + scale_fill_grey(start = 0.3, end = 0.9))
+    }
+    
+    if (palette_choice == "black") {
+      n <- if (!is.null(n_colors)) n_colors else 10
+      return(p + scale_fill_manual(values = rep("#2c3e50", n)))
+    }
+    
+    brewer_palettes <- c("Set1", "Set2", "Set3", "Pastel1", "Pastel2",
+                         "Dark2", "Accent", "Paired", "Spectral", "RdYlBu")
+    if (palette_choice %in% brewer_palettes) {
+      return(p + scale_fill_brewer(palette = palette_choice))
+    }
+    
+    viridis_options <- c(viridis = "viridis", plasma = "plasma",
+                         inferno = "inferno", magma = "magma", cividis = "cividis")
+    if (palette_choice %in% names(viridis_options)) {
+      return(p + scale_fill_viridis_d(option = viridis_options[[palette_choice]]))
+    }
+    
+    p
+  }
+  
+  # Construit le thème ggplot commun à partir des inputs utilisateur
+  # BUG FIX: ajout axes noirs (Feature 4), correction panel.grid (major/minor séparés)
+  build_base_theme <- function(input) {
+    x_rotation  <- input$xAxisRotation %||% 45
+    x_hjust     <- if (x_rotation > 0) 1 else 0.5
+    
+    # Feature 4 : options axes et graduations en noir
+    black_axes  <- input$blackAxes  %||% FALSE
+    black_ticks <- input$blackTicks %||% FALSE
+    
+    # Couleur du texte des axes selon l'option graduations en noir
+    axis_text_color <- if (black_ticks) "black" else "grey30"
+    
+    # Face du texte des axes
+    face_ax_text <- {
+      b <- input$axisTextBold   %||% FALSE
+      i <- input$axisTextItalic %||% FALSE
+      if (b && i) "bold.italic" else if (b) "bold" else if (i) "italic" else "plain"
+    }
+    
+    theme_minimal() +
+      theme(
+        plot.title   = element_markdown(
+          size  = input$titleSize %||% 16,
+          hjust = 0.5,
+          face  = "bold"
+        ),
+        # Axes en noir (Feature 4)
+        axis.line = if (black_axes) {
+          element_line(color = "black", linewidth = 0.75)
+        } else {
+          element_blank()
+        },
+        # Graduations (ticks) en noir (Feature 4)
+        axis.ticks = if (black_ticks) {
+          element_line(color = "black", linewidth = 0.5)
+        } else {
+          element_blank()
+        },
+        axis.ticks.length = if (black_ticks) grid::unit(0.2, "cm") else grid::unit(0, "cm"),
+        
+        axis.title.x = create_text_element(
+          size   = input$axisLabelSize   %||% 12,
+          bold   = input$axisTitleBold   %||% TRUE,
+          italic = input$axisTitleItalic %||% FALSE
+        ),
+        axis.title.y = create_text_element(
+          size   = input$axisLabelSize   %||% 12,
+          bold   = input$axisTitleBold   %||% TRUE,
+          italic = input$axisTitleItalic %||% FALSE
+        ),
+        axis.text.x = element_text(
+          angle  = x_rotation,
+          hjust  = x_hjust,
+          size   = input$axisTextSize %||% 10,
+          face   = face_ax_text,
+          color  = axis_text_color   # Feature 4
+        ),
+        axis.text.y = element_text(
+          size   = input$axisTextSize %||% 10,
+          face   = face_ax_text,
+          color  = axis_text_color   # Feature 4
+        ),
+        legend.text  = element_text(size = input$legendTextSize %||% 10),
+        legend.title = element_markdown(size = input$legendTextSize %||% 10, face = "bold"),
+        # BUG FIX: panel.grid.major / minor plutôt que panel.grid (plus précis)
+        panel.grid.major = if (input$showGridLines %||% TRUE) {
+          element_line(color = "gray90", linewidth = 0.4)
+        } else {
+          element_blank()
+        },
+        panel.grid.minor = element_blank()
+      )
+  }
+  
+  # Résout l'ordre des niveaux demandé par l'utilisateur (gestion robuste)
+  resolve_level_order <- function(requested, available) {
+    if (is.null(requested) || length(requested) == 0) return(available)
+    valid   <- requested[requested %in% available]
+    missing <- setdiff(available, valid)
+    c(valid, missing)
+  }
+  
+  # Helper pour le renommage dynamique des niveaux via les inputs
+  rename_levels <- function(lvls, prefix, input) {
+    vapply(lvls, function(lv) {
+      key <- paste0(prefix, make.names(lv))
+      val <- input[[key]]
+      if (!is.null(val) && nzchar(trimws(val))) trimws(val) else lv
+    }, character(1))
+  }
+  
+  
+  
+  # 4. GÉNÉRATION DES ANALYSES STATISTIQUES
+  
+  
   observeEvent(input$generateCrosstab, {
     req(input$crosstabRowVar, input$crosstabColVar)
     
-    showNotification("Generation des analyses en cours...", 
-                     type = "message", 
-                     duration = 2, 
-                     id = "gen_notif")
+    showNotification("Génération des analyses en cours…",
+                     type = "message", duration = 2, id = "gen_notif")
     
     tryCatch({
       df <- values$filteredData
       
-      if (!is.null(input$crosstabFilterVar) && input$crosstabFilterVar != "") {
-        df <- df[!is.na(df[[input$crosstabFilterVar]]), ]
+      # ── Filtre principal (ligne ou colonne sélectionnée) ──
+      filter_type   <- input$crosstabFilterType %||% "none"
+      filter_values <- input$crosstabFilterValues
+      
+      if (filter_type != "none" && !is.null(filter_values) && length(filter_values) > 0) {
+        filter_var <- if (filter_type == "row") input$crosstabRowVar else input$crosstabColVar
+        df <- df[as.character(df[[filter_var]]) %in% filter_values, ]
       }
       
+      # ── Feature 1 : Filtre additionnel (variable tierce) ──
+      add_var <- input$additionalFilterVar
+      if (!is.null(add_var) && nzchar(add_var)) {
+        add_vals <- input$additionalFilterValues
+        if (!is.null(add_vals) && length(add_vals) > 0) {
+          df <- df[as.character(df[[add_var]]) %in% add_vals, ]
+        }
+      }
+      
+      # ── Suppression des NA sur les variables d'analyse ──
       df <- df[!is.na(df[[input$crosstabRowVar]]) & !is.na(df[[input$crosstabColVar]]), ]
       
       if (nrow(df) == 0) {
-        showNotification("Aucune donnee disponible apres filtrage!", 
-                         type = "error", 
-                         duration = 5)
+        showNotification("Aucune donnée disponible après filtrage !",
+                         type = "error", duration = 5)
         return()
       }
       
-      if (!is.factor(df[[input$crosstabRowVar]])) {
-        df[[input$crosstabRowVar]] <- as.factor(df[[input$crosstabRowVar]])
-      }
-      if (!is.factor(df[[input$crosstabColVar]])) {
-        df[[input$crosstabColVar]] <- as.factor(df[[input$crosstabColVar]])
+      # ── Conversion en facteurs ──
+      df[[input$crosstabRowVar]] <- droplevels(as.factor(df[[input$crosstabRowVar]]))
+      df[[input$crosstabColVar]] <- droplevels(as.factor(df[[input$crosstabColVar]]))
+      
+      # ── Table de contingence brute ──
+      raw_ct <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
+      
+      if (any(dim(raw_ct) == 0)) {
+        showNotification("Une variable ne contient aucune modalité après filtrage !",
+                         type = "error", duration = 5)
+        return()
       }
       
-      contingency_table <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
-      crosstab_values$contingency_table <- addmargins(contingency_table)
+      crosstab_values$raw_table         <- raw_ct
+      crosstab_values$contingency_table <- addmargins(raw_ct)
       
-      # Proportions en lignes
+      # ── Proportions en lignes ──
       if ("row_prop" %in% input$analysisOptions) {
-        row_prop <- prop.table(contingency_table, margin = 1) * 100
+        row_prop <- prop.table(raw_ct, margin = 1) * 100
         crosstab_values$row_proportions <- addmargins(row_prop, margin = 2)
       } else {
         crosstab_values$row_proportions <- NULL
       }
       
-      # Proportions en colonnes
+      # ── Proportions en colonnes ──
       if ("col_prop" %in% input$analysisOptions) {
-        col_prop <- prop.table(contingency_table, margin = 2) * 100  
+        col_prop <- prop.table(raw_ct, margin = 2) * 100
         crosstab_values$col_proportions <- addmargins(col_prop, margin = 1)
       } else {
         crosstab_values$col_proportions <- NULL
       }
       
-      # Proportions totales
+      # ── Proportions totales ──
       if ("total_prop" %in% input$analysisOptions) {
-        total_prop <- prop.table(contingency_table) * 100
-        
-        # Ajout manuel des marges pour les proportions totales
-        total_prop_with_margins <- total_prop
-        
-        # Calcul des totaux de lignes
+        total_prop <- prop.table(raw_ct) * 100
         row_totals <- apply(total_prop, 1, sum)
-        total_prop_with_margins <- cbind(total_prop, Sum = row_totals)
-        
-        # Calcul des totaux de colonnes
-        col_totals <- apply(total_prop_with_margins, 2, sum)
-        total_prop_with_margins <- rbind(total_prop_with_margins, Sum = col_totals)
-        
-        crosstab_values$total_proportions <- total_prop_with_margins
+        tp_margins <- cbind(total_prop, Sum = row_totals)
+        col_totals <- apply(tp_margins, 2, sum)
+        tp_margins <- rbind(tp_margins, Sum = col_totals)
+        crosstab_values$total_proportions <- tp_margins
       } else {
         crosstab_values$total_proportions <- NULL
       }
       
-      # Test du Chi2
+      # ── Test du Chi-deux ──
       if ("chi_test" %in% input$analysisOptions) {
-        if (all(contingency_table >= 5)) {
-          crosstab_values$chi_test <- chisq.test(contingency_table)
+        if (all(raw_ct >= 5)) {
+          crosstab_values$chi_test <- chisq.test(raw_ct)
         } else {
-          crosstab_values$chi_test <- "Conditions non remplies (effectifs < 5)"
+          crosstab_values$chi_test <- tryCatch(
+            chisq.test(raw_ct, correct = (all(dim(raw_ct) == 2))),
+            error = function(e) paste("Erreur Chi-deux :", e$message)
+          )
+          if (is.list(crosstab_values$chi_test) &&
+              any(crosstab_values$chi_test$expected < 5)) {
+            showNotification(
+              "Attention : certains effectifs théoriques sont < 5. Résultats à interpréter avec précaution.",
+              type = "warning", duration = 6)
+          } else if (!is.list(crosstab_values$chi_test)) {
+            showNotification(
+              "Attention : certains effectifs théoriques sont < 5. Résultats à interpréter avec précaution.",
+              type = "warning", duration = 6)
+          }
         }
       } else {
         crosstab_values$chi_test <- NULL
       }
       
-      # Test exact de Fisher
+      # ── Test exact de Fisher ──
       if ("fisher_test" %in% input$analysisOptions) {
-        if (min(dim(contingency_table)) == 2 && max(dim(contingency_table)) == 2) {
-          crosstab_values$fisher_test <- fisher.test(contingency_table)
+        if (all(dim(raw_ct) == 2)) {
+          crosstab_values$fisher_test <- fisher.test(raw_ct)
         } else {
-          crosstab_values$fisher_test <- "Test de Fisher disponible uniquement pour tableaux 2x2"
+          crosstab_values$fisher_test <-
+            "Test de Fisher disponible uniquement pour les tableaux 2×2."
         }
       } else {
         crosstab_values$fisher_test <- NULL
       }
       
-      # Calcul des residus standardises
+      # ── Résidus standardisés ──
       if ("residuals" %in% input$analysisOptions) {
-        
-        # Vérifier que le test du Chi2 a été calculé et qu'il est valide
-        if (!is.null(crosstab_values$chi_test) && is.list(crosstab_values$chi_test)) {
-          residuals_std <- crosstab_values$chi_test$stdres
-          crosstab_values$residuals <- residuals_std
+        if (is.list(crosstab_values$chi_test) &&
+            !is.null(crosstab_values$chi_test$stdres)) {
+          crosstab_values$residuals <- crosstab_values$chi_test$stdres
         } else {
           crosstab_values$residuals <- NULL
-          showNotification("Les residus necessitent un test du Chi2 valide. Veuillez cocher 'Test du Chi2'.", 
-                           type = "warning", 
-                           duration = 5)
+          showNotification(
+            "Les résidus standardisés nécessitent un test du Chi-deux valide. Veuillez cocher « Test du Chi-deux ».",
+            type = "warning", duration = 6)
         }
       } else {
         crosstab_values$residuals <- NULL
       }
       
-      showNotification("Analyses generees avec succes!", 
-                       type = "message", 
-                       duration = 3)
+      showNotification("Analyses générées avec succès !", type = "message", duration = 3)
       
     }, error = function(e) {
-      showNotification(paste("Erreur lors de l'analyse :", e$message), 
-                       type = "error", 
-                       duration = 10)
+      showNotification(paste("Erreur lors de l'analyse :", e$message),
+                       type = "error", duration = 10)
     })
   })
   
-  # Affichage des tableaux de resultats
+  
+  
+  # 5. AFFICHAGE DES TABLEAUX DE RÉSULTATS
+  
+  
+  # Helper : options DT communes
+  dt_options <- list(
+    scrollX    = TRUE,
+    pageLength = 25,
+    dom        = "Bfrtip",
+    buttons    = c("copy", "csv", "excel")
+  )
+  
+  dt_caption <- function(text) {
+    htmltools::tags$caption(
+      style = paste0("caption-side:top; text-align:center;",
+                     "color:#333; font-size:16px; font-weight:bold;"),
+      text
+    )
+  }
+  
   output$crosstabTable <- renderDT({
     req(crosstab_values$contingency_table)
-    datatable(as.data.frame.matrix(crosstab_values$contingency_table), 
-              options = list(
-                scrollX = TRUE, 
-                pageLength = 25, 
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
-              ),
-              class = 'cell-border stripe hover',
-              caption = htmltools::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #333; font-size: 16px; font-weight: bold;',
-                'Tableau de contingence (effectifs)'
-              ))
+    datatable(
+      as.data.frame.matrix(crosstab_values$contingency_table),
+      options = dt_options,
+      class   = "cell-border stripe hover",
+      caption = dt_caption("Tableau de contingence — Effectifs")
+    )
   })
   
   output$crosstabRowProp <- renderDT({
     req(crosstab_values$row_proportions)
-    datatable(round(as.data.frame.matrix(crosstab_values$row_proportions), 2), 
-              options = list(
-                scrollX = TRUE, 
-                pageLength = 25, 
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
-              ),
-              class = 'cell-border stripe hover',
-              caption = htmltools::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #333; font-size: 16px; font-weight: bold;',
-                'Proportions en lignes (%)'
-              ))
+    datatable(
+      round(as.data.frame.matrix(crosstab_values$row_proportions), 2),
+      options = dt_options,
+      class   = "cell-border stripe hover",
+      caption = dt_caption("Proportions en lignes (%)")
+    )
   })
   
   output$crosstabColProp <- renderDT({
     req(crosstab_values$col_proportions)
-    datatable(round(as.data.frame.matrix(crosstab_values$col_proportions), 2), 
-              options = list(
-                scrollX = TRUE, 
-                pageLength = 25, 
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
-              ),
-              class = 'cell-border stripe hover',
-              caption = htmltools::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #333; font-size: 16px; font-weight: bold;',
-                'Proportions en colonnes (%)'
-              ))
+    datatable(
+      round(as.data.frame.matrix(crosstab_values$col_proportions), 2),
+      options = dt_options,
+      class   = "cell-border stripe hover",
+      caption = dt_caption("Proportions en colonnes (%)")
+    )
   })
   
   output$crosstabTotalProp <- renderDT({
     req(crosstab_values$total_proportions)
-    datatable(round(as.data.frame.matrix(crosstab_values$total_proportions), 2), 
-              options = list(
-                scrollX = TRUE, 
-                pageLength = 25, 
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
-              ),
-              class = 'cell-border stripe hover',
-              caption = htmltools::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #333; font-size: 16px; font-weight: bold;',
-                'Proportions totales (%)'
-              ))
+    datatable(
+      round(as.data.frame.matrix(crosstab_values$total_proportions), 2),
+      options = dt_options,
+      class   = "cell-border stripe hover",
+      caption = dt_caption("Proportions totales (%)")
+    )
   })
   
   output$crosstabTests <- renderPrint({
-    req(crosstab_values$chi_test)
-    if (!is.null(crosstab_values$chi_test)) {
+    has_chi    <- !is.null(crosstab_values$chi_test)
+    has_fisher <- !is.null(crosstab_values$fisher_test)
+    req(has_chi || has_fisher)
+    
+    sep <- paste0(strrep("─", 48), "\n")
+    
+    if (has_chi) {
+      cat(sep)
+      cat("  TEST DU CHI-DEUX (χ²)\n")
+      cat(sep)
       if (is.list(crosstab_values$chi_test)) {
-        cat("╔═══════════════════════════════════╗\n")
-        cat("       TEST DU CHI-DEUX (χ²)          \n")
-        cat("╚═══════════════════════════════════╝\n\n")
-        cat("Statistique X2 :", round(crosstab_values$chi_test$statistic, 4), "\n")
-        cat("Degres de liberte :", crosstab_values$chi_test$parameter, "\n") 
-        cat("p-value :", format.pval(crosstab_values$chi_test$p.value, digits = 4), "\n")
-        cat("\nInterpretation : ", 
-            ifelse(crosstab_values$chi_test$p.value < 0.05, 
-                   "[SIGNIFICATIF] Association SIGNIFICATIVE (p < 0.05)", 
-                   "[NON SIGNIFICATIF] Pas d'association significative (p >= 0.05)"), "\n\n")
+        ct <- crosstab_values$chi_test
+        cat("  Statistique X²     :", round(ct$statistic, 4), "\n")
+        cat("  Degrés de liberté  :", ct$parameter, "\n")
+        cat("  p-value            :", format.pval(ct$p.value, digits = 4), "\n")
+        cat("\n  →", if (ct$p.value < 0.05) {
+          "Association SIGNIFICATIVE (p < 0,05)"
+        } else {
+          "Pas d'association significative (p ≥ 0,05)"
+        }, "\n\n")
+        if (any(ct$expected < 5))
+          cat("  ⚠ Attention : certains effectifs théoriques < 5.\n\n")
       } else {
-        cat("╔═══════════════════════════════════╗\n")
-        cat("       TEST DU CHI-DEUX (χ²)          \n")
-        cat("╚═══════════════════════════════════╝\n\n")
-        cat(crosstab_values$chi_test, "\n\n")
+        cat(" ", crosstab_values$chi_test, "\n\n")
       }
     }
     
-    if (!is.null(crosstab_values$fisher_test)) {
+    if (has_fisher) {
+      cat(sep)
+      cat("  TEST EXACT DE FISHER\n")
+      cat(sep)
       if (is.list(crosstab_values$fisher_test)) {
-        cat("╔═══════════════════════════════════╗\n")
-        cat("     TEST EXACT DE FISHER             \n")
-        cat("╚═══════════════════════════════════╝\n\n")
-        cat("p-value :", format.pval(crosstab_values$fisher_test$p.value, digits = 4), "\n")
-        cat("\nInterpretation : ", 
-            ifelse(crosstab_values$fisher_test$p.value < 0.05, 
-                   "[SIGNIFICATIF] Association SIGNIFICATIVE (p < 0.05)", 
-                   "[NON SIGNIFICATIF] Pas d'association significative (p >= 0.05)"), "\n\n")
+        ft <- crosstab_values$fisher_test
+        cat("  p-value    :", format.pval(ft$p.value, digits = 4), "\n")
+        if (!is.null(ft$estimate))
+          cat("  Odds ratio :", round(ft$estimate, 4), "\n")
+        if (!is.null(ft$conf.int))
+          cat("  IC 95%     :", paste0("[", round(ft$conf.int[1], 4),
+                                       " ; ", round(ft$conf.int[2], 4), "]"), "\n")
+        cat("\n  →", if (ft$p.value < 0.05) {
+          "Association SIGNIFICATIVE (p < 0,05)"
+        } else {
+          "Pas d'association significative (p ≥ 0,05)"
+        }, "\n\n")
       } else {
-        cat("╔═══════════════════════════════════╗\n")
-        cat("     TEST EXACT DE FISHER             \n")
-        cat("╚═══════════════════════════════════╝\n\n")
-        cat(crosstab_values$fisher_test, "\n\n")
+        cat(" ", crosstab_values$fisher_test, "\n\n")
       }
-    }
-    
-    if (is.null(crosstab_values$chi_test) && is.null(crosstab_values$fisher_test)) {
-      cat("Aucun test statistique selectionne.\n")
-      cat("Veuillez cocher 'Test du Chi2' ou 'Test exact de Fisher' dans les options d'analyse.\n")
     }
   })
   
   output$crosstabResiduals <- renderDT({
     req(crosstab_values$residuals)
-    datatable(round(as.data.frame.matrix(crosstab_values$residuals), 2), 
-              options = list(
-                scrollX = TRUE, 
-                pageLength = 25, 
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
-              ),
-              class = 'cell-border stripe hover',
-              caption = htmltools::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #333; font-size: 16px; font-weight: bold;',
-                'Residus standardises (|valeur| > 2 = contribution importante)'
-              )) %>%
-      formatStyle(names(as.data.frame.matrix(crosstab_values$residuals)),
-                  backgroundColor = styleInterval(c(-2, 2), 
-                                                  c("#d4edff", "white", "#ffd4d4")))
+    df_res <- round(as.data.frame.matrix(crosstab_values$residuals), 2)
+    datatable(
+      df_res,
+      options = dt_options,
+      class   = "cell-border stripe hover",
+      caption = dt_caption("Résidus standardisés  (|valeur| > 2 → contribution significative)")
+    ) |>
+      formatStyle(
+        columns         = names(df_res),
+        backgroundColor = styleInterval(
+          c(-2, 2),
+          c("#cce5ff", "#ffffff", "#f8d7da")
+        )
+      )
   })
   
-  # Fonctions auxiliaires
-  create_text_element <- function(size, bold = FALSE, italic = FALSE) {
-    face <- if (bold && italic) "bold.italic" 
-    else if (bold) "bold" 
-    else if (italic) "italic" 
-    else "plain"
-    element_text(size = size, face = face)
-  }
   
-  apply_color_palette <- function(plot, palette_choice) {
-    if (is.null(palette_choice) || palette_choice == "ggplot_default") {
-      return(plot)
-    } else if (palette_choice == "grey") {
-      return(plot + scale_fill_grey(start = 0.3, end = 0.9))
-    } else if (palette_choice == "black") {
-      n_colors <- length(unique(plot$data$Col_Var))
-      return(plot + scale_fill_manual(values = rep("black", n_colors)))
-    } else if (palette_choice %in% c("Set1", "Set2", "Set3", "Pastel1", "Pastel2", 
-                                     "Dark2", "Accent", "Paired", "Spectral", "RdYlBu")) {
-      return(plot + scale_fill_brewer(palette = palette_choice))
-    } else if (palette_choice == "viridis") {
-      return(plot + scale_fill_viridis_d())
-    } else if (palette_choice == "plasma") {
-      return(plot + scale_fill_viridis_d(option = "plasma"))
-    } else if (palette_choice == "inferno") {
-      return(plot + scale_fill_viridis_d(option = "inferno"))
-    } else if (palette_choice == "magma") {
-      return(plot + scale_fill_viridis_d(option = "magma"))
-    } else if (palette_choice == "cividis") {
-      return(plot + scale_fill_viridis_d(option = "cividis"))
-    }
-    return(plot)
-  }
   
-  # Generation du graphique principal
+  # 6. GRAPHIQUES
+  
+  
+  # ── 6a. Graphique principal ──────────────────────────────────────────────────
+  
   output$crosstabPlot <- renderPlot({
-    req(crosstab_values$contingency_table, input$crosstabRowVar, input$crosstabColVar)
+    req(crosstab_values$contingency_table,
+        input$crosstabRowVar,
+        input$crosstabColVar)
     
-    # Créer un dataFrame à partir du tableau de contingence
+    # Reconstruction du data frame sans les marges
     df_plot <- as.data.frame(crosstab_values$contingency_table)
     df_plot <- df_plot[df_plot$Var1 != "Sum" & df_plot$Var2 != "Sum", ]
     names(df_plot) <- c("Row_Var", "Col_Var", "Freq")
-    
-    # Vérifier que les données sont valides
-    if (nrow(df_plot) == 0 || any(is.na(df_plot$Freq))) {
-      showNotification("Données invalides pour le graphique!", type = "error", duration = 5)
-      return(NULL)
-    }
-    
-    # Convertir explicitement en data frame
     df_plot <- data.frame(
       Row_Var = as.character(df_plot$Row_Var),
       Col_Var = as.character(df_plot$Col_Var),
-      Freq = as.numeric(df_plot$Freq)
+      Freq    = as.numeric(df_plot$Freq),
+      stringsAsFactors = FALSE
     )
     
-    title <- if (!is.null(input$crosstabTitle) && input$crosstabTitle != "") {
-      input$crosstabTitle
-    } else {
-      paste("Tableau croise :", input$crosstabRowVar, "vs", input$crosstabColVar)
+    if (nrow(df_plot) == 0 || any(is.na(df_plot$Freq))) {
+      showNotification("Données invalides pour le graphique !", type = "error", duration = 5)
+      return(NULL)
     }
     
-    x_label <- if (!is.null(input$crosstabXLabel) && input$crosstabXLabel != "") {
-      input$crosstabXLabel  
+    # ── Ordre des niveaux ──
+    x_available   <- unique(df_plot$Row_Var)
+    col_available <- unique(df_plot$Col_Var)
+    x_order   <- resolve_level_order(input$xLevelsOrder,   x_available)
+    col_order <- resolve_level_order(input$colLevelsOrder, col_available)
+    
+    df_plot$Row_Var <- factor(df_plot$Row_Var, levels = x_order)
+    df_plot$Col_Var <- factor(df_plot$Col_Var, levels = col_order)
+    
+    # ── Feature 5 : Renommer les niveaux de l'axe X ──
+    x_renamed <- rename_levels(levels(df_plot$Row_Var), "xRename_", input)
+    levels(df_plot$Row_Var) <- x_renamed
+    
+    # ── Feature 2 : Renommer les niveaux de la légende ──
+    col_renamed <- rename_levels(levels(df_plot$Col_Var), "colRename_", input)
+    levels(df_plot$Col_Var) <- col_renamed
+    
+    # ── Choix des données à représenter (effectifs ou proportions) ──
+    plot_data_type <- input$plotDataType %||% "counts"
+    
+    if (plot_data_type == "row_prop") {
+      df_plot$Value <- ave(df_plot$Freq, df_plot$Row_Var,
+                           FUN = function(x) x / sum(x) * 100)
+      y_label_auto  <- "Proportions en lignes (%)"
+      label_fmt     <- function(v) paste0(round(v, 1), "%")
+    } else if (plot_data_type == "col_prop") {
+      df_plot$Value <- ave(df_plot$Freq, df_plot$Col_Var,
+                           FUN = function(x) x / sum(x) * 100)
+      y_label_auto  <- "Proportions en colonnes (%)"
+      label_fmt     <- function(v) paste0(round(v, 1), "%")
+    } else {
+      df_plot$Value <- df_plot$Freq
+      y_label_auto  <- "Effectifs"
+      label_fmt     <- function(v) as.character(round(v))
+    }
+    
+    # ── Labels du graphique ──
+    title <- if (!is.null(input$crosstabTitle) && nzchar(input$crosstabTitle)) {
+      input$crosstabTitle
+    } else {
+      paste("Analyse croisée :", input$crosstabRowVar, "×", input$crosstabColVar)
+    }
+    
+    x_label <- if (!is.null(input$crosstabXLabel) && nzchar(input$crosstabXLabel)) {
+      input$crosstabXLabel
     } else {
       input$crosstabRowVar
     }
     
-    y_label <- if (!is.null(input$crosstabYLabel) && input$crosstabYLabel != "") {
+    y_label <- if (!is.null(input$crosstabYLabel) && nzchar(input$crosstabYLabel)) {
       input$crosstabYLabel
     } else {
-      "Effectifs"
+      y_label_auto
     }
     
-    x_rotation <- if (!is.null(input$xAxisRotation)) input$xAxisRotation else 45
-    x_hjust <- if (x_rotation > 0) 1 else 0.5
-    
-    base_theme <- theme_minimal() +
-      theme(
-        plot.title = element_markdown(size = input$titleSize, hjust = 0.5, face = "bold"),
-        axis.title.x = create_text_element(
-          if(!is.null(input$axisLabelSize)) input$axisLabelSize else 12,
-          if(!is.null(input$axisTitleBold)) input$axisTitleBold else TRUE,
-          if(!is.null(input$axisTitleItalic)) input$axisTitleItalic else FALSE
-        ),
-        axis.title.y = create_text_element(
-          if(!is.null(input$axisLabelSize)) input$axisLabelSize else 12,
-          if(!is.null(input$axisTitleBold)) input$axisTitleBold else TRUE,
-          if(!is.null(input$axisTitleItalic)) input$axisTitleItalic else FALSE
-        ),
-        axis.text.x = element_text(
-          angle = x_rotation, 
-          hjust = x_hjust, 
-          size = input$axisTextSize,
-          face = if(!is.null(input$axisTextBold) && !is.null(input$axisTextItalic)) {
-            if(input$axisTextBold && input$axisTextItalic) "bold.italic" 
-            else if(input$axisTextBold) "bold" 
-            else if(input$axisTextItalic) "italic" 
-            else "plain"
-          } else {
-            "plain"
-          }
-        ),
-        axis.text.y = create_text_element(
-          input$axisTextSize,
-          if(!is.null(input$axisTextBold)) input$axisTextBold else FALSE,
-          if(!is.null(input$axisTextItalic)) input$axisTextItalic else FALSE
-        ),
-        legend.text = element_text(size = input$legendTextSize),
-        legend.title = element_markdown(size = input$legendTextSize, face = "bold"),
-        panel.grid = if(!is.null(input$showGridLines) && input$showGridLines) {
-          element_line(color = "gray90")
-        } else {
-          element_blank()
-        }
-      )
-    
-    if (input$plotType == "bar") {
-      p <- ggplot(df_plot, aes(x = Row_Var, y = Freq, fill = Col_Var)) +
-        geom_bar(stat = "identity", position = "dodge", alpha = 0.85, 
-                 color = "white", linewidth = 0.3) +
-        labs(title = title, x = x_label, y = y_label, fill = input$crosstabColVar) +
-        base_theme
-      
-      if (!is.null(input$showPercentages) && input$showPercentages) {
-        p <- p + geom_text(aes(label = Freq), position = position_dodge(0.9), 
-                           vjust = -0.5, size = 3.5, fontface = "bold")
-      }
-      
-    } else if (input$plotType == "stacked_bar") {
-      p <- ggplot(df_plot, aes(x = Row_Var, y = Freq, fill = Col_Var)) +
-        geom_bar(stat = "identity", position = "stack", alpha = 0.85, 
-                 color = "white", linewidth = 0.3) +
-        labs(title = title, x = x_label, y = y_label, fill = input$crosstabColVar) +
-        base_theme
-      
-      if (!is.null(input$showPercentages) && input$showPercentages) {
-        p <- p + geom_text(aes(label = Freq), position = position_stack(vjust = 0.5),
-                           size = 3.5, fontface = "bold", color = "white")
-      }
-      
-    } else if (input$plotType == "mosaic") {
-      # Calculer les proportions explicitement pour éviter les problèmes de vecteurs nommés
-      df_plot$prop <- ave(df_plot$Freq, df_plot$Row_Var, FUN = function(x) x / sum(x))
-      
-      p <- ggplot(df_plot, aes(x = Row_Var, y = prop, fill = Col_Var)) +
-        geom_bar(stat = "identity", position = "fill", alpha = 0.85, 
-                 color = "white", linewidth = 0.3) +
-        labs(title = title, x = x_label, y = "Proportions", fill = input$crosstabColVar) +
-        base_theme +
-        scale_y_continuous(labels = scales::percent)
-      
-      if (!is.null(input$showPercentages) && input$showPercentages) {
-        p <- p + geom_text(aes(label = paste0(round(prop * 100, 1), "%")), 
-                           position = position_fill(vjust = 0.5),
-                           size = 3, fontface = "bold", color = "black")
-      }
+    # BUG FIX : crosstabLegendTitle maintenant présent dans l'UI
+    legend_title <- if (!is.null(input$crosstabLegendTitle) && nzchar(input$crosstabLegendTitle)) {
+      input$crosstabLegendTitle
+    } else {
+      input$crosstabColVar
     }
     
-    if (!is.null(input$colorPalette)) {
-      p <- apply_color_palette(p, input$colorPalette)
-    }
+    base_theme  <- build_base_theme(input)
+    show_labels <- input$showPercentages %||% TRUE
+    # BUG FIX : labelSize maintenant présent dans l'UI
+    label_sz    <- input$labelSize %||% 3.5
+    n_col_var   <- length(levels(df_plot$Col_Var))
+    
+    # ── Construction du graphique ──
+    p <- switch(
+      input$plotType,
+      
+      "bar" = {
+        g <- ggplot(df_plot, aes(x = Row_Var, y = Value, fill = Col_Var)) +
+          geom_bar(stat = "identity", position = "dodge",
+                   alpha = 0.88, color = "white", linewidth = 0.3) +
+          labs(title = title, x = x_label, y = y_label, fill = legend_title) +
+          base_theme
+        if (show_labels)
+          g <- g + geom_text(aes(label = label_fmt(Value)),
+                             position = position_dodge(0.9),
+                             vjust = -0.5, size = label_sz, fontface = "bold")
+        g
+      },
+      
+      "stacked_bar" = {
+        g <- ggplot(df_plot, aes(x = Row_Var, y = Value, fill = Col_Var)) +
+          geom_bar(stat = "identity", position = "stack",
+                   alpha = 0.88, color = "white", linewidth = 0.3) +
+          labs(title = title, x = x_label, y = y_label, fill = legend_title) +
+          base_theme
+        if (show_labels)
+          g <- g + geom_text(aes(label = label_fmt(Value)),
+                             position = position_stack(vjust = 0.5),
+                             size = label_sz, fontface = "bold", color = "white")
+        g
+      },
+      
+      "mosaic" = {
+        df_plot$prop <- ave(df_plot$Freq, df_plot$Row_Var,
+                            FUN = function(x) x / sum(x))
+        g <- ggplot(df_plot, aes(x = Row_Var, y = prop, fill = Col_Var)) +
+          geom_bar(stat = "identity", position = "fill",
+                   alpha = 0.88, color = "white", linewidth = 0.3) +
+          labs(title = title, x = x_label, y = "Proportions (%)",
+               fill = legend_title) +
+          base_theme +
+          scale_y_continuous(labels = scales::percent)
+        if (show_labels)
+          g <- g + geom_text(aes(label = paste0(round(prop * 100, 1), "%")),
+                             position = position_fill(vjust = 0.5),
+                             size = label_sz, fontface = "bold", color = "white")
+        g
+      },
+      
+      NULL
+    )
+    
+    if (is.null(p)) return(NULL)
+    
+    p <- apply_color_palette(p, input$colorPalette, n_colors = n_col_var)
     
     crosstab_values$current_plot <- p
     print(p)
   })
   
-  # Rendu conditionnel de la section de téléchargement du graphique principal 
+  # Section d'export — graphique principal
+  # BUG FIX + Feature 3 : DPI max porté à 20 000
   output$plotDownloadSection <- renderUI({
     req(crosstab_values$current_plot)
     
-    div(style = "background-color: #eafaf1; padding: 20px; border-radius: 8px; border: 1px solid #27ae60;",
-        tags$h5(
-          icon("download"), 
-          "Paramètres d'exportation",
-          style = "font-weight: bold; color: #27ae60; margin-top: 0; margin-bottom: 15px;"
-        ),
-        
-        fluidRow(
-          column(6,
-                 numericInput("mainPlotDPI", 
-                              "Résolution (DPI) :", 
-                              value = 300, min = 72, max = 600, step = 50,
-                              width = "100%")),
-          column(6,
-                 selectInput("mainPlotFormat", 
-                             "Format d'export :", 
-                             choices = c(
-                               "PNG (recommandé)" = "png", 
-                               "JPEG" = "jpeg",
-                               "TIFF (haute qualité)" = "tiff",
-                               "PDF (vectoriel)" = "pdf",
-                               "SVG (vectoriel web)" = "svg",
-                               "EPS (publication)" = "eps",
-                               "BMP" = "bmp"
-                             ),
-                             selected = "png",
-                             width = "100%"))
-        ),
-        
-        downloadButton("downloadPlot", 
-                       "Télécharger le graphique", 
-                       class = "btn-success btn-lg btn-block", 
-                       icon = icon("download"),
-                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 15px; background: linear-gradient(to right, #27ae60, #219653); box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
+    div(
+      style = "background-color:#eafaf1; padding:20px; border-radius:8px; border:1px solid #27ae60;",
+      tags$h5(icon("download"), " Paramètres d'exportation",
+              style = "font-weight:bold; color:#27ae60; margin-top:0; margin-bottom:15px;"),
+      fluidRow(
+        column(6, numericInput("mainPlotDPI", "Résolution (DPI) :",
+                               value = 300, min = 72, max = 20000, step = 50,
+                               width = "100%")),
+        column(6, selectInput("mainPlotFormat", "Format d'export :",
+                              choices = c("PNG (recommandé)" = "png",
+                                          "JPEG"             = "jpeg",
+                                          "TIFF"             = "tiff",
+                                          "PDF (vectoriel)"  = "pdf",
+                                          "SVG (web)"        = "svg",
+                                          "EPS (publication)"= "eps",
+                                          "BMP"              = "bmp"),
+                              selected = "png", width = "100%"))
+      ),
+      tags$small(class = "text-muted",
+                 icon("info-circle"),
+                 " Au-delà de 600 DPI : réservé à l'impression haute définition."),
+      br(),
+      downloadButton("downloadPlot", "Télécharger le graphique",
+                     class = "btn-success btn-lg btn-block",
+                     icon  = icon("download"),
+                     style = paste0("font-weight:bold; font-size:16px; padding:15px;",
+                                    "margin-top:12px; background:linear-gradient(to right,#27ae60,#219653);",
+                                    "box-shadow:0 4px 6px rgba(0,0,0,.1);"))
     )
   })
   
-  # Generation du graphique en secteurs
+  
+  # ── 6b. Graphique en secteurs ────────────────────────────────────────────────
+  
   output$crosstabPiePlot <- renderPlot({
     req(crosstab_values$contingency_table, input$pieVariable)
     
@@ -2531,421 +2876,342 @@ server <- function(input, output, session) {
     
     df_pie <- data.frame(
       Category = names(pie_data),
-      Count = as.numeric(pie_data)
+      Count    = as.numeric(pie_data),
+      stringsAsFactors = FALSE
     )
     df_pie$Percentage <- round(df_pie$Count / sum(df_pie$Count) * 100, 1)
     
-    title <- if (!is.null(input$crosstabTitle) && input$crosstabTitle != "") {
-      paste(input$crosstabTitle, "-", var_name)
+    # Ordre des niveaux
+    pie_lvl_order <- resolve_level_order(input$pieLevelsOrder, df_pie$Category)
+    df_pie$Category <- factor(df_pie$Category, levels = pie_lvl_order)
+    
+    # BUG FIX : piePlotTitle maintenant présent dans l'UI
+    title <- if (!is.null(input$piePlotTitle) && nzchar(input$piePlotTitle)) {
+      input$piePlotTitle
+    } else if (!is.null(input$crosstabTitle) && nzchar(input$crosstabTitle)) {
+      paste0(input$crosstabTitle, " — ", var_name)
     } else {
-      paste("Repartition de", var_name)
+      paste("Répartition de :", var_name)
     }
     
+    # BUG FIX : pieLegendTitle maintenant présent dans l'UI
+    pie_legend_title <- if (!is.null(input$pieLegendTitle) && nzchar(input$pieLegendTitle)) {
+      input$pieLegendTitle
+    } else {
+      var_name
+    }
+    
+    label_sz <- input$labelSize %||% 3.5
+    
     p <- ggplot(df_pie, aes(x = "", y = Count, fill = Category)) +
-      geom_bar(stat = "identity", width = 1, alpha = 0.9, 
-               color = "white", linewidth = 1) +
+      geom_bar(stat = "identity", width = 1,
+               alpha = 0.9, color = "white", linewidth = 0.8) +
       coord_polar(theta = "y") +
-      labs(title = title, fill = var_name) +
+      labs(title = title, fill = pie_legend_title) +
       theme_void() +
       theme(
-        plot.title = element_markdown(size = input$titleSize, hjust = 0.5, 
-                                      face = "bold", margin = margin(b = 20)),
-        legend.text = element_text(size = input$legendTextSize),
-        legend.title = element_markdown(size = input$legendTextSize, face = "bold"),
+        plot.title   = element_markdown(
+          size   = input$titleSize %||% 16,
+          hjust  = 0.5,
+          face   = "bold",
+          margin = margin(b = 20)
+        ),
+        legend.text  = element_text(size = input$legendTextSize %||% 10),
+        legend.title = element_markdown(size = input$legendTextSize %||% 10, face = "bold"),
         legend.position = "right"
       )
     
-    if (!is.null(input$showPercentages) && input$showPercentages) {
-      p <- p + geom_text(aes(label = paste0(Percentage, "%")), 
+    if (input$showPercentages %||% TRUE) {
+      p <- p + geom_text(aes(label = paste0(Percentage, "%")),
                          position = position_stack(vjust = 0.5),
-                         size = 4, fontface = "bold", color = "black")
+                         size = label_sz, fontface = "bold", color = "white")
     }
     
-    if (!is.null(input$pieColorPalette)) {
-      p <- apply_color_palette(p, input$pieColorPalette)
-    }
+    n_cats <- nrow(df_pie)
+    p      <- apply_color_palette(p, input$pieColorPalette, n_colors = n_cats)
     
     crosstab_values$current_pie_plot <- p
     print(p)
   })
   
-  # Rendu conditionnel de la section de téléchargement du graphique en secteurs 
+  # Section d'export — graphique en secteurs
+  # BUG FIX + Feature 3 : DPI max porté à 20 000
   output$pieDownloadSection <- renderUI({
     req(crosstab_values$current_pie_plot)
     
-    div(style = "background-color: #ebf5fb; padding: 20px; border-radius: 8px; border: 1px solid #3498db;",
-        tags$h5(
-          icon("download"), 
-          "Paramètres d'exportation",
-          style = "font-weight: bold; color: #3498db; margin-top: 0; margin-bottom: 15px;"
-        ),
-        
-        fluidRow(
-          column(6,
-                 numericInput("piePlotDPI", 
-                              "Résolution (DPI) :", 
-                              value = 300, min = 72, max = 600, step = 50,
-                              width = "100%")),
-          column(6,
-                 selectInput("piePlotFormat", 
-                             "Format d'export :", 
-                             choices = c(
-                               "PNG (recommandé)" = "png", 
-                               "JPEG" = "jpeg",
-                               "TIFF (haute qualité)" = "tiff",
-                               "PDF (vectoriel)" = "pdf",
-                               "SVG (vectoriel web)" = "svg",
-                               "EPS (publication)" = "eps",
-                               "BMP" = "bmp"
-                             ),
-                             selected = "png",
-                             width = "100%"))
-        ),
-        
-        downloadButton("downloadPiePlot", 
-                       "Télécharger le graphique", 
-                       class = "btn-info btn-lg btn-block", 
-                       icon = icon("download"),
-                       style = "font-weight: bold; font-size: 16px; padding: 15px; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);")
+    div(
+      style = "background-color:#ebf5fb; padding:20px; border-radius:8px; border:1px solid #3498db;",
+      tags$h5(icon("download"), " Paramètres d'exportation",
+              style = "font-weight:bold; color:#3498db; margin-top:0; margin-bottom:15px;"),
+      fluidRow(
+        column(6, numericInput("piePlotDPI", "Résolution (DPI) :",
+                               value = 300, min = 72, max = 20000, step = 50,
+                               width = "100%")),
+        column(6, selectInput("piePlotFormat", "Format d'export :",
+                              choices = c("PNG (recommandé)" = "png",
+                                          "JPEG"             = "jpeg",
+                                          "TIFF"             = "tiff",
+                                          "PDF (vectoriel)"  = "pdf",
+                                          "SVG (web)"        = "svg",
+                                          "EPS (publication)"= "eps",
+                                          "BMP"              = "bmp"),
+                              selected = "png", width = "100%"))
+      ),
+      tags$small(class = "text-muted",
+                 icon("info-circle"),
+                 " Au-delà de 600 DPI : réservé à l'impression haute définition."),
+      br(),
+      downloadButton("downloadPiePlot", "Télécharger le graphique",
+                     class = "btn-info btn-lg btn-block",
+                     icon  = icon("download"),
+                     style = "font-weight:bold; font-size:16px; padding:15px; margin-top:12px; box-shadow:0 4px 6px rgba(0,0,0,.1);")
     )
   })
   
-  # Téléchargement des tableaux - Effectifs
+  
+  
+  # 7. TÉLÉCHARGEMENTS
+  
+  
+  # Helper : sauvegarde ggplot selon format et DPI
+  save_ggplot <- function(file, plot, dpi, format,
+                          width_in = 10, height_in = 7.5) {
+    args <- list(filename = file, plot = plot,
+                 width = width_in, height = height_in, device = format)
+    
+    if (format %in% c("png", "tiff", "bmp", "jpeg")) {
+      args$dpi <- dpi
+      args$bg  <- "white"
+    }
+    if (format == "jpeg") args$quality <- 95
+    
+    do.call(ggsave, args)
+  }
+  
+  # ── Tableaux ──────────────────────────────────────────────────────────────────
+  
   output$downloadCrosstabExcel <- downloadHandler(
-    filename = function() paste0("tableau_croise_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    filename = function() paste0("effectifs_", Sys.Date(), ".xlsx"),
+    content  = function(file) {
       req(crosstab_values$contingency_table)
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Effectifs")
-      openxlsx::writeData(wb, "Effectifs", 
-                          as.data.frame.matrix(crosstab_values$contingency_table), 
+      openxlsx::writeData(wb, "Effectifs",
+                          as.data.frame.matrix(crosstab_values$contingency_table),
                           rowNames = TRUE)
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Tableau téléchargé avec succès! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Effectifs téléchargés (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadCrosstabCSV <- downloadHandler(
-    filename = function() paste0("tableau_croise_", Sys.Date(), ".csv"),
-    content = function(file) {
+    filename = function() paste0("effectifs_", Sys.Date(), ".csv"),
+    content  = function(file) {
       req(crosstab_values$contingency_table)
-      write.csv(as.data.frame.matrix(crosstab_values$contingency_table), 
+      write.csv(as.data.frame.matrix(crosstab_values$contingency_table),
                 file, row.names = TRUE)
-      showNotification("Tableau téléchargé avec succès! (CSV)", 
-                       type = "message", duration = 3)
+      showNotification("Effectifs téléchargés (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement des tableaux - Proportions lignes
   output$downloadRowPropExcel <- downloadHandler(
-    filename = function() paste0("proportions_lignes_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    filename = function() paste0("prop_lignes_", Sys.Date(), ".xlsx"),
+    content  = function(file) {
       req(crosstab_values$row_proportions)
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Prop_Lignes")
-      openxlsx::writeData(wb, "Prop_Lignes", 
-                          round(as.data.frame.matrix(crosstab_values$row_proportions), 2), 
+      openxlsx::writeData(wb, "Prop_Lignes",
+                          round(as.data.frame.matrix(crosstab_values$row_proportions), 2),
                           rowNames = TRUE)
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Proportions lignes téléchargées! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions lignes téléchargées (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadRowPropCSV <- downloadHandler(
-    filename = function() paste0("proportions_lignes_", Sys.Date(), ".csv"),
-    content = function(file) {
+    filename = function() paste0("prop_lignes_", Sys.Date(), ".csv"),
+    content  = function(file) {
       req(crosstab_values$row_proportions)
-      write.csv(round(as.data.frame.matrix(crosstab_values$row_proportions), 2), 
+      write.csv(round(as.data.frame.matrix(crosstab_values$row_proportions), 2),
                 file, row.names = TRUE)
-      showNotification("Proportions lignes téléchargées! (CSV)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions lignes téléchargées (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement des tableaux - Proportions colonnes
   output$downloadColPropExcel <- downloadHandler(
-    filename = function() paste0("proportions_colonnes_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    filename = function() paste0("prop_colonnes_", Sys.Date(), ".xlsx"),
+    content  = function(file) {
       req(crosstab_values$col_proportions)
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Prop_Colonnes")
-      openxlsx::writeData(wb, "Prop_Colonnes", 
-                          round(as.data.frame.matrix(crosstab_values$col_proportions), 2), 
+      openxlsx::writeData(wb, "Prop_Colonnes",
+                          round(as.data.frame.matrix(crosstab_values$col_proportions), 2),
                           rowNames = TRUE)
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Proportions colonnes téléchargées! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions colonnes téléchargées (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadColPropCSV <- downloadHandler(
-    filename = function() paste0("proportions_colonnes_", Sys.Date(), ".csv"),
-    content = function(file) {
+    filename = function() paste0("prop_colonnes_", Sys.Date(), ".csv"),
+    content  = function(file) {
       req(crosstab_values$col_proportions)
-      write.csv(round(as.data.frame.matrix(crosstab_values$col_proportions), 2), 
+      write.csv(round(as.data.frame.matrix(crosstab_values$col_proportions), 2),
                 file, row.names = TRUE)
-      showNotification("Proportions colonnes téléchargées! (CSV)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions colonnes téléchargées (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement des tableaux - Proportions totales
   output$downloadTotalPropExcel <- downloadHandler(
-    filename = function() paste0("proportions_totales_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    filename = function() paste0("prop_totales_", Sys.Date(), ".xlsx"),
+    content  = function(file) {
       req(crosstab_values$total_proportions)
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Prop_Totales")
-      openxlsx::writeData(wb, "Prop_Totales", 
-                          round(as.data.frame.matrix(crosstab_values$total_proportions), 2), 
+      openxlsx::writeData(wb, "Prop_Totales",
+                          round(as.data.frame.matrix(crosstab_values$total_proportions), 2),
                           rowNames = TRUE)
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Proportions totales téléchargées! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions totales téléchargées (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadTotalPropCSV <- downloadHandler(
-    filename = function() paste0("proportions_totales_", Sys.Date(), ".csv"),
-    content = function(file) {
+    filename = function() paste0("prop_totales_", Sys.Date(), ".csv"),
+    content  = function(file) {
       req(crosstab_values$total_proportions)
-      write.csv(round(as.data.frame.matrix(crosstab_values$total_proportions), 2), 
+      write.csv(round(as.data.frame.matrix(crosstab_values$total_proportions), 2),
                 file, row.names = TRUE)
-      showNotification("Proportions totales téléchargées! (CSV)", 
-                       type = "message", duration = 3)
+      showNotification("Proportions totales téléchargées (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement des tableaux - Tests statistiques
+  # Helper interne : construction du data frame des tests pour l'export
+  build_tests_df <- function() {
+    tests_df <- data.frame(
+      Test           = character(),
+      Statistique    = numeric(),
+      DDL            = integer(),
+      p_value        = numeric(),
+      Interpretation = character(),
+      stringsAsFactors = FALSE
+    )
+    
+    if (is.list(crosstab_values$chi_test)) {
+      ct <- crosstab_values$chi_test
+      tests_df <- rbind(tests_df, data.frame(
+        Test           = "Chi-deux",
+        Statistique    = round(ct$statistic, 4),
+        DDL            = ct$parameter,
+        p_value        = ct$p.value,
+        Interpretation = ifelse(ct$p.value < 0.05, "Significatif", "Non significatif"),
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    if (is.list(crosstab_values$fisher_test)) {
+      ft <- crosstab_values$fisher_test
+      tests_df <- rbind(tests_df, data.frame(
+        Test           = "Fisher exact",
+        Statistique    = NA_real_,
+        DDL            = NA_integer_,
+        p_value        = ft$p.value,
+        Interpretation = ifelse(ft$p.value < 0.05, "Significatif", "Non significatif"),
+        stringsAsFactors = FALSE
+      ))
+    }
+    tests_df
+  }
+  
   output$downloadTestsExcel <- downloadHandler(
     filename = function() paste0("tests_statistiques_", Sys.Date(), ".xlsx"),
-    content = function(file) {
-      tests_df <- data.frame(
-        Test = character(),
-        Statistique = numeric(),
-        p_value = numeric(),
-        Interpretation = character(),
-        stringsAsFactors = FALSE
-      )
-      
-      if (!is.null(crosstab_values$chi_test) && is.list(crosstab_values$chi_test)) {
-        tests_df <- rbind(tests_df, data.frame(
-          Test = "Chi-deux",
-          Statistique = crosstab_values$chi_test$statistic,
-          p_value = crosstab_values$chi_test$p.value,
-          Interpretation = ifelse(crosstab_values$chi_test$p.value < 0.05, 
-                                  "Significatif", "Non significatif")
-        ))
-      }
-      
-      if (!is.null(crosstab_values$fisher_test) && is.list(crosstab_values$fisher_test)) {
-        tests_df <- rbind(tests_df, data.frame(
-          Test = "Fisher exact",
-          Statistique = NA,
-          p_value = crosstab_values$fisher_test$p.value,
-          Interpretation = ifelse(crosstab_values$fisher_test$p.value < 0.05, 
-                                  "Significatif", "Non significatif")
-        ))
-      }
-      
+    content  = function(file) {
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Tests")
-      openxlsx::writeData(wb, "Tests", tests_df)
+      openxlsx::writeData(wb, "Tests", build_tests_df())
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Tests statistiques téléchargés! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Tests statistiques téléchargés (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadTestsCSV <- downloadHandler(
     filename = function() paste0("tests_statistiques_", Sys.Date(), ".csv"),
-    content = function(file) {
-      tests_df <- data.frame(
-        Test = character(),
-        Statistique = numeric(),
-        p_value = numeric(),
-        Interpretation = character(),
-        stringsAsFactors = FALSE
-      )
-      
-      if (!is.null(crosstab_values$chi_test) && is.list(crosstab_values$chi_test)) {
-        tests_df <- rbind(tests_df, data.frame(
-          Test = "Chi-deux",
-          Statistique = crosstab_values$chi_test$statistic,
-          p_value = crosstab_values$chi_test$p.value,
-          Interpretation = ifelse(crosstab_values$chi_test$p.value < 0.05, 
-                                  "Significatif", "Non significatif")
-        ))
-      }
-      
-      if (!is.null(crosstab_values$fisher_test) && is.list(crosstab_values$fisher_test)) {
-        tests_df <- rbind(tests_df, data.frame(
-          Test = "Fisher exact",
-          Statistique = NA,
-          p_value = crosstab_values$fisher_test$p.value,
-          Interpretation = ifelse(crosstab_values$fisher_test$p.value < 0.05, 
-                                  "Significatif", "Non significatif")
-        ))
-      }
-      
-      write.csv(tests_df, file, row.names = FALSE)
-      showNotification("Tests statistiques téléchargés! (CSV)", 
-                       type = "message", duration = 3)
+    content  = function(file) {
+      write.csv(build_tests_df(), file, row.names = FALSE)
+      showNotification("Tests statistiques téléchargés (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement des tableaux - Résidus
   output$downloadResidualsExcel <- downloadHandler(
     filename = function() paste0("residus_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    content  = function(file) {
       req(crosstab_values$residuals)
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Residus")
-      openxlsx::writeData(wb, "Residus", 
-                          round(as.data.frame.matrix(crosstab_values$residuals), 2), 
+      openxlsx::writeData(wb, "Residus",
+                          round(as.data.frame.matrix(crosstab_values$residuals), 2),
                           rowNames = TRUE)
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Résidus téléchargés! (Excel)", 
-                       type = "message", duration = 3)
+      showNotification("Résidus téléchargés (Excel)", type = "message", duration = 3)
     }
   )
   
   output$downloadResidualsCSV <- downloadHandler(
     filename = function() paste0("residus_", Sys.Date(), ".csv"),
-    content = function(file) {
+    content  = function(file) {
       req(crosstab_values$residuals)
-      write.csv(round(as.data.frame.matrix(crosstab_values$residuals), 2), 
+      write.csv(round(as.data.frame.matrix(crosstab_values$residuals), 2),
                 file, row.names = TRUE)
-      showNotification("Résidus téléchargés! (CSV)", 
-                       type = "message", duration = 3)
+      showNotification("Résidus téléchargés (CSV)", type = "message", duration = 3)
     }
   )
   
-  # Téléchargement du graphique principal
+  # ── Graphiques ─────────────────────────────────────────────────────────────────
+  
   output$downloadPlot <- downloadHandler(
     filename = function() {
-      ext <- if(!is.null(input$mainPlotFormat)) input$mainPlotFormat else "png"
-      dpi <- if(!is.null(input$mainPlotDPI)) input$mainPlotDPI else 300
-      paste0("graphique_croise_", Sys.Date(), "_", dpi, "dpi.", ext)
+      fmt <- input$mainPlotFormat %||% "png"
+      dpi <- input$mainPlotDPI    %||% 300
+      paste0("graphique_croise_", Sys.Date(), "_", dpi, "dpi.", fmt)
     },
     content = function(file) {
       req(crosstab_values$current_plot)
-      
-      # Calcul automatique des dimensions basé sur le DPI
-      dpi <- if(!is.null(input$mainPlotDPI)) input$mainPlotDPI else 300
-      format <- if(!is.null(input$mainPlotFormat)) input$mainPlotFormat else "png"
-      
-      # Dimensions en pouces 
-    
-      width_in <- 10
-      height_in <- 7.5
-      
+      dpi <- input$mainPlotDPI    %||% 300
+      fmt <- input$mainPlotFormat %||% "png"
       tryCatch({
-        if (format %in% c("png", "tiff", "bmp")) {
-          ggsave(file, 
-                 plot = crosstab_values$current_plot, 
-                 width = width_in, 
-                 height = height_in, 
-                 dpi = dpi,
-                 device = format,
-                 bg = "white")
-        } else if (format == "jpeg") {
-          ggsave(file, 
-                 plot = crosstab_values$current_plot, 
-                 width = width_in, 
-                 height = height_in, 
-                 dpi = dpi,
-                 device = "jpeg",
-                 bg = "white",
-                 quality = 95)
-        } else if (format %in% c("pdf", "svg", "eps")) {
-          ggsave(file, 
-                 plot = crosstab_values$current_plot, 
-                 width = width_in, 
-                 height = height_in,
-                 device = format)
-        }
-        
-        width_px <- round(width_in * dpi)
-        height_px <- round(height_in * dpi)
-        
+        save_ggplot(file, crosstab_values$current_plot, dpi, fmt,
+                    width_in = 10, height_in = 7.5)
         showNotification(
-          paste0("Graphique téléchargé avec succès! (", width_px, "x", height_px, 
-                 " px, ", dpi, " DPI, ", toupper(format), ")"), 
-          type = "message", 
-          duration = 5
+          paste0("Graphique téléchargé (", round(10 * dpi), "×",
+                 round(7.5 * dpi), " px, ", dpi, " DPI, ", toupper(fmt), ")"),
+          type = "message", duration = 5
         )
       }, error = function(e) {
-        showNotification(
-          paste("Erreur lors du téléchargement du graphique :", e$message), 
-          type = "error", 
-          duration = 10
-        )
+        showNotification(paste("Erreur export :", e$message), type = "error", duration = 10)
       })
     }
   )
   
-  # Téléchargement du graphique en secteurs
   output$downloadPiePlot <- downloadHandler(
     filename = function() {
-      ext <- if(!is.null(input$piePlotFormat)) input$piePlotFormat else "png"
-      dpi <- if(!is.null(input$piePlotDPI)) input$piePlotDPI else 300
-      paste0("graphique_secteurs_", Sys.Date(), "_", dpi, "dpi.", ext)
+      fmt <- input$piePlotFormat %||% "png"
+      dpi <- input$piePlotDPI    %||% 300
+      paste0("graphique_secteurs_", Sys.Date(), "_", dpi, "dpi.", fmt)
     },
     content = function(file) {
       req(crosstab_values$current_pie_plot)
-      
-      # Calcul automatique des dimensions basé sur le DPI
-      dpi <- if(!is.null(input$piePlotDPI)) input$piePlotDPI else 300
-      format <- if(!is.null(input$piePlotFormat)) input$piePlotFormat else "png"
-      
-      # Dimensions carrées pour le graphique en secteurs (8x8 pouces)
-      width_in <- 8
-      height_in <- 8
-      
+      dpi <- input$piePlotDPI    %||% 300
+      fmt <- input$piePlotFormat %||% "png"
       tryCatch({
-        if (format %in% c("png", "tiff", "bmp")) {
-          ggsave(file, 
-                 plot = crosstab_values$current_pie_plot, 
-                 width = width_in, 
-                 height = height_in, 
-                 dpi = dpi,
-                 device = format,
-                 bg = "white")
-        } else if (format == "jpeg") {
-          ggsave(file, 
-                 plot = crosstab_values$current_pie_plot, 
-                 width = width_in, 
-                 height = height_in, 
-                 dpi = dpi,
-                 device = "jpeg",
-                 bg = "white",
-                 quality = 95)
-        } else if (format %in% c("pdf", "svg", "eps")) {
-          ggsave(file, 
-                 plot = crosstab_values$current_pie_plot, 
-                 width = width_in, 
-                 height = height_in,
-                 device = format)
-        }
-        
-        width_px <- round(width_in * dpi)
-        height_px <- round(height_in * dpi)
-        
+        save_ggplot(file, crosstab_values$current_pie_plot, dpi, fmt,
+                    width_in = 8, height_in = 8)
         showNotification(
-          paste0("Graphique secteurs téléchargé avec succès! (", width_px, "x", height_px, 
-                 " px, ", dpi, " DPI, ", toupper(format), ")"), 
-          type = "message", 
-          duration = 5
+          paste0("Graphique en secteurs téléchargé (", round(8 * dpi), "×",
+                 round(8 * dpi), " px, ", dpi, " DPI, ", toupper(fmt), ")"),
+          type = "message", duration = 5
         )
       }, error = function(e) {
-        showNotification(
-          paste("Erreur lors du téléchargement :", e$message),
-          type = "error", 
-          duration = 10
-        )
+        showNotification(paste("Erreur export :", e$message), type = "error", duration = 10)
       })
     }
   )
@@ -3088,7 +3354,7 @@ server <- function(input, output, session) {
       )
     )
   })
-
+  
   # Observer enableDualAxis
   observeEvent(input$enableDualAxis, {
     if (isTRUE(input$enableDualAxis)) {
@@ -3104,7 +3370,7 @@ server <- function(input, output, session) {
     req(isTRUE(input$enableDualAxis))
     values$y2Vars <- input$vizY2Vars
   })
-
+  
   # Sélection de la variable de facetting 
   output$vizFacetVarSelect <- renderUI({
     req(values$filteredData)
@@ -3253,7 +3519,7 @@ server <- function(input, output, session) {
     x_var <- input$vizXVar
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
     
-  
+    
     if (is.null(x_type)) return(NULL)
     
     # Générer les valeurs uniques selon le type
@@ -3867,7 +4133,7 @@ server <- function(input, output, session) {
         # Transformer en format long pour multi-Y
         # Séparer Y1 (axe gauche) et Y2 (axe droit si dual axis actif)
         y2_vars   <- if (isTRUE(values$dualAxisActive) && !is.null(values$y2Vars))
-                       intersect(values$y2Vars, y_vars) else character(0)
+          intersect(values$y2Vars, y_vars) else character(0)
         y1_vars   <- setdiff(y_vars, y2_vars)
         valid_y1  <- y1_vars[y1_vars %in% names(data)]
         
@@ -3984,8 +4250,8 @@ server <- function(input, output, session) {
           tags$span(style="color:#34495e; font-size:13px;", legend_var_name),
           tags$br(),
           tags$small(style="color:#7f8c8d;",
-            "Saisissez les nouveaux noms à afficher dans la légende. ",
-            "Laissez vide pour conserver l'original."
+                     "Saisissez les nouveaux noms à afficher dans la légende. ",
+                     "Laissez vide pour conserver l'original."
           )
         ),
         
@@ -4018,13 +4284,13 @@ server <- function(input, output, session) {
                 div(style="color:#bbb; font-size:14px;", "→"),
                 # Input
                 div(style="flex:1;",
-                  textInput(
-                    inputId = paste0("legendLevel_", make.names(lvl)),
-                    label   = NULL,
-                    value   = current_label,
-                    placeholder = paste0("ex: Groupe ", i),
-                    width   = "100%"
-                  )
+                    textInput(
+                      inputId = paste0("legendLevel_", make.names(lvl)),
+                      label   = NULL,
+                      value   = current_label,
+                      placeholder = paste0("ex: Groupe ", i),
+                      width   = "100%"
+                    )
                 )
               )
             })
@@ -4284,7 +4550,7 @@ server <- function(input, output, session) {
     # ── Appliquer les couleurs personnalisées Y1 (colourInput) en mode multi-Y ──
     if (isTRUE(values$multipleY) && !is.null(values$yVarNames)) {
       default_colors_y1 <- c("#2196F3","#4CAF50","#9C27B0","#FF5722","#00BCD4",
-                              "#FFC107","#E91E63","#607D8B","#795548","#009688")
+                             "#FFC107","#E91E63","#607D8B","#795548","#009688")
       y1_only <- setdiff(values$yVarNames,
                          if (isTRUE(values$dualAxisActive)) values$y2VarsActive else character(0))
       if (length(y1_only) > 0) {
@@ -4307,7 +4573,7 @@ server <- function(input, output, session) {
     
     # Superposer les vars Y2 avec axe secondaire 
     y2_active_vars <- if (isTRUE(values$dualAxisActive) && !is.null(values$y2VarsActive))
-                        values$y2VarsActive else character(0)
+      values$y2VarsActive else character(0)
     
     if (length(y2_active_vars) > 0 &&
         !viz_type %in% c("pie","donut","treemap","heatmap","histogram","density")) {
@@ -4444,8 +4710,8 @@ server <- function(input, output, session) {
           off2 <- y1_min - effective_y2_mn * sf2
           
           y2_label <- if (!is.null(input$y2AxisLabel) && nchar(trimws(input$y2AxisLabel)) > 0)
-                        input$y2AxisLabel
-                      else paste(y2_active_vars, collapse = " / ")
+            input$y2AxisLabel
+          else paste(y2_active_vars, collapse = " / ")
           
           # Construire les breaks pour l'axe Y2 si un pas est défini
           y2_breaks_fn <- if (!is.null(user_y2_step)) {
@@ -4698,11 +4964,11 @@ server <- function(input, output, session) {
     if(!is.null(y_breaks_custom) && !viz_type %in% c("pie", "donut", "treemap")) {
       tryCatch({ p <- p + scale_y_continuous(breaks = y_breaks_custom) }, error = function(e) NULL)
     }
-
+    
     if(!is.null(x_breaks_custom) && !viz_type %in% c(
-        "pie", "donut", "treemap", "bar", "box", "violin",
-        "histogram", "density", "line", "scatter", "area",
-        "seasonal_smooth", "seasonal_evolution")) {
+      "pie", "donut", "treemap", "bar", "box", "violin",
+      "histogram", "density", "line", "scatter", "area",
+      "seasonal_smooth", "seasonal_evolution")) {
       tryCatch({ p <- p + scale_x_continuous(breaks = x_breaks_custom) }, error = function(e) NULL)
     }
     
@@ -4746,7 +5012,7 @@ server <- function(input, output, session) {
     }
     
     # ── Appliquer les contrôles ggplot thème pour l'axe Y secondaire ──────────
- 
+    
     # Tous les paramètres visuels MIROIR de l'axe Y principal.
     if (isTRUE(values$dualAxisActive) && length(values$y2VarsActive %||% character(0)) > 0) {
       # Miroir exact de Y1 : mêmes inputs
@@ -4971,18 +5237,18 @@ server <- function(input, output, session) {
       d_valid <- d[!is.na(d[[yv]]), ]
       x_total <- nrow(d_valid); x_uniq <- length(unique(d_valid[[xv]]))
       if (x_total==0) return(div(class="alert alert-danger",
-        style="padding:10px;margin-bottom:10px;font-size:13px;",
-        icon("times-circle"), strong(" Aucune donnée valide — toutes les Y sont NA.")))
+                                 style="padding:10px;margin-bottom:10px;font-size:13px;",
+                                 icon("times-circle"), strong(" Aucune donnée valide — toutes les Y sont NA.")))
       if (x_total>x_uniq && !isTRUE(input$useAggregation))
         return(div(class="alert alert-warning",
-          style="padding:10px;margin-bottom:10px;font-size:13px;",
-          icon("exclamation-triangle"), strong(" Valeurs X répétées"),
-          sprintf(" (%d obs. → %d valeurs uniques).", x_total, x_uniq), tags$br(),
-          "Agrégation automatique par ", strong("moyenne"), " appliquée.",tags$br(),
-          "Pour une autre fonction, activez ", strong("l'agrégation manuelle"), "."))
+                   style="padding:10px;margin-bottom:10px;font-size:13px;",
+                   icon("exclamation-triangle"), strong(" Valeurs X répétées"),
+                   sprintf(" (%d obs. → %d valeurs uniques).", x_total, x_uniq), tags$br(),
+                   "Agrégation automatique par ", strong("moyenne"), " appliquée.",tags$br(),
+                   "Pour une autre fonction, activez ", strong("l'agrégation manuelle"), "."))
       return(div(class="alert alert-success",
-        style="padding:8px 12px;margin-bottom:10px;font-size:12px;",
-        icon("check-circle"), sprintf(" %d valeurs X uniques — courbe directe.", x_uniq)))
+                 style="padding:8px 12px;margin-bottom:10px;font-size:12px;",
+                 icon("check-circle"), sprintf(" %d valeurs X uniques — courbe directe.", x_uniq)))
     }, error=function(e) NULL)
   })
   
@@ -5323,7 +5589,7 @@ server <- function(input, output, session) {
     # Pour les X catégoriels : convertir en facteur ordonné
     if (x_is_factor) {
       lvls_orig <- if (is.factor(data[[x_var]])) levels(data[[x_var]])
-                   else sort(unique(as.character(data[[x_var]])))
+      else sort(unique(as.character(data[[x_var]])))
       if (!is.null(co_ord) && length(co_ord) > 0) {
         ord <- co_ord[co_ord %in% lvls_orig]
         if (length(ord) > 0) lvls_orig <- ord
@@ -5377,7 +5643,7 @@ server <- function(input, output, session) {
         p <- p + geom_point(color=fixed_color, size=ps, alpha=0.7, na.rm=TRUE)
     }
     # Axe X : tous les types + labels + ordre 
-
+    
     tmp_df_scale <- data.frame(I(all_x_orig))
     names(tmp_df_scale) <- x_var
     p <- p + get_x_scale(tmp_df_scale, x_var)
@@ -5399,13 +5665,13 @@ server <- function(input, output, session) {
     all_x_orig <- data[[x_var]]
     # Lire l'ordre personnalisé 
     co_ord <- values$customXOrder
-
+    
     group_cols <- if (!is.null(color_var) && color_var %in% names(data)) c(x_var, color_var) else x_var
-
+    
     # Pour les X catégoriels/texte : convertir en facteur ordonné d'abord
     if (x_is_factor) {
       lvls_orig <- if (is.factor(data[[x_var]])) levels(data[[x_var]])
-                   else sort(unique(as.character(data[[x_var]])))
+      else sort(unique(as.character(data[[x_var]])))
       if (!is.null(co_ord) && length(co_ord) > 0) {
         ord <- co_ord[co_ord %in% lvls_orig]
         if (length(ord) > 0) lvls_orig <- ord
@@ -5553,11 +5819,11 @@ server <- function(input, output, session) {
     if (!is.null(color_var)) {
       p <- p + geom_area(aes(fill=.data[[color_var]], group=.data[[color_var]]),
                          position=input$areaPosition %||% "stack", alpha=0.7, na.rm=TRUE) +
-               geom_line(aes(color=.data[[color_var]], group=.data[[color_var]]),
-                         linewidth=lw, na.rm=TRUE)
+        geom_line(aes(color=.data[[color_var]], group=.data[[color_var]]),
+                  linewidth=lw, na.rm=TRUE)
     } else {
       p <- p + geom_area(fill="steelblue", alpha=0.7, na.rm=TRUE) +
-               geom_line(linewidth=lw, color="steelblue4", na.rm=TRUE)
+        geom_line(linewidth=lw, color="steelblue4", na.rm=TRUE)
     }
     if (isTRUE(input$showPoints)) {
       if (!is.null(color_var))
@@ -5881,7 +6147,7 @@ server <- function(input, output, session) {
     y2_active_plotly <- if (isTRUE(values$dualAxisActive) &&
                             !is.null(values$y2VarsActive) &&
                             length(values$y2VarsActive) > 0)
-                          values$y2VarsActive else character(0)
+      values$y2VarsActive else character(0)
     
     if (length(y2_active_plotly) > 0) {
       raw_df     <- values$filteredData
@@ -5889,8 +6155,8 @@ server <- function(input, output, session) {
       
       # Label axe Y2
       y2_label_ply <- if (!is.null(input$y2AxisLabel) && nchar(trimws(input$y2AxisLabel)) > 0)
-                        input$y2AxisLabel
-                      else paste(y2_active_plotly, collapse = " / ")
+        input$y2AxisLabel
+      else paste(y2_active_plotly, collapse = " / ")
       
       # Limites
       user_y2_min <- if (!is.null(input$y2AxisMin) && !is.na(input$y2AxisMin)) input$y2AxisMin else NULL
@@ -6045,6 +6311,175 @@ server <- function(input, output, session) {
     updatePickerInput(session, "responseVar", selected = character(0))
   })
   
+  # ============================================================================
+  # TRANSFORMATIONS DE VARIABLES — Tests paramétriques (Blocs 1 à 6)
+  # ============================================================================
+  
+  # Bloc 1 : Sélecteur de variables à transformer
+  output$transformVarSelect <- renderUI({
+    req(values$filteredData)
+    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    transform_suffixes <- c("_log$","_log1p$","_log10$","_sqrt$",
+                            "_cuberoot$","_boxcox$","_yeojohnson$","_arcsin$","_logit$")
+    pattern   <- paste(transform_suffixes, collapse = "|")
+    orig_cols <- num_cols[!grepl(pattern, num_cols)]
+    pickerInput(
+      "transformVar", "Variable(s) à transformer :",
+      choices  = orig_cols, multiple = TRUE,
+      options  = list(`actions-box` = TRUE, `live-search` = TRUE,
+                      `selected-text-format` = "count > 2",
+                      `none-selected-text` = "Sélectionner...")
+    )
+  })
+  
+  # Bloc 2 : Vérification de faisabilité avant application
+  output$transformFeasibilityCheck <- renderUI({
+    req(input$transformVar, input$transformMethod, values$filteredData)
+    checks <- lapply(input$transformVar, function(var) {
+      x     <- values$filteredData[[var]]
+      check <- check_transformation_feasibility(x, input$transformMethod)
+      icon_el <- if (check$ok) icon("check-circle", style = "color:#4caf50;")
+      else           icon("times-circle", style = "color:#e53935;")
+      bg_col  <- if (check$ok) "#e8f5e9" else "#ffebee"
+      txt_col <- if (check$ok) "#1b5e20" else "#b71c1c"
+      div(
+        style = paste0("display:flex;align-items:center;padding:4px 8px;",
+                       "background:", bg_col, ";border-radius:4px;margin-bottom:3px;"),
+        icon_el,
+        tags$span(style = paste0("font-size:12px;margin-left:6px;color:", txt_col, ";"),
+                  tags$b(var), " \u2014 ", check$message)
+      )
+    })
+    tagList(
+      div(style = "font-size:11px;font-weight:bold;color:#555;margin-bottom:4px;",
+          icon("clipboard-check"), " V\u00e9rification de faisabilit\u00e9 :"),
+      tagList(checks)
+    )
+  })
+  
+  # Bloc 3 : Application de la transformation
+  observeEvent(input$applyTransformation, {
+    req(input$transformVar, input$transformMethod, values$filteredData)
+    if (length(input$transformVar) == 0) {
+      showNotification("S\u00e9lectionnez au moins une variable \u00e0 transformer.", type = "warning")
+      return()
+    }
+    df          <- values$filteredData
+    log_entries <- values$transformationLog
+    errors  <- c(); added <- c(); skipped <- c()
+    
+    for (var in input$transformVar) {
+      new_var_name <- paste0(var, "_", input$transformMethod)
+      if (new_var_name %in% names(df)) { skipped <- c(skipped, new_var_name); next }
+      tryCatch({
+        x           <- df[[var]]
+        transformed <- apply_variable_transformation(x, input$transformMethod)
+        df[[new_var_name]] <- as.numeric(transformed)
+        log_entry <- list(
+          original = var, method = input$transformMethod,
+          label    = get_transformation_label(input$transformMethod),
+          formula  = get_transformation_formula(input$transformMethod),
+          applied_at = format(Sys.time(), "%H:%M:%S")
+        )
+        if (!is.null(attr(transformed, "lambda")))    log_entry$lambda    <- attr(transformed, "lambda")
+        if (!is.null(attr(transformed, "yj_object"))) log_entry$yj_object <- attr(transformed, "yj_object")
+        log_entries[[new_var_name]] <- log_entry
+        added <- c(added, new_var_name)
+      }, error = function(e) {
+        errors <<- c(errors, paste0("[", var, "] : ", conditionMessage(e)))
+      })
+    }
+    if (length(errors) > 0)
+      showNotification(HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
+                       type = "error", duration = 12)
+    if (length(skipped) > 0)
+      showNotification(paste0("D\u00e9j\u00e0 existante(s): ", paste(skipped, collapse = ", ")),
+                       type = "warning", duration = 5)
+    if (length(added) > 0) {
+      values$filteredData      <- df
+      values$transformationLog <- log_entries
+      showNotification(
+        HTML(paste0("<b>Transformation appliqu\u00e9e</b><br>",
+                    length(added), " variable(s) cr\u00e9\u00e9e(s): ",
+                    paste0("<b>", added, "</b>", collapse = ", "))),
+        type = "message", duration = 5)
+    }
+  })
+  
+  # Bloc 4 : Suppression d'une transformation
+  observeEvent(input$removeTransformation, {
+    req(input$removeTransformVar, values$filteredData)
+    df          <- values$filteredData
+    log_entries <- values$transformationLog
+    removed <- c()
+    for (vname in input$removeTransformVar) {
+      if (vname %in% names(df)) { df[[vname]] <- NULL; removed <- c(removed, vname) }
+      log_entries[[vname]] <- NULL
+    }
+    if (length(removed) > 0) {
+      values$filteredData      <- df
+      values$transformationLog <- log_entries
+      showNotification(paste0("Supprim\u00e9e(s): ", paste(removed, collapse = ", ")),
+                       type = "warning", duration = 3)
+    }
+  })
+  
+  # Bloc 5 : Journal des transformations actives
+  output$transformationLogDisplay <- renderUI({
+    log <- values$transformationLog
+    if (is.null(log) || length(log) == 0) {
+      return(div(
+        style = paste0("padding:10px;background:#f5f5f5;border-radius:4px;",
+                       "font-size:12px;color:#888;text-align:center;border:1px dashed #ccc;"),
+        icon("info-circle"), " Aucune transformation active"))
+    }
+    entries <- lapply(names(log), function(vname) {
+      entry <- log[[vname]]
+      lambda_tag <- if (!is.null(entry$lambda))
+        tags$span(style = "font-size:10px;color:#757575;margin-left:4px;",
+                  paste0("\u03bb = ", entry$lambda)) else NULL
+      div(
+        style = paste0("display:flex;flex-wrap:wrap;align-items:center;",
+                       "padding:5px 8px;background:#e8f5e9;",
+                       "border-left:3px solid #4caf50;border-radius:3px;margin-bottom:4px;"),
+        icon("check-circle", style = "color:#4caf50;flex-shrink:0;"),
+        div(style = "margin-left:6px;flex:1;",
+            tags$span(style = "font-size:12px;font-weight:bold;color:#2e7d32;",
+                      entry$original, " \u2192 ", vname), tags$br(),
+            tags$span(style = "font-size:11px;color:#555;font-family:monospace;",
+                      entry$formula),
+            lambda_tag,
+            tags$span(style = "font-size:10px;color:#9e9e9e;margin-left:6px;",
+                      paste0("@ ", entry$applied_at))
+        )
+      )
+    })
+    tagList(
+      div(style = "margin-bottom:6px;",
+          tags$b(style = "font-size:12px;color:#1b5e20;",
+                 icon("history"), " ", length(log), " transformation(s) active(s)")),
+      tagList(entries)
+    )
+  })
+  
+  # Bloc 6 : Sélecteur de suppression
+  output$removeTransformSelect <- renderUI({
+    log <- values$transformationLog
+    if (is.null(log) || length(log) == 0) return(NULL)
+    tagList(
+      hr(style = "margin:8px 0;"),
+      pickerInput("removeTransformVar", "Supprimer des transformations :",
+                  choices = names(log), multiple = TRUE,
+                  options = list(`actions-box` = TRUE)),
+      actionButton("removeTransformation", "Supprimer la s\u00e9lection",
+                   class = "btn-danger btn-sm btn-block", icon = icon("trash"))
+    )
+  })
+  
+  # ============================================================================
+  # FIN BLOCS TRANSFORMATION
+  # ============================================================================
+  
   output$factorVarSelect <- renderUI({
     req(values$filteredData)
     # Tous les types utilisables comme facteur
@@ -6055,7 +6490,7 @@ server <- function(input, output, session) {
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE)),
       tags$small(style = "color:#6c757d; font-size:11px;",
-        icon("info-circle"), " Facteur, texte, date et numérique (≤ 30 niveaux) acceptés"),
+                 icon("info-circle"), " Facteur, texte, date et numérique (≤ 30 niveaux) acceptés"),
       actionButton("selectAllFactors",   "Tout sélectionner",   class = "btn-success btn-sm"),
       actionButton("deselectAllFactors", "Tout désélectionner", class = "btn-danger btn-sm")
     )
@@ -6780,20 +7215,39 @@ server <- function(input, output, session) {
   output$testResultsDF <- renderDT({
     req(values$testResultsDF)
     
-    df <- values$testResultsDF
+    df  <- values$testResultsDF
+    log <- values$transformationLog %||% list()
     
-    # Appliquer l'arrondissement si l'option est cochée
+    # Colonne "Transformation" : indique la méthode si la variable est transformée
+    df$Transformation <- sapply(df$Variable, function(v) {
+      if (v %in% names(log)) log[[v]]$label else NA_character_
+    })
+    
+    # Arrondi optionnel
     use_round <- !is.null(input$testsRoundResults) && input$testsRoundResults
     if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      # Arrondir les colonnes numériques
+      dec      <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
       num_cols <- sapply(df, is.numeric)
       df[, num_cols] <- lapply(df[, num_cols, drop = FALSE], function(x) round(x, dec))
     }
     
-    datatable(df, 
-              options = list(pageLength = 10, scrollX = TRUE),
-              rownames = FALSE)
+    dt <- datatable(df,
+                    options  = list(pageLength = 10, scrollX = TRUE),
+                    rownames = FALSE)
+    
+    # Mise en surbrillance des lignes de variables transformées
+    if (any(!is.na(df$Transformation))) {
+      dt <- dt %>%
+        formatStyle(
+          "Transformation",
+          target          = "row",
+          backgroundColor = styleEqual(
+            levels = unique(na.omit(df$Transformation)),
+            values = rep("#fff8e1", length(unique(na.omit(df$Transformation))))
+          )
+        )
+    }
+    dt
   })
   
   # Contrôle de l'affichage de la validation
@@ -7566,7 +8020,7 @@ server <- function(input, output, session) {
   
   # Fonction principale d'analyse 
   
-    observeEvent(values$testResultsDF, {
+  observeEvent(values$testResultsDF, {
     req(values$testResultsDF)
     
     # Synchroniser le type de test (paramétrique / non-param)
@@ -7597,7 +8051,7 @@ server <- function(input, output, session) {
         " Aucun résultat de test disponible.",
         tags$br(),
         tags$small(style="color:#bf360c;",
-          "Allez dans 'Réalisation des tests statistiques' et lancez un test avant de faire le PostHoc.")
+                   "Allez dans 'Réalisation des tests statistiques' et lancez un test avant de faire le PostHoc.")
       ))
     }
     
@@ -7621,7 +8075,7 @@ server <- function(input, output, session) {
         tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Facteur %||% "-"),
         tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Test),
         tags$td(style = paste0("padding:4px 8px; font-size:12px; font-weight:bold; color:", p_col, ";"),
-          if (!is.na(p_val)) formatC(p_val, format="e", digits=3) else "NA"),
+                if (!is.na(p_val)) formatC(p_val, format="e", digits=3) else "NA"),
         tags$td(style = paste0("padding:4px 8px; font-size:13px; font-weight:bold; color:", p_col, ";"), sig)
       )
     })
@@ -7633,10 +8087,10 @@ server <- function(input, output, session) {
         style = "margin-bottom:8px; padding:8px 10px; background:#e3f2fd; border-left:4px solid #1976d2; border-radius:4px;",
         icon("table", style="color:#1565c0;"),
         tags$b(style="color:#0d47a1; font-size:12px;",
-          paste0(" Résultats des tests — ", n_sig, "/", nrow(df), " significatif(s)")),
+               paste0(" Résultats des tests — ", n_sig, "/", nrow(df), " significatif(s)")),
         tags$br(),
         tags$small(style="color:#1976d2;",
-          "Les variables en vert (p < 0.05) sont pré-sélectionnées dans l'analyse PostHoc.")
+                   "Les variables en vert (p < 0.05) sont pré-sélectionnées dans l'analyse PostHoc.")
       ),
       div(
         style = "max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:4px;",
@@ -7939,20 +8393,20 @@ server <- function(input, output, session) {
                 )
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
-                    mutate(
-                      Moyenne = round(as.numeric(Moyenne), 2),
-                      Ecart_type = round(as.numeric(Ecart_type), 2),
-                      Erreur_type = round(as.numeric(Erreur_type), 2),
-                      CV = round(as.numeric(CV), 2),
-                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
-                      Variable = var,
-                      Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
-                      Type = "simple_effect",
-                      Interaction_base = interaction_term,
-                      P_interaction = round(interaction_pvalue, 4),
-                      Direction = paste0(fvar1, " vers ", fvar2)
-                    ), error = function(e) NULL)
+                                    mutate(
+                                      Moyenne = round(as.numeric(Moyenne), 2),
+                                      Ecart_type = round(as.numeric(Ecart_type), 2),
+                                      Erreur_type = round(as.numeric(Erreur_type), 2),
+                                      CV = round(as.numeric(CV), 2),
+                                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
+                                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                                      Variable = var,
+                                      Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
+                                      Type = "simple_effect",
+                                      Interaction_base = interaction_term,
+                                      P_interaction = round(interaction_pvalue, 4),
+                                      Direction = paste0(fvar1, " vers ", fvar2)
+                                    ), error = function(e) NULL)
                   if (!is.null(res))
                     simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
                 }
@@ -7972,20 +8426,20 @@ server <- function(input, output, session) {
                 )
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
-                    mutate(
-                      Moyenne = round(as.numeric(Moyenne), 2),
-                      Ecart_type = round(as.numeric(Ecart_type), 2),
-                      Erreur_type = round(as.numeric(Erreur_type), 2),
-                      CV = round(as.numeric(CV), 2),
-                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
-                      Variable = var,
-                      Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
-                      Type = "simple_effect",
-                      Interaction_base = interaction_term,
-                      P_interaction = round(interaction_pvalue, 4),
-                      Direction = paste0(fvar2, " vers ", fvar1)
-                    ), error = function(e) NULL)
+                                    mutate(
+                                      Moyenne = round(as.numeric(Moyenne), 2),
+                                      Ecart_type = round(as.numeric(Ecart_type), 2),
+                                      Erreur_type = round(as.numeric(Erreur_type), 2),
+                                      CV = round(as.numeric(CV), 2),
+                                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
+                                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                                      Variable = var,
+                                      Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
+                                      Type = "simple_effect",
+                                      Interaction_base = interaction_term,
+                                      P_interaction = round(interaction_pvalue, 4),
+                                      Direction = paste0(fvar2, " vers ", fvar1)
+                                    ), error = function(e) NULL)
                   if (!is.null(res))
                     simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
                 }
@@ -8025,6 +8479,49 @@ server <- function(input, output, session) {
       })
       
       combined_results <- do.call(rbind, all_results)
+      
+      # ── Bloc 9 : Retro-transformation optionnelle des moyennes PostHoc ──────
+      # Les lettres (groupes) restent sur l'échelle transformée (rigueur stat).
+      # Seules les MOYENNES affichées sont retro-transformées si option activée.
+      if (!is.null(input$showBackTransformed) && isTRUE(input$showBackTransformed)) {
+        log_bt <- values$transformationLog %||% list()
+        if (length(log_bt) > 0 && "Variable" %in% names(combined_results)) {
+          for (vname in unique(combined_results$Variable)) {
+            if (vname %in% names(log_bt)) {
+              entry  <- log_bt[[vname]]
+              rows_v <- combined_results$Variable == vname
+              for (col in c("Moyenne", "Erreur_type", "Ecart_type")) {
+                if (col %in% names(combined_results)) {
+                  vals_orig <- as.numeric(combined_results[rows_v, col])
+                  combined_results[rows_v, col] <- round(
+                    back_transform_values(
+                      x = vals_orig, method = entry$method,
+                      lambda = entry$lambda, yj_object = entry$yj_object
+                    ), 4)
+                }
+              }
+              # Recalculer colonnes formatées
+              if (all(c("Moyenne","Ecart_type","Erreur_type","groups") %in% names(combined_results))) {
+                combined_results[rows_v, "Moyenne\u00b1Ecart_type"]  <- paste0(
+                  combined_results[rows_v,"Moyenne"], "\u00b1",
+                  combined_results[rows_v,"Ecart_type"], " ",
+                  combined_results[rows_v,"groups"])
+                combined_results[rows_v, "Moyenne\u00b1Erreur_type"] <- paste0(
+                  combined_results[rows_v,"Moyenne"], "\u00b1",
+                  combined_results[rows_v,"Erreur_type"], " ",
+                  combined_results[rows_v,"groups"])
+              }
+              if ("Echelle" %in% names(combined_results) || TRUE)
+                combined_results[rows_v, "Echelle"] <- paste0("originale [", entry$original, "]")
+            } else {
+              if ("Echelle" %in% names(combined_results))
+                combined_results[combined_results$Variable == vname, "Echelle"] <- "brute"
+            }
+          }
+        }
+      }
+      # ── Fin Bloc 9 ────────────────────────────────────────────────────────────
+      
       values$allPostHocResults[[length(values$allPostHocResults) + 1]] <- combined_results
       values$multiResultsMain <- combined_results
       values$currentVarIndex <- 1
@@ -8103,7 +8600,7 @@ server <- function(input, output, session) {
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
       tags$small(style = "color:#6c757d; font-size:11px;",
-        icon("info-circle"), " Facteur, texte, date et numérique (≤ 30 niveaux) acceptés"),
+                 icon("info-circle"), " Facteur, texte, date et numérique (≤ 30 niveaux) acceptés"),
       div(style = "display: flex; gap: 10px;",
           actionButton("selectAllMultiFactors",   "Tout sélectionner",
                        class = "btn-success btn-sm", style = "flex: 1; height: 40px;"),
@@ -8121,7 +8618,53 @@ server <- function(input, output, session) {
     updatePickerInput(session, "multiFactor", selected = character(0))
   })
   
-  # Tables de résultats 
+  # ── Bloc 8 : Info transformations dans le panel PostHoc ──────────────────
+  output$postHocTransformInfo <- renderUI({
+    log           <- values$transformationLog %||% list()
+    selected_vars <- input$multiResponse
+    if (length(log) == 0 || is.null(selected_vars) || length(selected_vars) == 0) return(NULL)
+    trans_selected <- intersect(selected_vars, names(log))
+    if (length(trans_selected) == 0) return(NULL)
+    entries <- lapply(trans_selected, function(vname) {
+      entry       <- log[[vname]]
+      lambda_info <- if (!is.null(entry$lambda)) paste0(" (\u03bb = ", entry$lambda, ")") else ""
+      tags$li(
+        style = "font-size:11.5px;margin-bottom:4px;line-height:1.5;",
+        tags$b(style = "color:#1565c0;", vname),
+        tags$span(style = "color:#555;", " \u2190 "),
+        tags$b(entry$original),
+        tags$code(
+          style = paste0("font-size:10.5px;background:#e3f2fd;padding:1px 4px;",
+                         "border-radius:3px;color:#0d47a1;margin-left:4px;"),
+          paste0(entry$formula, lambda_info)
+        )
+      )
+    })
+    div(
+      style = paste0("padding:10px 12px;background:#e3f2fd;",
+                     "border-left:4px solid #1976d2;border-radius:4px;margin-bottom:10px;"),
+      div(style = "font-weight:bold;color:#0d47a1;font-size:12px;margin-bottom:6px;",
+          icon("flask"), " Variables transform\u00e9es s\u00e9lectionn\u00e9es"),
+      tags$ul(style = "margin:0;padding-left:16px;", tagList(entries)),
+      div(
+        style = paste0("font-size:11px;color:#1565c0;margin-top:8px;",
+                       "padding-top:6px;border-top:1px solid #90caf9;font-style:italic;"),
+        icon("info-circle"),
+        " Le PostHoc est r\u00e9alis\u00e9 sur les donn\u00e9es transform\u00e9es.",
+        " Les lettres de significativit\u00e9 s'appliquent \u00e0 l'\u00e9chelle transform\u00e9e.",
+        " Activez 'Retro-transformation' pour afficher les moyennes sur l'\u00e9chelle originale."
+      )
+    )
+  })
+  
+  # Reactive pour conditionalPanel retro-transformation
+  output$hasTransformedVarsSelected <- reactive({
+    log      <- values$transformationLog %||% list()
+    selected <- input$multiResponse
+    if (length(log) == 0 || is.null(selected)) return(FALSE)
+    any(selected %in% names(log))
+  })
+  outputOptions(output, "hasTransformedVarsSelected", suspendWhenHidden = FALSE) 
   output$mainEffectsTable <- renderDT({
     req(values$multiResultsMain)
     
@@ -9382,23 +9925,23 @@ server <- function(input, output, session) {
         fmt <- tolower(trimws(input[[paste0(default_name, "_format")]] %||% "png"))
         fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
         if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
-
+        
         dpi_val <- as.integer(input[[paste0(default_name, "_dpi")]] %||% 300)
         if (is.na(dpi_val) || dpi_val < 72) dpi_val <- 300
-
+        
         # Les inputs _width/_height sont en PIXELS → conversion px -> cm
         w_px <- as.numeric(input[[paste0(default_name, "_width")]]  %||% 0)
         h_px <- as.numeric(input[[paste0(default_name, "_height")]] %||% 0)
         w_cm <- if (!is.na(w_px) && w_px > 0) w_px / dpi_val * 2.54 else 25
         h_cm <- if (!is.na(h_px) && h_px > 0) h_px / dpi_val * 2.54 else 20
-
+        
         p <- tryCatch(plot_func(), error = function(e) {
           showNotification(paste("Erreur génération graphique:", conditionMessage(e)),
                            type = "error", duration = 5)
           NULL
         })
         req(!is.null(p))
-
+        
         tryCatch(
           suppressWarnings(ggsave(
             filename = file, plot = p, device = fmt,
@@ -9454,23 +9997,23 @@ server <- function(input, output, session) {
       options = list(`actions-box` = TRUE)
     )
   })
-
+  
   # ── Panel colinéarité VIF
   output$pcaCollinearityPanel <- renderUI({
     req(values$filteredData, input$pcaVars)
     if (length(input$pcaVars) < 2) return(NULL)
-
+    
     pca_data <- tryCatch(
       { d <- values$filteredData[, input$pcaVars, drop = FALSE]
-        d[, sapply(d, is.numeric), drop = FALSE] },
+      d[, sapply(d, is.numeric), drop = FALSE] },
       error = function(e) NULL
     )
     if (is.null(pca_data) || ncol(pca_data) < 2) return(NULL)
-
+    
     # Calculer la matrice de corrélation et détecter les paires colinéaires
     R_mat <- safe_cor(pca_data)
     if (is.null(R_mat) || anyNA(R_mat)) return(NULL)
-
+    
     # Paires avec |cor| >= 0.80 (colinéarité modérée à forte)
     pairs_high <- list()
     for (i in seq_len(nrow(R_mat))) {
@@ -9484,47 +10027,47 @@ server <- function(input, output, session) {
         }
       }
     }
-
+    
     if (length(pairs_high) == 0) return(NULL)
-
+    
     # Calculer le VIF pour chaque variable (régression multiple)
     vif_vals <- tryCatch({
       if (ncol(pca_data) >= 3) {
         pca_data_nzv <- remove_zero_var_cols(pca_data)
         if (ncol(pca_data_nzv) < 2) { rep(NA, ncol(pca_data)) } else {
-        sapply(seq_len(ncol(pca_data_nzv)), function(i) {
-          y <- pca_data_nzv[[i]]
-          x <- remove_zero_var_cols(pca_data_nzv[, -i, drop = FALSE])
-          if (ncol(x) == 0) return(Inf)
-          r2 <- tryCatch(suppressWarnings(summary(lm(y ~ ., data = x))$r.squared), error = function(e) NA)
-          if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
-        }) }
+          sapply(seq_len(ncol(pca_data_nzv)), function(i) {
+            y <- pca_data_nzv[[i]]
+            x <- remove_zero_var_cols(pca_data_nzv[, -i, drop = FALSE])
+            if (ncol(x) == 0) return(Inf)
+            r2 <- tryCatch(suppressWarnings(summary(lm(y ~ ., data = x))$r.squared), error = function(e) NA)
+            if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
+          }) }
       } else {
         rep(NA, ncol(pca_data))
       }
     }, error = function(e) rep(NA, ncol(pca_data)))
     names(vif_vals) <- names(pca_data)
-
+    
     # Identifier les variables avec VIF > 5
     high_vif <- names(vif_vals[!is.na(vif_vals) & is.finite(vif_vals) & vif_vals > 5])
     # Variables parfaitement colinéaires (|cor|>0.9999)
     perfect_collinear <- unique(unlist(lapply(pairs_high, function(p) {
       if (abs(p$cor) > 0.9999) p$v2 else NULL
     })))
-
+    
     # Suggestions de suppression (union des variables problématiques, priorité VIF > 10)
     suggest_remove <- unique(c(
       perfect_collinear,
       names(vif_vals[!is.na(vif_vals) & is.finite(vif_vals) & vif_vals > 10])
     ))
-
+    
     severity_color <- if (length(perfect_collinear) > 0) "#dc3545"
-                      else if (length(high_vif) > 0) "#fd7e14"
-                      else "#ffc107"
+    else if (length(high_vif) > 0) "#fd7e14"
+    else "#ffc107"
     severity_label <- if (length(perfect_collinear) > 0) "Colinéarité parfaite détectée"
-                      else if (length(high_vif) > 0) "Colinéarité forte (VIF > 5)"
-                      else "Colinéarité modérée (|r| ≥ 0.80)"
-
+    else if (length(high_vif) > 0) "Colinéarité forte (VIF > 5)"
+    else "Colinéarité modérée (|r| ≥ 0.80)"
+    
     tagList(
       div(
         style = paste0(
@@ -9539,7 +10082,7 @@ server <- function(input, output, session) {
           icon("exclamation-triangle"),
           tags$strong(severity_label)
         ),
-
+        
         # Tableau des paires colinéaires
         tags$small(
           style = "color: #495057; font-weight: bold; display: block; margin-bottom: 4px;",
@@ -9557,12 +10100,12 @@ server <- function(input, output, session) {
           tags$tbody(
             lapply(pairs_high, function(p) {
               level <- if (abs(p$cor) > 0.9999) "Parfaite"
-                       else if (abs(p$cor) >= 0.90) "Très forte"
-                       else if (abs(p$cor) >= 0.80) "Forte"
-                       else "Modérée"
+              else if (abs(p$cor) >= 0.90) "Très forte"
+              else if (abs(p$cor) >= 0.80) "Forte"
+              else "Modérée"
               col   <- if (abs(p$cor) > 0.9999) "#dc3545"
-                       else if (abs(p$cor) >= 0.90) "#fd7e14"
-                       else "#6c757d"
+              else if (abs(p$cor) >= 0.90) "#fd7e14"
+              else "#6c757d"
               tags$tr(
                 tags$td(tags$code(p$v1)),
                 tags$td(tags$code(p$v2)),
@@ -9572,7 +10115,7 @@ server <- function(input, output, session) {
             })
           )
         ),
-
+        
         # VIF si disponible
         if (!all(is.na(vif_vals))) {
           tagList(
@@ -9585,8 +10128,8 @@ server <- function(input, output, session) {
               lapply(names(vif_vals), function(v) {
                 vv <- vif_vals[v]
                 col <- if (is.infinite(vv) || vv > 10) "#dc3545"
-                       else if (vv > 5) "#fd7e14"
-                       else "#28a745"
+                else if (vv > 5) "#fd7e14"
+                else "#28a745"
                 lbl <- if (is.infinite(vv)) "∞" else round(vv, 1)
                 tags$span(
                   style = paste0(
@@ -9603,15 +10146,15 @@ server <- function(input, output, session) {
             )
           )
         },
-
+        
         hr(style = "margin: 8px 0;"),
-
+        
         # Options de correction
         tags$strong(style = "font-size: 12px; color: #495057;",
                     icon("tools"), " Corriger la multicolinéarité :"),
         div(
           style = "margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;",
-
+          
           #  supprimer les variables suggérées automatiquement
           if (length(suggest_remove) > 0) {
             actionButton(
@@ -9625,7 +10168,7 @@ server <- function(input, output, session) {
               style = "font-size: 11px;"
             )
           },
-
+          
           #  standardiser les variables (si pas encore coché)
           actionButton(
             "pcaForceStandardize",
@@ -9634,7 +10177,7 @@ server <- function(input, output, session) {
             style = "font-size: 11px;"
           )
         ),
-
+        
         if (length(suggest_remove) > 0) {
           div(
             style = "margin-top: 6px; font-size: 11px; color: #6c757d;",
@@ -9647,16 +10190,16 @@ server <- function(input, output, session) {
       )
     )
   })
-
+  
   # Supprimer automatiquement les variables colinéaires de la sélection ACP
   observeEvent(input$pcaAutoRemoveCollinear, {
     req(values$filteredData, input$pcaVars)
     pca_data <- values$filteredData[, input$pcaVars, drop = FALSE]
     pca_data <- pca_data[, sapply(pca_data, is.numeric), drop = FALSE]
-
+    
     R_mat <- safe_cor(pca_data)
     if (is.null(R_mat)) return()
-
+    
     # VIF et colinéarité parfaite
     to_remove <- c()
     for (i in seq_len(nrow(R_mat))) {
@@ -9676,7 +10219,7 @@ server <- function(input, output, session) {
       names(vif_v) <- names(pca_nzv)
       to_remove <- unique(c(to_remove, names(vif_v[is.finite(vif_v) & vif_v > 10])))
     }
-
+    
     new_vars <- setdiff(input$pcaVars, to_remove)
     if (length(new_vars) < 2) {
       showNotification(
@@ -9684,14 +10227,14 @@ server <- function(input, output, session) {
         type = "warning", duration = 6)
       return()
     }
-
+    
     updatePickerInput(session, "pcaVars", selected = new_vars)
     showNotification(
       paste0("Variables retirées : ", paste(to_remove, collapse = ", "),
              ". Relancez l'ACP."),
       type = "message", duration = 6)
   })
-
+  
   # Forcer la standardisation
   observeEvent(input$pcaForceStandardize, {
     updateCheckboxInput(session, "pcaScale", value = TRUE)
@@ -9814,7 +10357,7 @@ server <- function(input, output, session) {
             for (cj in seq_len(ncol(R_mat))) {
               if (ci < cj && !names(all_data[, num_cols, drop=FALSE])[ci] %in% to_drop) {
                 if (abs(R_mat[ci, cj]) > 0.9999) to_drop <- c(to_drop,
-                  names(all_data[, num_cols, drop=FALSE])[cj])
+                                                              names(all_data[, num_cols, drop=FALSE])[cj])
               }
             }
           }
@@ -9846,8 +10389,8 @@ server <- function(input, output, session) {
       
       # S'assurer qu'il reste au moins 2 variables numériques
       n_num_remaining <- sum(sapply(all_data[, !names(all_data) %in%
-                               if (!is.null(input$pcaQualiSup)) input$pcaQualiSup else c(),
-                               drop = FALSE], is.numeric))
+                                               if (!is.null(input$pcaQualiSup)) input$pcaQualiSup else c(),
+                                             drop = FALSE], is.numeric))
       if (n_num_remaining < 2) {
         showNotification("ACP : au moins 2 variables numériques sont nécessaires.", type = "error", duration = 6)
         return(NULL)
@@ -9992,6 +10535,234 @@ server <- function(input, output, session) {
                 selected = min(2, n_dims))
   })
   
+  # ── Légende dynamique de la coloration ACP ──────────────────────────────────
+  output$pcaColorByLegend <- renderUI({
+    color_choice <- if (!is.null(input$pcaColorBy)) input$pcaColorBy else "contrib"
+    desc <- switch(color_choice,
+                   "contrib" = list(
+                     txt  = "Contribution (%) : part de chaque élément dans la construction de la composante. Plus la contribution est élevée (rouge), plus l'élément structure l'axe.",
+                     col  = "#e65100", icon = "percentage"
+                   ),
+                   "cos2" = list(
+                     txt  = "Cos² (qualité de représentation) : indique dans quelle mesure l'élément est bien représenté sur le plan factoriel (0 = mal représenté, 1 = parfaitement représenté).",
+                     col  = "#1565c0", icon = "bullseye"
+                   ),
+                   "sat" = list(
+                     txt  = "Indice de saturation (|corrélation|) : corrélation absolue entre la variable et les axes affichés. Proche de 1 = variable fortement liée au plan, proche de 0 = variable indépendante du plan.",
+                     col  = "#4a148c", icon = "link"
+                   ),
+                   list(txt = "", col = "#555", icon = "info-circle")
+    )
+    div(style = paste0("margin-top:4px; padding:6px 10px; background:white; border-radius:4px; border-left:3px solid ", desc$col, "; font-size:11px; color:#444;"),
+        icon(desc$icon), " ", desc$txt)
+  })
+  
+  # ── Vérification des conditions ACP ─────────────────────────────────────────
+  output$pcaConditionsCheck <- renderUI({
+    req(values$filteredData)
+    
+    n_obs  <- nrow(values$filteredData)
+    p_vars <- if (!is.null(input$pcaVars)) length(input$pcaVars) else
+      sum(sapply(values$filteredData, is.numeric))
+    
+    cond_n_min <- 30
+    cond_n_rec <- max(50, 5 * max(p_vars, 1))
+    cond_p_min <- 2
+    cond_p_rec <- 3
+    
+    make_badge <- function(ok, warn, label) {
+      if (ok)   div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("check"), label)
+      else if (warn) div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("exclamation-triangle"), label)
+      else      div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("times-circle"), label)
+    }
+    
+    n_ok   <- n_obs >= cond_n_rec
+    n_warn <- !n_ok && n_obs >= cond_n_min
+    n_err  <- n_obs < cond_n_min
+    
+    p_ok   <- p_vars >= cond_p_rec
+    p_warn <- !p_ok && p_vars >= cond_p_min
+    p_err  <- p_vars < cond_p_min
+    
+    all_ok <- n_ok && p_ok
+    any_err <- n_err || p_err
+    
+    border_col <- if (any_err) "#e74c3c" else if (!all_ok) "#f39c12" else "#27ae60"
+    bg_col     <- if (any_err) "#fdf0ef" else if (!all_ok) "#fef9ec" else "#eafaf1"
+    
+    msgs <- list()
+    if (n_err)   msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), paste0(" Effectif critique : n=", n_obs, " < ", cond_n_min, " (minimum absolu). L'ACP peut être instable ou non interprétable."))))
+    else if (!n_ok) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible : n=", n_obs, " (recommandé min. ", cond_n_rec, " = 5xp). Résultats à interpréter avec prudence."))))
+    if (p_err)   msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), paste0(" Variables insuffisantes : p=", p_vars, " < ", cond_p_min, " minimum. Sélectionnez au moins 2 variables."))))
+    else if (!p_ok) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Peu de variables : p=", p_vars, " (recommandé min. ", cond_p_rec, "). L'ACP sera limitée."))))
+    
+    tagList(
+      hr(style="margin:8px 0;"),
+      div(style = paste0("border:2px solid ", border_col, "; border-radius:6px; padding:8px 12px; background:", bg_col, ";"),
+          div(style="margin-bottom:6px;",
+              tags$b(style="font-size:12px; color:#2c3e50;", icon("clipboard-check"), " Vérification des conditions — ACP"),
+              tags$br(),
+              make_badge(n_ok, n_warn, paste0("n = ", n_obs, " observations")),
+              make_badge(p_ok, p_warn, paste0("p = ", p_vars, " variables"))
+          ),
+          if (length(msgs) > 0)
+            tagList(
+              lapply(msgs, function(m)
+                p(style="margin:3px 0; font-size:11px; color:#555;", m)
+              ),
+              if (any_err)
+                div(style="margin-top:6px; padding:5px 10px; background:rgba(231,76,60,0.1); border-radius:4px;",
+                    p(style="margin:0; font-size:11px; color:#c0392b; font-weight:bold;",
+                      icon("exclamation-triangle"),
+                      " Conditions non remplies — vous pouvez tout de même lancer l'analyse, mais les résultats seront à interpréter avec précaution.")
+                )
+            )
+      )
+    )
+  })
+  
+  # ── Vérification des conditions HCPC ────────────────────────────────────────
+  output$hcpcConditionsCheck <- renderUI({
+    req(values$filteredData)
+    
+    n_obs <- nrow(values$filteredData)
+    k     <- if (!is.null(input$hcpcClusters)) input$hcpcClusters else 3
+    
+    # Nombre de composantes retenues si ACP dispo
+    n_comp_retained <- tryCatch({
+      res <- pcaResultReactive()
+      if (is.null(res)) return(NA_integer_)
+      sum(get_eigenvalue(res)[, 1] >= 1)
+    }, error = function(e) NA_integer_)
+    
+    cond_n_min <- 2 * k
+    cond_n_rec <- 10 * k
+    
+    make_badge <- function(ok, warn, label) {
+      if (ok)   div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("check"), label)
+      else if (warn) div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("exclamation-triangle"), label)
+      else      div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("times-circle"), label)
+    }
+    
+    n_ok   <- n_obs >= cond_n_rec
+    n_warn <- !n_ok && n_obs >= cond_n_min
+    n_err  <- n_obs < cond_n_min
+    
+    comp_ok   <- !is.na(n_comp_retained) && n_comp_retained >= 2
+    comp_warn <- !is.na(n_comp_retained) && n_comp_retained == 1
+    
+    msgs <- list()
+    if (n_err)  msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), paste0(" Effectif critique : n=", n_obs, " < ", cond_n_min, " = 2xk. Classification impossible."))))
+    else if (!n_ok) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible : n=", n_obs, " (recommandé min. ", cond_n_rec, " = 10xk). Stabilité réduite."))))
+    if (!is.na(n_comp_retained)) {
+      if (comp_warn) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), " Seulement 1 composante ACP retenue (valeur propre min. 1). Recommandé : min. 2 composantes pour une classification robuste.")))
+      if (!comp_ok && !comp_warn) msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), " Aucune composante ACP disponible. Lancez d'abord l'ACP.")))
+    }
+    
+    any_err  <- n_err
+    border_col <- if (any_err) "#e74c3c" else if (!n_ok || comp_warn) "#f39c12" else "#27ae60"
+    bg_col     <- if (any_err) "#fdf0ef" else if (!n_ok || comp_warn) "#fef9ec" else "#eafaf1"
+    
+    tagList(
+      hr(style="margin:8px 0;"),
+      div(style = paste0("border:2px solid ", border_col, "; border-radius:6px; padding:8px 12px; background:", bg_col, ";"),
+          div(style="margin-bottom:6px;",
+              tags$b(style="font-size:12px; color:#2c3e50;", icon("clipboard-check"), " Vérification des conditions — HCPC"),
+              tags$br(),
+              make_badge(n_ok, n_warn, paste0("n = ", n_obs, " obs.")),
+              make_badge(TRUE, FALSE, paste0("k = ", k, " clusters")),
+              if (!is.na(n_comp_retained))
+                make_badge(comp_ok, comp_warn, paste0(n_comp_retained, " comp. retenue(s)"))
+          ),
+          if (length(msgs) > 0)
+            tagList(
+              lapply(msgs, function(m) p(style="margin:3px 0; font-size:11px; color:#555;", m)),
+              if (any_err)
+                div(style="margin-top:6px; padding:5px 10px; background:rgba(231,76,60,0.1); border-radius:4px;",
+                    p(style="margin:0; font-size:11px; color:#c0392b; font-weight:bold;",
+                      icon("exclamation-triangle"),
+                      " Conditions non remplies — vous pouvez continuer, mais les résultats peuvent être non fiables."))
+            )
+      )
+    )
+  })
+  
+  # ── Vérification des conditions AFD ─────────────────────────────────────────
+  output$afdConditionsCheck <- renderUI({
+    req(values$filteredData)
+    
+    df <- values$filteredData
+    n_obs  <- nrow(df)
+    p_vars <- if (!is.null(input$afdVars)) length(input$afdVars) else
+      sum(sapply(df, is.numeric))
+    
+    # Nombre de groupes
+    n_groups <- tryCatch({
+      if (!is.null(input$afdFactor) && input$afdFactor %in% names(df)) {
+        length(unique(na.omit(df[[input$afdFactor]])))
+      } else NA_integer_
+    }, error = function(e) NA_integer_)
+    
+    g <- if (!is.na(n_groups)) n_groups else 2  # estimation par défaut
+    
+    # Conditions
+    cond_n_abs  <- p_vars + g     # n > p + g - 1
+    cond_n_grp  <- 20 * g         # ≥ 20 obs par groupe
+    cond_p_min  <- 1
+    cond_ratio  <- 10 * p_vars    # n/p ≥ 10
+    
+    make_badge <- function(ok, warn, label) {
+      if (ok)   div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("check"), label)
+      else if (warn) div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("exclamation-triangle"), label)
+      else      div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", icon("times-circle"), label)
+    }
+    
+    n_ok_abs  <- n_obs > cond_n_abs
+    n_ok_rec  <- n_obs >= cond_n_grp
+    n_warn    <- n_ok_abs && !n_ok_rec
+    n_err     <- !n_ok_abs
+    
+    g_ok      <- !is.na(n_groups) && n_groups >= 2
+    p_ok      <- p_vars >= 1
+    ratio_ok  <- n_obs >= cond_ratio
+    ratio_warn<- !ratio_ok && n_obs >= cond_ratio / 2
+    
+    msgs <- list()
+    if (n_err)  msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), paste0(" Effectif insuffisant : n=", n_obs, " inferieur ou egal a p+g=", cond_n_abs, ". L'AFD necessite n > p + g - 1."))))
+    else if (!n_ok_rec) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible par groupe : n=", n_obs, " pour ", g, " groupes (recommande min. 20 obs/groupe = ", cond_n_grp, " au total)."))))
+    if (!is.na(n_groups) && n_groups < 2) msgs <- c(msgs, list(tagList(icon("times-circle", style="color:#c0392b;"), " Variable discriminante : moins de 2 groupes detectes. L'AFD requiert g min. 2 groupes distincts.")))
+    if (!ratio_ok && !n_err) msgs <- c(msgs, list(tagList(icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Ratio n/p faible : n/p = ", round(n_obs/max(p_vars,1),1), " (recommande min. 10). Risque de sur-ajustement."))))
+    
+    any_err    <- n_err || (!is.na(n_groups) && n_groups < 2)
+    border_col <- if (any_err) "#e74c3c" else if (!n_ok_rec || !ratio_ok) "#f39c12" else "#27ae60"
+    bg_col     <- if (any_err) "#fdf0ef" else if (!n_ok_rec || !ratio_ok) "#fef9ec" else "#eafaf1"
+    
+    tagList(
+      hr(style="margin:8px 0;"),
+      div(style = paste0("border:2px solid ", border_col, "; border-radius:6px; padding:8px 12px; background:", bg_col, ";"),
+          div(style="margin-bottom:6px;",
+              tags$b(style="font-size:12px; color:#2c3e50;", icon("clipboard-check"), " Vérification des conditions — AFD"),
+              tags$br(),
+              make_badge(n_ok_abs, n_warn, paste0("n = ", n_obs, " observations")),
+              make_badge(p_ok, FALSE, paste0("p = ", p_vars, " variables")),
+              if (!is.na(n_groups))
+                make_badge(g_ok, FALSE, paste0("g = ", n_groups, " groupes")),
+              make_badge(ratio_ok, ratio_warn, paste0("n/p = ", round(n_obs/max(p_vars,1),1)))
+          ),
+          if (length(msgs) > 0)
+            tagList(
+              lapply(msgs, function(m) p(style="margin:3px 0; font-size:11px; color:#555;", m)),
+              div(
+                style = paste0("margin-top:6px; padding:5px 10px; border-radius:4px; background:", if (any_err) "rgba(231,76,60,0.1);" else "rgba(243,156,18,0.1);"),
+                p(style = paste0("margin:0; font-size:11px; font-weight:bold; color:", if(any_err) "#c0392b;" else "#856404;"),
+                  icon("exclamation-triangle"),
+                  " Conditions non remplies — vous pouvez tout de meme lancer l'AFD, mais les resultats sont a interpreter avec grande prudence.")
+              )
+            )
+      )
+    )
+  })
+  
   # Fonction pour créer le plot PCA
   createPcaPlot <- function(res.pca) {
     
@@ -10005,30 +10776,81 @@ server <- function(input, output, session) {
       "ACP - Analyse en Composantes Principales"
     }
     
+    # ── Choix de la coloration ──────────────────────────────────────────────────
+    color_choice <- if (!is.null(input$pcaColorBy)) input$pcaColorBy else "contrib"
+    
+    # Calcul de l'indice de saturation (|corrélation| moyenne sur les 2 axes)
+    compute_sat_var <- function(res, ax_x, ax_y) {
+      cor_mat <- res$var$cor
+      n_dim   <- ncol(cor_mat)
+      ax_x_s  <- min(ax_x, n_dim)
+      ax_y_s  <- min(ax_y, n_dim)
+      if (ax_x_s == ax_y_s) return(abs(cor_mat[, ax_x_s]))
+      rowMeans(abs(cor_mat[, c(ax_x_s, ax_y_s), drop = FALSE]))
+    }
+    compute_sat_ind <- function(res, ax_x, ax_y) {
+      cos2_mat <- res$ind$cos2
+      n_dim    <- ncol(cos2_mat)
+      ax_x_s   <- min(ax_x, n_dim)
+      ax_y_s   <- min(ax_y, n_dim)
+      if (ax_x_s == ax_y_s) return(cos2_mat[, ax_x_s])
+      rowSums(cos2_mat[, c(ax_x_s, ax_y_s), drop = FALSE])
+    }
+    
+    col_var <- switch(color_choice,
+                      "contrib" = "contrib",
+                      "cos2"    = "cos2",
+                      "sat"     = compute_sat_var(res.pca, axis_x, axis_y),
+                      "contrib"
+    )
+    col_ind <- switch(color_choice,
+                      "contrib" = "contrib",
+                      "cos2"    = "cos2",
+                      "sat"     = compute_sat_ind(res.pca, axis_x, axis_y),
+                      "contrib"
+    )
+    
+    gradient_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
+    
     if (input$pcaPlotType == "var") {
       p <- fviz_pca_var(res.pca,
                         axes = c(axis_x, axis_y),
-                        col.var = "contrib",
-                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                        col.var = col_var,
+                        gradient.cols = gradient_cols,
                         repel = TRUE,
                         ggtheme = theme_minimal(),
                         title = plot_title)
     } else if (input$pcaPlotType == "ind") {
       p <- fviz_pca_ind(res.pca,
                         axes = c(axis_x, axis_y),
-                        col.ind = "contrib",
-                        gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                        col.ind = col_ind,
+                        gradient.cols = gradient_cols,
                         repel = TRUE,
                         ggtheme = theme_minimal(),
                         title = plot_title)
     } else {
-      p <- fviz_pca_biplot(res.pca,
-                           axes = c(axis_x, axis_y),
-                           repel = TRUE,
-                           col.var = "#2E9FDF",
-                           col.ind = "#696969",
-                           ggtheme = theme_minimal(),
-                           title = plot_title)
+      # Biplot : on colore les variables selon le critère choisi
+      if (is.numeric(col_var)) {
+        # Pour saturation (vecteur numérique), on passe la moyenne comme couleur fixe
+        # et on ajoute une annotation dans le titre
+        p <- fviz_pca_biplot(res.pca,
+                             axes = c(axis_x, axis_y),
+                             repel = TRUE,
+                             col.var = col_var,
+                             col.ind = col_ind,
+                             gradient.cols = gradient_cols,
+                             ggtheme = theme_minimal(),
+                             title = plot_title)
+      } else {
+        p <- fviz_pca_biplot(res.pca,
+                             axes = c(axis_x, axis_y),
+                             repel = TRUE,
+                             col.var = col_var,
+                             col.ind = col_ind,
+                             gradient.cols = gradient_cols,
+                             ggtheme = theme_minimal(),
+                             title = plot_title)
+      }
     }
     
     eigenvals <- get_eigenvalue(res.pca)
@@ -10171,7 +10993,7 @@ server <- function(input, output, session) {
       tagList(
         div(style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; padding: 18px; margin-bottom: 15px; border: 1px solid #dee2e6;",
             h5(style = "color: #2c3e50; font-weight: bold; margin-top: 0; border-bottom: 2px solid #3498db; padding-bottom: 8px;",
-               icon("flask"), " Étape 1 — Test de sphéricité de Bartlett"),
+               icon("flask"), " Test de sphéricité de Bartlett"),
             p(style = "font-size: 12px; color: #555; font-style: italic; margin-bottom: 10px;",
               "Ce test vérifie si la matrice de corrélation est significativement différente d'une matrice identité. Un résultat significatif (p < 0,05) confirme que les variables sont corrélées entre elles et que l'ACP est pertinente."),
             fluidRow(
@@ -10191,7 +11013,7 @@ server <- function(input, output, session) {
         ),
         div(style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; padding: 18px; margin-bottom: 15px; border: 1px solid #dee2e6;",
             h5(style = "color: #2c3e50; font-weight: bold; margin-top: 0; border-bottom: 2px solid #8e44ad; padding-bottom: 8px;",
-               icon("sliders"), " Étape 2 — Indice KMO (Kaiser-Meyer-Olkin)"),
+               icon("sliders"), " Indice KMO (Kaiser-Meyer-Olkin)"),
             p(style = "font-size: 12px; color: #555; font-style: italic; margin-bottom: 10px;",
               "Le KMO mesure l'adéquation de l'échantillon. Il compare les corrélations partielles aux corrélations totales. Plus il est proche de 1, plus les données sont adaptées à une ACP."),
             div(style = "text-align: center; padding: 15px;",
@@ -11976,8 +12798,8 @@ server <- function(input, output, session) {
     # Valeur par défaut : premier facteur/char, sinon premier disponible
     all_cols <- unlist(grouped, use.names = FALSE)
     default_col <- if (!is.null(grouped[["Facteur"]]))     grouped[["Facteur"]][1]   else
-                   if (!is.null(grouped[["Texte / Caractère"]])) grouped[["Texte / Caractère"]][1] else
-                   all_cols[1]
+      if (!is.null(grouped[["Texte / Caractère"]])) grouped[["Texte / Caractère"]][1] else
+        all_cols[1]
     
     tagList(
       selectInput(
@@ -11996,17 +12818,17 @@ server <- function(input, output, session) {
     col <- values$filteredData[[input$afdFactor]]
     n_lvl <- length(unique(na.omit(col)))
     type_str <- if (is.factor(col))      paste0("Facteur — ", n_lvl, " niveaux")
-                else if (is.character(col)) paste0("Texte — ", n_lvl, " valeurs uniques")
-                else if (inherits(col,"Date") || inherits(col,"POSIXt")) paste0("Date — ", n_lvl, " valeurs uniques")
-                else if (is.numeric(col))  paste0("Numérique — converti en facteur (", n_lvl, " niveaux)")
-                else if (is.logical(col))  "Logique — 2 niveaux (TRUE / FALSE)"
-                else paste0("Type : ", class(col)[1], " — ", n_lvl, " niveaux")
+    else if (is.character(col)) paste0("Texte — ", n_lvl, " valeurs uniques")
+    else if (inherits(col,"Date") || inherits(col,"POSIXt")) paste0("Date — ", n_lvl, " valeurs uniques")
+    else if (is.numeric(col))  paste0("Numérique — converti en facteur (", n_lvl, " niveaux)")
+    else if (is.logical(col))  "Logique — 2 niveaux (TRUE / FALSE)"
+    else paste0("Type : ", class(col)[1], " — ", n_lvl, " niveaux")
     
     col_bg <- if (is.factor(col)) "#28a745"
-               else if (is.character(col)) "#17a2b8"
-               else if (is.numeric(col)) "#ffc107"
-               else if (inherits(col,"Date")||inherits(col,"POSIXt")) "#6f42c1"
-               else "#6c757d"
+    else if (is.character(col)) "#17a2b8"
+    else if (is.numeric(col)) "#ffc107"
+    else if (inherits(col,"Date")||inherits(col,"POSIXt")) "#6f42c1"
+    else "#6c757d"
     col_tc <- if (is.numeric(col)) "#212529" else "white"
     
     div(style = "margin-top: 4px;",
@@ -12070,7 +12892,7 @@ server <- function(input, output, session) {
     
     afd_data <- tryCatch(
       { d <- values$filteredData[, input$afdVars, drop = FALSE]
-        d[, sapply(d, is.numeric), drop = FALSE] },
+      d[, sapply(d, is.numeric), drop = FALSE] },
       error = function(e) NULL
     )
     if (is.null(afd_data) || ncol(afd_data) < 2) return(NULL)
@@ -12117,14 +12939,14 @@ server <- function(input, output, session) {
           icon("exclamation-triangle"), tags$strong(sev_label)),
       tags$small(style="color:#495057;font-weight:bold;display:block;margin-bottom:4px;", "Paires colinéaires :"),
       tags$table(class="table table-sm table-condensed", style="font-size:11px; margin-bottom:8px;",
-        tags$thead(tags$tr(tags$th("Var 1"), tags$th("Var 2"), tags$th("r"), tags$th("Niveau"))),
-        tags$tbody(lapply(pairs_high, function(p) {
-          lv  <- if(abs(p$cor)>0.9999) "Parfaite" else if(abs(p$cor)>=0.90) "Très forte" else "Forte"
-          col <- if(abs(p$cor)>0.9999) "#dc3545" else if(abs(p$cor)>=0.90) "#fd7e14" else "#6c757d"
-          tags$tr(tags$td(tags$code(p$v1)), tags$td(tags$code(p$v2)),
-                  tags$td(tags$strong(style=paste0("color:",col), p$cor)),
-                  tags$td(style=paste0("color:",col), lv))
-        }))
+                 tags$thead(tags$tr(tags$th("Var 1"), tags$th("Var 2"), tags$th("r"), tags$th("Niveau"))),
+                 tags$tbody(lapply(pairs_high, function(p) {
+                   lv  <- if(abs(p$cor)>0.9999) "Parfaite" else if(abs(p$cor)>=0.90) "Très forte" else "Forte"
+                   col <- if(abs(p$cor)>0.9999) "#dc3545" else if(abs(p$cor)>=0.90) "#fd7e14" else "#6c757d"
+                   tags$tr(tags$td(tags$code(p$v1)), tags$td(tags$code(p$v2)),
+                           tags$td(tags$strong(style=paste0("color:",col), p$cor)),
+                           tags$td(style=paste0("color:",col), lv))
+                 }))
       ),
       if (!all(is.na(vif_vals))) tagList(
         tags$small(style="color:#495057;font-weight:bold;display:block;margin-bottom:4px;", "VIF :"),
@@ -12180,7 +13002,7 @@ server <- function(input, output, session) {
     updatePickerInput(session, "afdVars", selected=new_vars)
     showNotification(paste0("Variables retirées : ", paste(to_rem, collapse=", ")), type="message", duration=6)
   })
-
+  
   output$afdMeansGroupSelect <- renderUI({
     # Vérification explicite au lieu de req()
     if (is.null(values$filteredData) || nrow(values$filteredData) == 0) {
@@ -12240,18 +13062,18 @@ server <- function(input, output, session) {
           )
           # Utiliser les données individuelles à la place
           # Conversion de la variable à discriminer en facteur (accepte tous les types)
-      if (!is.null(afd_data[[input$afdFactor]])) {
-        col_vals <- afd_data[[input$afdFactor]]
-        if (inherits(col_vals, c("Date","POSIXct","POSIXlt"))) {
-          afd_data[[input$afdFactor]] <- factor(format(col_vals, "%Y-%m-%d"))
-        } else if (is.numeric(col_vals) || is.integer(col_vals)) {
-          afd_data[[input$afdFactor]] <- factor(as.character(col_vals))
-        } else {
-          afd_data[[input$afdFactor]] <- factor(as.character(col_vals))
-        }
-        afd_data[[input$afdFactor]] <- droplevels(afd_data[[input$afdFactor]])
-      }
-      cols_to_select <- c(input$afdVars, input$afdFactor)
+          if (!is.null(afd_data[[input$afdFactor]])) {
+            col_vals <- afd_data[[input$afdFactor]]
+            if (inherits(col_vals, c("Date","POSIXct","POSIXlt"))) {
+              afd_data[[input$afdFactor]] <- factor(format(col_vals, "%Y-%m-%d"))
+            } else if (is.numeric(col_vals) || is.integer(col_vals)) {
+              afd_data[[input$afdFactor]] <- factor(as.character(col_vals))
+            } else {
+              afd_data[[input$afdFactor]] <- factor(as.character(col_vals))
+            }
+            afd_data[[input$afdFactor]] <- droplevels(afd_data[[input$afdFactor]])
+          }
+          cols_to_select <- c(input$afdVars, input$afdFactor)
           afd_data <- values$filteredData[, cols_to_select, drop = FALSE]
           use_means <- FALSE
         } else {
@@ -12706,9 +13528,9 @@ server <- function(input, output, session) {
     afd_data    <- afd_res$data
     # Utiliser le nom du facteur stocké dans afd_res (pas input$afdFactor qui est NULL hors réactif)
     factor_name <- afd_res$factor_name %||%
-                   names(afd_data)[sapply(afd_data, is.factor)][1] %||%
-                   names(afd_data)[ncol(afd_data)]
-
+      names(afd_data)[sapply(afd_data, is.factor)][1] %||%
+      names(afd_data)[ncol(afd_data)]
+    
     n_dims <- ncol(afd_predict$x)
     
     # Axes sélectionnés (par défaut 1 et 2, ou 1 et densité si une seule dimension)
@@ -12802,7 +13624,6 @@ server <- function(input, output, session) {
     # Utiliser les variables stockées dans afd_res (pas input$afdVars qui est NULL hors réactif)
     vars_used <- afd_res$vars_used
     if (is.null(vars_used) || length(vars_used) == 0) {
-      # Fallback : colonnes numériques de afd_data (hors facteur)
       vars_used <- names(afd_data)[sapply(afd_data, is.numeric)]
     }
     if (is.null(vars_used) || length(vars_used) == 0) stop("Aucune variable disponible pour le graphique AFD.")
@@ -12813,6 +13634,30 @@ server <- function(input, output, session) {
     
     var_df <- as.data.frame(structure_matrix)
     var_df$Variable <- rownames(structure_matrix)
+    
+    # ── Importance discriminatoire globale ────────────────────────────────────
+    # Pondération par la variance expliquée de chaque fonction LD
+    eigenvals  <- afd_result$svd^2
+    prop_var   <- eigenvals / sum(eigenvals)   # poids de chaque LD
+    n_ld_use   <- min(n_dims, ncol(structure_matrix))
+    # Score d'importance = somme pondérée de |corrélation|² sur toutes les fonctions
+    importance <- sapply(seq_len(nrow(structure_matrix)), function(i) {
+      sqrt(sum(prop_var[seq_len(n_ld_use)] * structure_matrix[i, seq_len(n_ld_use)]^2))
+    })
+    var_df$Importance <- importance
+    
+    # Niveaux de discrimination (tranches fixes)
+    var_df$Niveau <- cut(
+      var_df$Importance,
+      breaks = c(-Inf, 0.30, 0.50, 0.70, Inf),
+      labels = c("Faible (< 0.30)", "Modérée (0.30–0.50)", "Forte (0.50–0.70)", "Très forte (> 0.70)")
+    )
+    disc_colors <- c(
+      "Faible (< 0.30)"       = "#bdc3c7",
+      "Modérée (0.30–0.50)"   = "#3498db",
+      "Forte (0.50–0.70)"     = "#e67e22",
+      "Très forte (> 0.70)"   = "#c0392b"
+    )
     
     x_label <- if (!is.null(input$afdVarXLabel) && input$afdVarXLabel != "") {
       input$afdVarXLabel
@@ -12828,45 +13673,76 @@ server <- function(input, output, session) {
     
     # Construire le graphique selon le nombre de dimensions
     if (n_dims > 1 && !is.null(axis_y)) {
-      # Graphique 2D avec deux axes sélectionnés
+      # ── Graphique 2D : flèches colorées par importance ──────────────────────
       x_col <- paste0("LD", axis_x)
       y_col <- paste0("LD", axis_y)
       
-      p_var <- ggplot(var_df, aes_string(x = x_col, y = y_col, label = "Variable")) +
-        geom_segment(aes_string(xend = x_col, yend = y_col), 
-                     x = 0, y = 0, arrow = arrow(length = unit(0.3, "cm")), 
-                     color = "#2E86AB", size = 1.2) +
-        geom_text(vjust = -0.5, hjust = 0.5, size = 4, fontface = "bold") +
-        theme_minimal() +
-        labs(title = var_title, x = x_label, y = y_label) +
-        theme(plot.title = element_markdown(hjust = 0.5, face = "bold"))
+      p_var <- ggplot(var_df, aes_string(x = x_col, y = y_col,
+                                         color = "Niveau", label = "Variable")) +
+        geom_segment(aes_string(xend = x_col, yend = y_col, color = "Niveau"),
+                     x = 0, y = 0,
+                     arrow = arrow(length = unit(0.28, "cm"), type = "closed"),
+                     linewidth = 1.3) +
+        geom_point(aes_string(size = "Importance"), alpha = 0.85) +
+        geom_text(vjust = -0.6, hjust = 0.5, size = 3.8, fontface = "bold",
+                  color = "grey20") +
+        scale_color_manual(values = disc_colors, name = "Importance\ndiscriminatoire",
+                           drop = FALSE) +
+        scale_size_continuous(range = c(2, 6), guide = "none") +
+        geom_vline(xintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.5) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.5) +
+        theme_minimal(base_size = 12) +
+        labs(title = var_title,
+             subtitle = "Couleur = importance discriminatoire globale (corrélation pondérée par la variance de chaque LD)",
+             x = x_label, y = y_label) +
+        theme(
+          plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
+          plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 10),
+          legend.position  = "right",
+          legend.title     = element_text(size = 10, face = "bold"),
+          panel.grid.minor = element_blank()
+        )
       
       if (!is.null(input$afdVarCenterAxes) && input$afdVarCenterAxes) {
-        coords <- structure_matrix[, c(axis_x, axis_y)]
+        coords    <- structure_matrix[, c(axis_x, axis_y)]
         max_range <- max(abs(range(coords, na.rm = TRUE)))
-        p_var <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
+        p_var     <- p_var + xlim(-max_range, max_range) + ylim(-max_range, max_range)
       }
+      
     } else {
-      # Graphique 1D avec corrélation
+      # ── Graphique 1D : barres colorées par importance ───────────────────────
       x_col <- paste0("LD", axis_x)
       
-      var_df_ordered <- var_df[order(abs(var_df[[x_col]]), decreasing = TRUE), ]
-      var_df_ordered$Variable <- factor(var_df_ordered$Variable, 
-                                        levels = var_df_ordered$Variable)
+      var_df_ordered <- var_df[order(var_df$Importance, decreasing = TRUE), ]
+      var_df_ordered$Variable <- factor(var_df_ordered$Variable,
+                                        levels = rev(var_df_ordered$Variable))
       
-      # Créer une colonne pour la couleur basée sur le signe
-      var_df_ordered$Color <- ifelse(var_df_ordered[[x_col]] > 0, "Positive", "Négative")
-      
-      p_var <- ggplot(var_df_ordered, aes_string(x = "Variable", y = x_col, fill = "Color")) +
-        geom_bar(stat = "identity") +
+      p_var <- ggplot(var_df_ordered,
+                      aes_string(x = "Variable", y = x_col, fill = "Niveau")) +
+        geom_bar(stat = "identity", color = "white", linewidth = 0.4) +
         coord_flip() +
-        theme_minimal() +
-        labs(title = var_title, x = "Variable", y = y_label) +
-        geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-        scale_fill_manual(values = c("Positive" = "#2E86AB", "Négative" = "#A23B72"),
-                          name = "Corrélation") +
-        theme(plot.title = element_markdown(hjust = 0.5, face = "bold"),
-              legend.position = "bottom")
+        geom_hline(yintercept = 0, linetype = "dashed", color = "grey40",
+                   linewidth = 0.7) +
+        geom_hline(yintercept =  0.30, linetype = "dotted", color = "#3498db",
+                   linewidth = 0.5, alpha = 0.7) +
+        geom_hline(yintercept = -0.30, linetype = "dotted", color = "#3498db",
+                   linewidth = 0.5, alpha = 0.7) +
+        annotate("text", x = 0.6, y = 0.32, label = "seuil 0.30",
+                 hjust = 0, color = "#3498db", size = 3, fontface = "italic") +
+        scale_fill_manual(values = disc_colors, name = "Importance\ndiscriminatoire",
+                          drop = FALSE) +
+        scale_y_continuous(limits = c(-1, 1), breaks = seq(-1, 1, 0.25)) +
+        labs(title = var_title,
+             subtitle = "Couleur = niveau d'importance discriminatoire (|corrélation| pondérée par la variance expliquée)",
+             x = NULL, y = y_label) +
+        theme_minimal(base_size = 12) +
+        theme(
+          plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
+          plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 10),
+          legend.position  = "right",
+          legend.title     = element_text(size = 10, face = "bold"),
+          panel.grid.minor = element_blank()
+        )
     }
     
     return(p_var)
@@ -12928,7 +13804,7 @@ server <- function(input, output, session) {
           "border-radius:6px; padding:11px 16px; margin-bottom:12px;"
         ),
         h5(style = "color:white; margin:0; font-weight:bold; font-size:15px;",
-           icon(icon_name), paste0("  ", num, ". ", label))
+           icon(icon_name), paste0("  ", label))
         )
       }
       badge <- function(val, label, color) {
