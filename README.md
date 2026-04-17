@@ -1,4 +1,4 @@
-# HStat — Shiny Statistical Analysis Application
+# HStat, Shiny Statistical Analysis Application
 
 HStat is an interactive web application built with R Shiny that enables a complete data analysis pipeline, from data import to advanced multivariate analyses, without writing a single line of code.
 
