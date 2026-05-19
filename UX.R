@@ -710,7 +710,7 @@ ui <- dashboardPage(
                           div(
                             style = "background-color: #ffebee; padding: 12px; border-radius: 5px;",
                             tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
-                                   "Formats : ", tags$code("1,3,5"), " — ", tags$code("10 à 20"), " — ", tags$code("1,3,10 à 15")),
+                                   "Formats : ", tags$code("1,3,5"), " -- ", tags$code("10 à 20"), " -- ", tags$code("1,3,10 à 15")),
                             textAreaInput("deleteRowsInput", NULL,
                                           placeholder = "1,3,5
 10 à 20
@@ -790,7 +790,7 @@ ui <- dashboardPage(
                       placeholder = "ex: Moyenne_Score"
                     ),
                     
-                    # ── Sélection de colonnes et lignes
+                    # - Sélection de colonnes et lignes
                     fluidRow(
                       column(6,
                              div(
@@ -814,7 +814,7 @@ ui <- dashboardPage(
                     
                     br(),
                     
-                    # ── Opérateurs et fonctions
+                    # - Opérateurs et fonctions
                     fluidRow(
                       column(12,
                              div(
@@ -825,7 +825,7 @@ ui <- dashboardPage(
                                         div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
                                             actionButton("insertPlus",  "+",  class = "btn-outline-secondary btn-sm"),
                                             actionButton("insertMoins", "-",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton("insertMult",  "×",  class = "btn-outline-secondary btn-sm"),
+                                            actionButton("insertMult",  "x",  class = "btn-outline-secondary btn-sm"),
                                             actionButton("insertDiv",   "÷",  class = "btn-outline-secondary btn-sm"),
                                             actionButton("insertPow",   "^",  class = "btn-outline-secondary btn-sm"),
                                             actionButton("insertParen", "()", class = "btn-outline-secondary btn-sm")
@@ -857,13 +857,13 @@ ui <- dashboardPage(
                       placeholder = "ex: (Rendement + Biomasse) / 2   |   sum(Poids, Hauteur)   |   sqrt(Var1 * Var2)"
                     ),
                     
-                    # ── Exemples d'application des fonctions
+                    # - Exemples d'application des fonctions
                     tags$div(
                       style = "margin-top:4px; margin-bottom:12px; padding:10px 12px; background:#f0f7ff; border:1px solid #bee3f8; border-radius:6px; font-size:11.5px;",
                       tags$b(style="color:#1a56db; font-size:12px;", icon("calculator"), " Exemples d'utilisation :"),
                       tags$table(
                         style = "width:100%; margin-top:6px; border-collapse:collapse;",
-                        # ── En-tête opérations multi-variables ──
+                        # - En-tête opérations multi-variables -
                         tags$tr(style="background:#dbeafe;",
                                 tags$td(colspan="2",style="padding:4px 8px;color:#1e40af;font-size:11px;font-weight:bold;",
                                         icon("layer-group")," Opérations sur plusieurs variables")
@@ -872,33 +872,33 @@ ui <- dashboardPage(
                                 tags$td(style="padding:3px 6px;color:#555;width:52%;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "(Rendement + Biomasse) / 2")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne de 2 variables")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne de 2 variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "mean(c(Rendement, Biomasse, Poids))")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne (n variables)")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne (n variables)")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement + Biomasse + Poids")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Somme de variables")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Somme de variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement / (Biomasse + Poids)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Ratio entre variables")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Ratio entre variables")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "sqrt(Rendement * Biomasse)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Moyenne géométrique")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne géométrique")
                         ),
-                        # ── En-tête transformations ──
+                        # - En-tête transformations -
                         tags$tr(style="background:#dcfce7;",
                                 tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
                                         icon("calculator")," Transformations classiques")
@@ -907,37 +907,37 @@ ui <- dashboardPage(
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "log(Rendement)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Logarithme naturel")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Logarithme naturel")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "log10(Rendement + 1)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Log10 (si zéros présents)")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Log10 (si zéros présents)")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "sqrt(Rendement)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Racine carrée")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Racine carrée")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement^2")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Mise au carré")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Mise au carré")
                         ),
                         tags$tr(style="border-bottom:1px solid #d0e8ff;",
                                 tags$td(style="padding:3px 6px;",
                                         tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "round(Rendement / Biomasse, 3)")),
-                                tags$td(style="padding:3px 6px;color:#666;","→ Ratio arrondi à 3 déc.")
+                                tags$td(style="padding:3px 6px;color:#666;","-> Ratio arrondi à 3 déc.")
                         ),
                         tags$tr(
                           tags$td(style="padding:3px 6px;",
                                   tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                             "(Rendement - mean(Rendement)) / sd(Rendement)")),
-                          tags$td(style="padding:3px 6px;color:#666;","→ Z-score")
+                          tags$td(style="padding:3px 6px;color:#666;","-> Z-score")
                         )
                       )
                     ),
@@ -1031,7 +1031,6 @@ ui <- dashboardPage(
                   )
                 )
               ),
-              
               
               # Aperçu des données nettoyées
               fluidRow(
@@ -1476,10 +1475,7 @@ ui <- dashboardPage(
       
       tabItem(tabName = "crosstab",
               
-              
-              
               # Guide d'utilisation (collapsible)
-              
               
               fluidRow(
                 box(
@@ -1490,25 +1486,22 @@ ui <- dashboardPage(
                   div(style = "padding:10px 20px;",
                       tags$ol(
                         tags$li(tags$strong("Sélectionnez"), " les variables en lignes et en colonnes."),
-                        tags$li(tags$strong("Appliquez"), " un filtre si nécessaire — sur la variable en ligne/colonne ou sur une variable tierce (filtre additionnel)."),
+                        tags$li(tags$strong("Appliquez"), " un filtre si nécessaire -- sur la variable en ligne/colonne ou sur une variable tierce (filtre additionnel)."),
                         tags$li(tags$strong("Choisissez"), " les analyses et le type de graphique souhaités."),
                         tags$li(tags$strong("Cliquez"), " sur ", tags$em("« Générer l'analyse »"), " pour lancer le calcul."),
                         tags$li(tags$strong("Explorez"), " les résultats dans les onglets dédiés."),
-                        tags$li(tags$strong("Personnalisez"), " les graphiques (ordre des niveaux, renommage, couleurs, axes…)."),
+                        tags$li(tags$strong("Personnalisez"), " les graphiques (ordre des niveaux, renommage, couleurs, axes...)."),
                         tags$li(tags$strong("Téléchargez"), " tableaux et graphiques aux formats souhaités (jusqu'à 20 000 DPI).")
                       )
                   )
                 )
               ),
               
-              
-              
               # Configuration + Résultats
-              
               
               fluidRow(
                 
-                # ── Panneau de configuration ────────────────────────────────
+                # - Panneau de configuration -
                 box(
                   title       = tagList(icon("cogs"), " Configuration de l'analyse"),
                   status      = "primary", width = 4,
@@ -1666,7 +1659,7 @@ ui <- dashboardPage(
                   )
                 ),
                 
-                # ── Panneau des résultats ────────────────────────────────────
+                # - Panneau des résultats -
                 box(
                   title       = tagList(icon("table"), " Résultats"),
                   status      = "primary", width = 8,
@@ -1675,7 +1668,7 @@ ui <- dashboardPage(
                   tabBox(
                     title = NULL, id = "crosstabTabs", width = 12,
                     
-                    # ── Effectifs ──
+                    # - Effectifs -
                     tabPanel(
                       tagList(icon("table"), " Effectifs"),
                       value = "tab_effectifs",
@@ -1692,7 +1685,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # ── Proportions lignes ──
+                    # - Proportions lignes -
                     tabPanel(
                       tagList(icon("percent"), " Prop. lignes"),
                       value = "tab_prop_lignes",
@@ -1713,7 +1706,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # ── Proportions colonnes ──
+                    # - Proportions colonnes -
                     tabPanel(
                       tagList(icon("percent"), " Prop. colonnes"),
                       value = "tab_prop_colonnes",
@@ -1734,7 +1727,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # ── Proportions totales ──
+                    # - Proportions totales -
                     tabPanel(
                       tagList(icon("percent"), " Prop. totales"),
                       value = "tab_prop_totales",
@@ -1755,7 +1748,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # ── Tests statistiques ──
+                    # - Tests statistiques -
                     tabPanel(
                       tagList(icon("calculator"), " Tests"),
                       value = "tab_tests",
@@ -1780,7 +1773,7 @@ ui <- dashboardPage(
                       )
                     ),
                     
-                    # ── Résidus standardisés ──
+                    # - Résidus standardisés -
                     tabPanel(
                       tagList(icon("chart-area"), " Résidus"),
                       value = "tab_residus",
@@ -1808,8 +1801,6 @@ ui <- dashboardPage(
                   )
                 )
               ),
-              
-              
               
               # Personnalisation graphique 
               
@@ -1913,8 +1904,6 @@ ui <- dashboardPage(
                 )
               ),
               
-              
-              
               # Ordre et renommage des niveaux
               
               fluidRow(
@@ -1931,7 +1920,7 @@ ui <- dashboardPage(
                   
                   fluidRow(
                     
-                    # ── Ordre axe X ──
+                    # - Ordre axe X -
                     column(3,
                            div(class = "well",
                                style = "background:#eaf4fb; border-left:4px solid #2e86c1; padding:12px; min-height:180px;",
@@ -1939,7 +1928,7 @@ ui <- dashboardPage(
                            )
                     ),
                     
-                    # ── Ordre légende ──
+                    # - Ordre légende -
                     column(3,
                            div(class = "well",
                                style = "background:#eaf4fb; border-left:4px solid #2e86c1; padding:12px; min-height:180px;",
@@ -1947,7 +1936,7 @@ ui <- dashboardPage(
                            )
                     ),
                     
-                    # ── NOUVEAU (Feature 5) : Renommer niveaux axe X ──
+                    # - NOUVEAU (Feature 5) : Renommer niveaux axe X -
                     column(3,
                            div(class = "well",
                                style = "background:#eaf7ff; border-left:4px solid #1a5276; padding:12px;
@@ -1956,7 +1945,7 @@ ui <- dashboardPage(
                            )
                     ),
                     
-                    # ── NOUVEAU (Feature 2) : Renommer niveaux légende ──
+                    # - NOUVEAU (Feature 2) : Renommer niveaux légende -
                     column(3,
                            div(class = "well",
                                style = "background:#eaf7ff; border-left:4px solid #1a5276; padding:12px;
@@ -1968,14 +1957,11 @@ ui <- dashboardPage(
                 )
               ),
               
-              
-              
               # Graphiques
-              
               
               fluidRow(
                 
-                # ── Graphique principal ──────────────────────────────────────
+                # - Graphique principal -
                 box(
                   title       = tagList(icon("chart-bar"), " Graphique principal"),
                   status      = "success", width = 6,
@@ -1988,7 +1974,7 @@ ui <- dashboardPage(
                   uiOutput("plotDownloadSection")
                 ),
                 
-                # ── Graphique en secteurs ────────────────────────────────────
+                # - Graphique en secteurs -
                 box(
                   title       = tagList(icon("chart-pie"), " Graphique en secteurs"),
                   status      = "info", width = 6,
@@ -2167,7 +2153,7 @@ ui <- dashboardPage(
                         "xDateDisplayFormat",
                         tagList(icon("eye"), " Format d'affichage sur l'axe :"),
                         choices = c(
-                          "── Formats chiffres ──────────────────" = "",
+                          "- Formats chiffres -" = "",
                           "JJ-MM-AAAA (ex: 25-03-2024)"  = "%d-%m-%Y",
                           "MM-JJ-AAAA (ex: 03-25-2024)"  = "%m-%d-%Y",
                           "AAAA-MM-JJ (ex: 2024-03-25)"  = "%Y-%m-%d",
@@ -2178,13 +2164,13 @@ ui <- dashboardPage(
                           "MM-JJ (ex: 03-25)"            = "%m-%d",
                           "MM-AAAA (ex: 03-2024)"        = "%m-%Y",
                           "AAAA-MM (ex: 2024-03)"        = "%Y-%m",
-                          "── Mois abrégé ───────────────────────" = "",
+                          "- Mois abrégé -" = "",
                           "JJ-Mois-AAAA (ex: 25-Mar-2024)"        = "%d-%b-%Y",
                           "Mois-AAAA (ex: Mar-2024)"              = "%b-%Y",
                           "JJ-Mois (ex: 25-Mar)"                  = "%d-%b",
                           "Mois-JJ (ex: Mar-25)"                  = "%b-%d",
                           "AAAA-Mois-JJ (ex: 2024-Mar-25)"        = "%Y-%b-%d",
-                          "── Mois entier ───────────────────────" = "",
+                          "- Mois entier -" = "",
                           "JJ Mois AAAA (ex: 25 Mars 2024)"       = "%d %B %Y",
                           "Mois AAAA (ex: Mars 2024)"             = "%B %Y",
                           "JJ Mois (ex: 25 Mars)"                 = "%d %B",
@@ -2639,7 +2625,7 @@ ui <- dashboardPage(
                             div(
                               style = "margin-top:5px; padding:5px 8px; background:#fff8e1; border-radius:4px; font-size:11px; color:#7f6000; border-left:3px solid #ff9800;",
                               icon("lightbulb", style="color:#ff9800;"),
-                              " Cliquez pour renommer A→Groupe 1, Ctrl→Traitement...",
+                              " Cliquez pour renommer A->Groupe 1, Ctrl->Traitement...",
                               br(),
                               tags$small(style="color:#aaa;", "Fonctionne pour variable couleur et Y multiples.")
                             ),
@@ -2777,7 +2763,7 @@ ui <- dashboardPage(
                                    style = "font-size: 11px; color: #555; margin-top: 6px;")
                         ),
                         
-                        # ── AXE Y SECONDAIRE (droite) 
+                        # - AXE Y SECONDAIRE (droite) 
                         conditionalPanel(
                           condition = "output.multiYIndicator == true",
                           div(
@@ -2793,7 +2779,33 @@ ui <- dashboardPage(
                             
                             hr(style="border-color:#ffe0b2; margin:10px 0;"),
                             
-                            # ── Note miroir Y1 ──
+                            # Type de graphique Y2 -- choisi independamment de Y1
+                            div(
+                              style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px; border-left:3px solid #ff9800;",
+                              h6(icon("chart-pie"), " Type de graphique Y2",
+                                 style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
+                              selectInput(
+                                "vizY2Type", NULL,
+                                choices = c(
+                                  "Courbe (Line)"                            = "line",
+                                  "Points (Scatter)"                         = "scatter",
+                                  "Points + Courbe"                          = "points_line",
+                                  "Courbe d'evolution (Seasonal Evolution)"  = "seasonal_evolution",
+                                  "Courbe lissee (Smooth)"                   = "smooth",
+                                  "Aires (Area)"                             = "area",
+                                  "Barres (Bar)"                             = "bar",
+                                  "Boxplot"                                  = "box",
+                                  "Violon (Violin)"                          = "violin",
+                                  "Barres d'erreur (Mean +/- SD)"            = "errorbar"
+                                ),
+                                selected = "line"
+                              ),
+                              helpText(icon("info-circle"),
+                                       " Y2 utilise la meme agregation que Y1.",
+                                       style = "font-size:11px; color:#888;")
+                            ),
+                            
+                            # - Note miroir Y1 -
                             div(
                               style = "margin-bottom:12px; padding:10px; background:#fff8e1; border-radius:6px; border-left:3px solid #ff9800;",
                               tags$p(
@@ -2807,7 +2819,7 @@ ui <- dashboardPage(
                               )
                             ),
                             
-                            # ── Nom du label axe Y2 ──
+                            # - Nom du label axe Y2 -
                             div(
                               style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
                               h6(icon("font"), " Nom du label axe Y2",
@@ -2815,7 +2827,7 @@ ui <- dashboardPage(
                               textInput("y2AxisLabel", "Nom de l'axe Y2:", placeholder = "ex: Température (°C)")
                             ),
                             
-                            # ── Épaisseur de la courbe Y2 ──
+                            # - Épaisseur de la courbe Y2 -
                             div(
                               style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
                               h6(icon("chart-line"), " Épaisseur courbe Y2",
@@ -2829,7 +2841,7 @@ ui <- dashboardPage(
                                        style = "font-size:11px; color:#888;")
                             ),
                             
-                            # ── Graduations axe Y2 ──
+                            # - Graduations axe Y2 -
                             div(
                               style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
                               h6(icon("ruler"), " Graduations axe Y2",
@@ -2839,11 +2851,11 @@ ui <- dashboardPage(
                                 tagList(icon("long-arrow-alt-up"), " Pas (intervalle):"),
                                 value = NA, min = 0.001, step = 1
                               ),
-                              helpText(icon("info-circle"), "Ex: 5 → graduations 0, 5, 10...",
+                              helpText(icon("info-circle"), "Ex: 5 -> graduations 0, 5, 10...",
                                        style = "font-size:11px; color:#888;")
                             ),
                             
-                            # ── Limites axe Y2 ──
+                            # - Limites axe Y2 -
                             div(
                               style = "padding:10px; background:#fff3e0; border-radius:6px;",
                               h6(icon("compress-arrows-alt"), " Limites axe Y2 (min / max)",
@@ -2889,7 +2901,7 @@ ui <- dashboardPage(
                           min = 0.5, max = 5, value = 1, step = 0.5
                         ),
                         
-                        # ── Marges internes du graphique ──
+                        # - Marges internes du graphique -
                         div(
                           style = "margin-bottom:15px; padding:12px; background-color:#e8f5e9; border-radius:6px;",
                           h5(icon("expand-arrows-alt"), " Marges du graphique",
@@ -3033,7 +3045,7 @@ ui <- dashboardPage(
                                      " Coché : la courbe relie les points valides en ignorant les NA.",
                                      " Décoché : la courbe est interrompue aux NA (trou visible)."),
                             checkboxInput("lineShowNAMarker",
-                                          tagList(icon("times"), " Marquer les positions NA (×)"),
+                                          tagList(icon("times"), " Marquer les positions NA (x)"),
                                           value = FALSE),
                             helpText(style = "font-size: 11px; color: #666;",
                                      "Affiche une croix grise à chaque position NA en bas du graphique.")
@@ -3234,6 +3246,7 @@ ui <- dashboardPage(
                              div(style="display:flex; flex-direction:column; gap:8px;",
                                  actionButton("testT",    "Test t de Student",           class = "btn-success btn-block", icon = icon("check")),
                                  actionButton("testANOVA","ANOVA",                        class = "btn-success btn-block", icon = icon("check")),
+                                 actionButton("testMANOVA","MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = icon("layer-group")),
                                  actionButton("testLM",   "Régression linéaire",          class = "btn-success btn-block", icon = icon("check")),
                                  actionButton("testGLM",  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check"))
                              )
@@ -3243,16 +3256,272 @@ ui <- dashboardPage(
                              div(style="display:flex; flex-direction:column; gap:8px;",
                                  actionButton("testWilcox",          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
                                  actionButton("testKruskal",         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
-                                 actionButton("testScheirerRayHare", "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check"))
+                                 actionButton("testScheirerRayHare", "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check")),
+                                 actionButton("testPERMANOVA",       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = icon("layer-group"))
+                             ),
+                             hr(style="border-top:1px solid #f39c12; margin:10px 0;"),
+                             h4("Test Chi² / Multinomial", style = "color: #9b59b6; margin-bottom:8px;"),
+                             div(style="background:#f3e5f5; padding:10px; border-radius:8px; margin-bottom:8px;",
+                                 h6(tagList(icon("vial"), " Méthode"), style="color:#6a1b9a; margin-top:0; font-weight:bold;"),
+                                 radioButtons("chiSqMethod", NULL,
+                                              choiceNames  = list(
+                                                HTML("<b>Chi² d'ajustement</b> <small style='color:#7f8c8d;'>(chisq.test)</small>"),
+                                                HTML("<b>Multinomial exact</b> <small style='color:#7f8c8d;'>(EMT)</small>")
+                                              ),
+                                              choiceValues = list("chisq", "multinomial"),
+                                              selected = "chisq"
+                                 ),
+                                 div(style="background:#fce4ec; padding:6px; border-radius:4px; font-size:11px; border-left:3px solid #e91e63;",
+                                     icon("exclamation-triangle", style="color:#c2185b;"),
+                                     " Multinomial exact: plus précis pour petits effectifs."
+                                 )
+                             ),
+                             actionButton("runChiSqTest",
+                                          tagList(icon("play"), " Lancer Chi² / Multinomial"),
+                                          class = "btn-info btn-block",
+                                          style = "font-weight:bold; box-shadow:0 3px 5px rgba(0,0,0,.2);"
                              )
                       )
                     )
                 )
               ),
-              # ================================================================
+              
+              # BOX CHI2 / MULTINOMIAL (PROPORTIONS / FREQUENCES)
+              
+              fluidRow(
+                box(
+                  title = tagList(icon("chart-pie"), " Test du Khi² / Multinomial -- Proportions et Fréquences"),
+                  status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  div(style="background:#e8f5e9; border-left:4px solid #43a047; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+                      icon("info-circle", style="color:#2e7d32;"),
+                      strong(" Variables issues de 'Paramètres des tests' :"),
+                      " La variable réponse (numérique) et le facteur (catégoriel) sélectionnés en haut sont utilisés. La méthode et le bouton de lancement sont également dans 'Paramètres des tests'."
+                  ),
+                  fluidRow(
+                    # - Colonne 1 : Type de données -
+                    column(4,
+                           div(style = "background:#fff3e0; padding:14px; border-radius:8px; margin-bottom:10px;",
+                               h5(tagList(icon("toggle-on"), " Type de données"), style = "color:#e65100; margin-top:0; font-weight:bold;"),
+                               radioButtons("chiSqDataType", NULL,
+                                            choiceNames  = list(
+                                              HTML("<b>Fréquences</b> <small style='color:#7f8c8d;'>&mdash; Entiers, utilisés tels quels</small>"),
+                                              HTML("<b>Pourcentages</b> <small style='color:#7f8c8d;'>&mdash; Utilisés directement</small>")
+                                            ),
+                                            choiceValues = list("frequences", "pourcentages"),
+                                            selected = "frequences"
+                               ),
+                               div(style="background:#fff8e1; padding:8px; border-radius:4px; font-size:12px; border-left:3px solid #ffa726;",
+                                   icon("info-circle", style="color:#f57c00;"),
+                                   strong(" Note :"),
+                                   " Si vos données sont des pourcentages, ils seront utilisés directement sans conversion."
+                               )
+                           )
+                    ),
+                    
+                    # - Colonne 2-3 : Résultats -
+                    column(8,
+                           tabsetPanel(id = "chiSqResultsTabs", type = "tabs",
+                                       
+                                       tabPanel(tagList(icon("table"), " Résumé global"),
+                                                value = "chiSq_resume", br(),
+                                                withSpinner(DTOutput("chiSqGlobalResult"), color = "#1565C0"),
+                                                br(),
+                                                uiOutput("chiSqInterpretation")
+                                       ),
+                                       
+                                       tabPanel(tagList(icon("layer-group"), " Groupes"),
+                                                value = "chiSq_groupes", br(),
+                                                withSpinner(DTOutput("chiSqResumeTable"), color = "#1565C0"),
+                                                br(),
+                                                fluidRow(
+                                                  column(4, downloadButton("downloadChiSqExcel", tagList(icon("file-excel"), " Excel complet"), class = "btn-success btn-block")),
+                                                  column(4, downloadButton("downloadChiSqCSV",   tagList(icon("file-csv"),   " CSV groupes"),   class = "btn-info btn-block")),
+                                                  column(4, downloadButton("downloadChiSqCSVPaires", tagList(icon("file-csv"), " CSV paires"),  class = "btn-info btn-block"))
+                                                )
+                                       ),
+                                       
+                                       tabPanel(tagList(icon("code-branch"), " Paires Bonferroni"),
+                                                value = "chiSq_paires", br(),
+                                                withSpinner(DTOutput("chiSqPairesTable"), color = "#1565C0")
+                                       )
+                           )
+                    )
+                  )
+                )
+              ),
+              
+              # BOX MANOVA / PERMANOVA -- Assistant guide visible apres execution
+              
+              conditionalPanel(
+                condition = "output.showManovaWorkflow",
+                fluidRow(
+                  box(
+                    title = tagList(icon("layer-group"),
+                                    " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
+                    status = "success", width = 12, solidHeader = TRUE,
+                    collapsible = TRUE, collapsed = FALSE,
+                    
+                    uiOutput("manovaWorkflowSteps"),
+                    
+                    tabsetPanel(id = "manovaAssistantTabs", type = "tabs",
+                                
+                                tabPanel(
+                                  title = tagList(icon("magic"), " 1. Diagnostic & recommandation"),
+                                  value = "manova_recommendation", br(),
+                                  
+                                  conditionalPanel(
+                                    condition = "output.hasManovaRecommendation",
+                                    uiOutput("manovaRecommendationCard"),
+                                    uiOutput("manovaOutliersCard"),
+                                    br()
+                                  ),
+                                  conditionalPanel(
+                                    condition = "!output.hasManovaRecommendation",
+                                    div(style = "padding:30px; text-align:center; color:#888;",
+                                        icon("magic", style = "font-size:48px; opacity:0.3;"),
+                                        h4("Aucune recommandation calculee"),
+                                        p("Cliquez sur ", strong("'Diagnostiquer mes donnees'"),
+                                          " ci-dessous pour obtenir une recommandation automatique."))
+                                  )
+                                ),
+                                
+                                tabPanel(
+                                  title = tagList(icon("clipboard-check"), " 2. Details techniques"),
+                                  value = "manova_prereq", br(),
+                                  
+                                  div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+                                      icon("info-circle", style = "color:#e65100;"),
+                                      strong(" Pour les utilisateurs avances : "),
+                                      "consultez les valeurs brutes des tests de prerequis. ",
+                                      "L'assistant a deja synthetise ces resultats dans l'onglet 'Diagnostic & recommandation'."
+                                  ),
+                                  
+                                  conditionalPanel(
+                                    condition = "output.hasManovaParam",
+                                    h5(icon("table"), " 4 statistiques MANOVA",
+                                       style = "color:#00a65a; margin-top:0;"),
+                                    withSpinner(DTOutput("manovaParamTable"), color = "#00a65a"),
+                                    br()
+                                  ),
+                                  
+                                  h5(icon("chart-area"), " Normalite multivariee (Mardia)",
+                                     style = "color:#1565C0; margin-top:0;"),
+                                  withSpinner(DTOutput("manovaMardiaTable"), color = "#1565C0"),
+                                  uiOutput("manovaMardiaInterpretation"),
+                                  br(),
+                                  
+                                  h5(icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
+                                     style = "color:#1565C0;"),
+                                  withSpinner(DTOutput("manovaBoxMTable"), color = "#1565C0"),
+                                  uiOutput("manovaBoxMInterpretation"),
+                                  br(),
+                                  
+                                  h5(icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
+                                     style = "color:#f39c12;"),
+                                  div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                      icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
+                                  withSpinner(DTOutput("manovaPermDispTable"), color = "#f39c12"),
+                                  uiOutput("manovaPermDispInterpretation")
+                                ),
+                                
+                                tabPanel(
+                                  title = tagList(icon("brain"), " 3. Interpretation guidee"),
+                                  value = "manova_interpretation", br(),
+                                  
+                                  uiOutput("manovaInterpretationGuidance"),
+                                  
+                                  conditionalPanel(
+                                    condition = "output.hasManovaInteraction",
+                                    br(),
+                                    div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
+                                        h4(icon("project-diagram"),
+                                           " Decomposition de l\'interaction (effets simples)",
+                                           style = "color:#e65100; margin-top:0;"),
+                                        p(style = "color:#555; font-size:13px;",
+                                          "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
+                                          "Choisissez un facteur a ", em("fixer"), " et un facteur a ", em("tester"),
+                                          ", puis cliquez ", strong("Calculer"), "."),
+                                        uiOutput("manovaSimpleEffectsSelectors"),
+                                        br(),
+                                        conditionalPanel(
+                                          condition = "output.hasManovaSimpleEffects",
+                                          withSpinner(DTOutput("manovaSimpleEffectsTable"), color = "#fb8c00"),
+                                          div(style = "font-size:11px; color:#888; margin-top:8px;",
+                                              icon("info-circle"),
+                                              " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
+                                        )
+                                    )
+                                  )
+                                )
+                    ),
+                    
+                    br(),
+                    
+                    fluidRow(
+                      column(4,
+                             div(style = "background:#e3f2fd; padding:12px 14px; border-radius:8px;",
+                                 h6(icon("magic"), " Diagnostic automatique",
+                                    style = "margin-top:0; color:#1565C0; font-weight:bold;"),
+                                 p(style = "font-size:11px; color:#555; margin-bottom:8px;",
+                                   "Verifie les prerequis et recommande le test optimal."),
+                                 actionButton("runManovaDiagnostic",
+                                              tagList(icon("magic"), " Diagnostiquer mes donnees"),
+                                              class = "btn-primary btn-block",
+                                              style = "font-weight:bold;")
+                             )
+                      ),
+                      column(4,
+                             conditionalPanel(
+                               condition = "output.hasManovaParam",
+                               downloadButton("downloadManovaParam",
+                                              tagList(icon("file-excel"), " Telecharger MANOVA (.xlsx)"),
+                                              class = "btn-success btn-block",
+                                              style = "margin-top:42px;")
+                             )
+                      ),
+                      column(4,
+                             conditionalPanel(
+                               condition = "output.hasManovaPermanova",
+                               downloadButton("downloadManovaPermanova",
+                                              tagList(icon("file-excel"), " Telecharger PERMANOVA (.xlsx)"),
+                                              class = "btn-success btn-block",
+                                              style = "margin-top:42px;")
+                             )
+                      )
+                    )
+                  )
+                )
+              ),
+              
+              # Etat initial (avant le 1er diagnostic)
+              conditionalPanel(
+                condition = "!output.showManovaWorkflow",
+                fluidRow(
+                  box(
+                    title = tagList(icon("magic"), " Analyse multivariee assistee"),
+                    status = "info", width = 12, solidHeader = TRUE,
+                    collapsible = TRUE, collapsed = FALSE,
+                    div(style = "padding:20px; text-align:center;",
+                        icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
+                        h4("Workflow pour debutants et experts",
+                           style = "color:#1565C0;"),
+                        p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
+                          "Selectionnez au moins ", strong("2 variables reponses numeriques"),
+                          " et ", strong("1 facteur"), " dans \'Parametres des tests\'. ",
+                          "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
+                        br(),
+                        actionButton("runManovaDiagnostic",
+                                     tagList(icon("magic"), " Diagnostiquer mes donnees"),
+                                     class = "btn-primary btn-lg",
+                                     style = "padding:10px 30px; font-weight:bold;")
+                    )
+                  )
+                )
+              ),
+              
               # BOX TRANSFORMATION DES VARIABLES
-              # S'ouvre en cas de non-respect des conditions paramétriques
-              # ================================================================
+              
               fluidRow(
                 box(
                   title = div(
@@ -3263,7 +3532,7 @@ ui <- dashboardPage(
                       style = paste0("font-size:10px; font-weight:normal; color:#fff;",
                                      "background:#ef6c00; padding:2px 7px;",
                                      "border-radius:10px; margin-left:8px;"),
-                      "Tests param\u00e9triques uniquement"
+                      "Tests paramétriques uniquement"
                     )
                   ),
                   status = "warning", width = 12,
@@ -3278,10 +3547,10 @@ ui <- dashboardPage(
                     tags$b(style = "color:#bf360c;", " Quand utiliser ?"),
                     tags$br(),
                     tags$span(style = "color:#6d4c41;",
-                              "Apr\u00e8s avoir test\u00e9 la normalit\u00e9/homog\u00e9n\u00e9it\u00e9 — si les conditions ne sont ",
+                              "Après avoir testé la normalité/homogénéité -- si les conditions ne sont ",
                               tags$b("pas"), " remplies, appliquez une transformation.",
-                              " La variable transform\u00e9e appara\u00eet dans les s\u00e9lecteurs.",
-                              " Retestez ensuite les conditions sur la variable transform\u00e9e."
+                              " La variable transformée apparaît dans les sélecteurs.",
+                              " Retestez ensuite les conditions sur la variable transformée."
                     )
                   ),
                   
@@ -3289,7 +3558,7 @@ ui <- dashboardPage(
                     
                     # Col 1 : Sélection + méthode + bouton
                     column(4,
-                           h5(icon("sliders-h"), " Variable & m\u00e9thode",
+                           h5(icon("sliders-h"), " Variable & méthode",
                               style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
                            uiOutput("transformVarSelect"),
                            br(),
@@ -3297,21 +3566,21 @@ ui <- dashboardPage(
                              "transformMethod",
                              tags$span(icon("flask"), " Transformation :"),
                              choices = list(
-                               "\u2500\u2500\u2500 Asym\u00e9trie positive (rendements, concentrations) \u2500\u2500\u2500" = list(
+                               "─── Asymétrie positive (rendements, concentrations) ───" = list(
                                  "Logarithme naturel  log(x)  [x > 0]"          = "log",
-                                 "log(x+1) \u2014 tol\u00e8re les z\u00e9ros  [x \u2265 0]"        = "log1p",
+                                 "log(x+1) — tolère les zéros  [x ≥ 0]"        = "log1p",
                                  "Log base 10  log10(x)  [x > 0]"              = "log10"
                                ),
-                               "\u2500\u2500\u2500 Comptage / Asym\u00e9trie mod\u00e9r\u00e9e \u2500\u2500\u2500" = list(
-                                 "Racine carr\u00e9e  sqrt(x)  [x \u2265 0]"            = "sqrt",
+                               "─── Comptage / Asymétrie modérée ───" = list(
+                                 "Racine carrée  sqrt(x)  [x ≥ 0]"            = "sqrt",
                                  "Racine cubique  x^(1/3)  [toutes valeurs]"   = "cuberoot"
                                ),
-                               "\u2500\u2500\u2500 Transformations optimales (automatiques) \u2500\u2500\u2500" = list(
-                                 "Box-Cox  (\u03bb optimal MV)  [x > 0]"             = "boxcox",
+                               "─── Transformations optimales (automatiques) ───" = list(
+                                 "Box-Cox  (λ optimal MV)  [x > 0]"             = "boxcox",
                                  "Yeo-Johnson  (bestNormalize)  [toutes valeurs]" = "yeojohnson"
                                ),
-                               "\u2500\u2500\u2500 Proportions & taux \u2500\u2500\u2500" = list(
-                                 "Arcsinus  asin(sqrt(x))  [0 \u2264 x \u2264 1]"       = "arcsin",
+                               "─── Proportions & taux ───" = list(
+                                 "Arcsinus  asin(sqrt(x))  [0 ≤ x ≤ 1]"       = "arcsin",
                                  "Logit  log(p/(1-p))  [0 < x < 1]"           = "logit"
                                )
                              ),
@@ -3337,51 +3606,51 @@ ui <- dashboardPage(
                     
                     # Col 3 : Guide de sélection
                     column(4,
-                           h5(icon("book-open"), " Guide de s\u00e9lection",
+                           h5(icon("book-open"), " Guide de sélection",
                               style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
                            tags$table(
                              style = "width:100%;border-collapse:collapse;font-size:11px;",
                              tags$thead(
                                tags$tr(
                                  style = "background:#ef6c00;color:white;",
-                                 tags$th(style = "padding:4px 6px;", "M\u00e9thode"),
-                                 tags$th(style = "padding:4px 6px;", "Donn\u00e9es"),
-                                 tags$th(style = "padding:4px 6px;text-align:center;", "N\u00e9gatifs ?")
+                                 tags$th(style = "padding:4px 6px;", "Méthode"),
+                                 tags$th(style = "padding:4px 6px;", "Données"),
+                                 tags$th(style = "padding:4px 6px;text-align:center;", "Négatifs ?")
                                )
                              ),
                              tags$tbody(
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
-                                       tags$td(style="padding:3px 6px;","Tr\u00e8s asym., rendements"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                                       tags$td(style="padding:3px 6px;","Très asym., rendements"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
-                                       tags$td(style="padding:3px 6px;","Idem + z\u00e9ros"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                                       tags$td(style="padding:3px 6px;","Idem + zéros"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
                                        tags$td(style="padding:3px 6px;","Comptage, Poisson"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
                                        tags$td(style="padding:3px 6px;","Toutes valeurs"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","\u2713")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","✓")),
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
-                                       tags$td(style="padding:3px 6px;","\u03bb optimal (MV)"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                                       tags$td(style="padding:3px 6px;","λ optimal (MV)"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
-                                       tags$td(style="padding:3px 6px;","Optimale g\u00e9n\u00e9ralis\u00e9e"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","\u2713")),
+                                       tags$td(style="padding:3px 6px;","Optimale généralisée"),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","✓")),
                                tags$tr(style="background:#fff8e1;",
-                                       tags$td(style="padding:3px 6px;font-family:monospace;","asin(\u221ax)"),
+                                       tags$td(style="padding:3px 6px;font-family:monospace;","asin(√x)"),
                                        tags$td(style="padding:3px 6px;","Proportions [0,1]"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
                                        tags$td(style="padding:3px 6px;","Taux ]0,1["),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","\u2717"))
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗"))
                              )
                            ),
                            br(),
@@ -3392,22 +3661,20 @@ ui <- dashboardPage(
                              tags$b(style = "color:#1b5e20;", " Workflow :"),
                              tags$ol(
                                style = "margin:4px 0 0 0;padding-left:16px;color:#33691e;line-height:1.6;",
-                               tags$li("Tester normalit\u00e9 (donn\u00e9es brutes)"),
-                               tags$li("Si p < 0.05 \u2192 transformer"),
-                               tags$li("Retester sur var. transform\u00e9e"),
-                               tags$li("Lancer le test param\u00e9trique"),
-                               tags$li("PostHoc sur var. transform\u00e9e")
+                               tags$li("Tester normalité (données brutes)"),
+                               tags$li("Si p < 0.05 → transformer"),
+                               tags$li("Retester sur var. transformée"),
+                               tags$li("Lancer le test paramétrique"),
+                               tags$li("PostHoc sur var. transformée")
                              )
                            )
                     )
                   )  # fin fluidRow interne
                 )  # fin box transformation
               ),
-              # ================================================================
-              # FIN BOX TRANSFORMATION
-              # ================================================================
+              
               fluidRow(
-                box(title = "R\u00e9sultats des tests", status = "danger", width = 12, solidHeader = TRUE,
+                box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
                     DTOutput("testResultsDF"),
                     br(),
                     downloadButton("downloadTestsExcel", "Télécharger les résultats (Excel)", class = "btn-info"))
@@ -3465,8 +3732,6 @@ ui <- dashboardPage(
       ),
       # ---- Comparaisons multiples PostHoc ----
       
-      
-      
       tabItem(tabName = "multiple",
               fluidRow(
                 
@@ -3484,7 +3749,6 @@ ui <- dashboardPage(
                         # Bandeau info transformations actives (affiché si variables transformées sélectionnées)
                         uiOutput("postHocTransformInfo")
                     ),
-                    
                     
                     # Section Type de test 
                     
@@ -3511,7 +3775,9 @@ ui <- dashboardPage(
                                         "Waller-Duncan" = "waller",
                                         "Bonferroni" = "bonferroni",
                                         "Dunnett" = "dunnett", 
-                                        "Games-Howell (variances inégales)" = "games"
+                                        "Games-Howell (variances inégales)" = "games",
+                                        "MANOVA paramétrique (multivarié, >= 2 réponses)" = "manova",
+                                        "LM / GLM (emmeans + lettres CLD)" = "lm_emmeans"
                                       ),
                                       selected = "tukey"
                           )
@@ -3523,12 +3789,13 @@ ui <- dashboardPage(
                                         "Kruskal-Wallis (base)" = "kruskal",
                                         "Dunn" = "dunn",
                                         "Conover" = "conover",
-                                        "Nemenyi" = "nemenyi"
+                                        "Nemenyi" = "nemenyi",
+                                        "PERMANOVA pairwise (multivarié, >= 2 réponses)" = "permanova"
                                       ),
                                       selected = "dunn"
                           )
                         ),
-                        # Option retro-transformation — visible uniquement si des variables
+                        # Option retro-transformation -- visible uniquement si des variables
                         # transformées sont sélectionnées dans multiResponse
                         conditionalPanel(
                           condition = "output.hasTransformedVarsSelected",
@@ -3543,8 +3810,8 @@ ui <- dashboardPage(
                                 "<i class='fa fa-exchange-alt'></i>&nbsp;",
                                 "Retro-transformer les moyennes</b><br>",
                                 "<small style='color:#6d4c41;font-weight:normal;'>",
-                                "Affiche les moyennes sur l'\u00e9chelle originale (interpr\u00e9tation).",
-                                "<br>Les lettres de comparaison restent sur l'\u00e9chelle transform\u00e9e.",
+                                "Affiche les moyennes sur l'échelle originale (interprétation).",
+                                "<br>Les lettres de comparaison restent sur l'échelle transformée.",
                                 "</small>"
                               )),
                               value = FALSE
@@ -3552,7 +3819,6 @@ ui <- dashboardPage(
                           )
                         )
                     ),
-                    
                     
                     # Analyse des interactions 
                     
@@ -3566,14 +3832,13 @@ ui <- dashboardPage(
                           condition = "input.posthocInteraction == true",
                           div(style = "margin-top: 8px; padding: 8px 10px; background:#fff3e0; border-left:3px solid #ff9800; border-radius:4px;",
                               tags$small(style="color:#e65100;",
-                                         icon("info-circle"), " Sélectionnez ≥ 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
+                                         icon("info-circle"), " Sélectionnez >= 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
                               )
                           )
                         )
                     ),
                     
                     hr(),
-                    
                     
                     # Bouton d'exécution
                     
@@ -3584,9 +3849,7 @@ ui <- dashboardPage(
                     
                     br(), br(),
                     
-                    
                 ),
-                
                 
                 # PANEL DROIT - Résultats 
                 
@@ -3595,7 +3858,6 @@ ui <- dashboardPage(
                     
                     # Organiser les résultats en onglets
                     tabsetPanel(id = "resultsTabs", type = "tabs",
-                                
                                 
                                 # ONGLET 1 : Effets principaux 
                                 
@@ -3618,7 +3880,6 @@ ui <- dashboardPage(
                                   )
                                 ),
                                 
-                                
                                 # ONGLET 2 : Effets simples 
                                 
                                 tabPanel(
@@ -3640,9 +3901,9 @@ ui <- dashboardPage(
                                        <p><b>Exemples concrets :</b></p>
                                        <ul style='margin-left: 20px;'>
                                          <li><code style='background:#fff;padding:2px 6px;'>Traitement | Temps=T0</code><br/>
-                                             → Compare les traitements <u>au temps T0 uniquement</u></li>
+                                             -> Compare les traitements <u>au temps T0 uniquement</u></li>
                                          <li><code style='background:#fff;padding:2px 6px;'>Temps | Traitement=Ctrl</code><br/>
-                                             → Compare les temps <u>pour le contrôle uniquement</u></li>
+                                             -> Compare les temps <u>pour le contrôle uniquement</u></li>
                                        </ul>
                                        
                                        <p><b>Utilité :</b> Identifier <i>où précisément</i> les facteurs diffèrent lorsqu'ils interagissent.</p>
@@ -3694,7 +3955,6 @@ ui <- dashboardPage(
                                     )
                                   )
                                 ),
-                                
                                 
                                 # ONGLET 3 : Visualisations 
                                 
@@ -3748,7 +4008,7 @@ ui <- dashboardPage(
                                   
                                   br(),
                                   
-                                  # ── Options du graphique
+                                  # - Options du graphique
                                   div(style = "border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;",
                                       div(
                                         class = "panel-heading",
@@ -3911,7 +4171,7 @@ ui <- dashboardPage(
                                   
                                   br(),
                                   
-                                  # ── Téléchargement
+                                  # - Téléchargement
                                   div(style = "text-align: center;",
                                       downloadButton("downloadMultiPlot",
                                                      tagList(icon("image"), " Télécharger le graphique (PNG)"),
@@ -3919,7 +4179,6 @@ ui <- dashboardPage(
                                                      style = "width: 100%; max-width: 400px; height: 50px; font-weight: bold;")
                                   )
                                 ),
-                                
                                 
                                 # ONGLET 4 : Rapport complet 
                                 
@@ -3965,6 +4224,256 @@ ui <- dashboardPage(
                                 )
                     )
                 )
+              ),
+              
+              fluidRow(
+                box(
+                  title = tagList(icon("calculator"),
+                                  " PostHoc Régression linéaire / GLM -- Comparaisons et lettres CLD"),
+                  status = "primary", width = 12, solidHeader = TRUE,
+                  collapsible = TRUE, collapsed = TRUE,
+                  
+                  conditionalPanel(
+                    condition = "output.hasLMPostHoc",
+                    fluidRow(
+                      column(4,
+                             div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                                 h5(tagList(icon("filter"), " Sélection"),
+                                    style = "font-weight:bold; margin-top:0; color:#1565C0;"),
+                                 uiOutput("lmPostHocSelector"),
+                                 br(),
+                                 uiOutput("lmPostHocInfo"),
+                                 br(),
+                                 downloadButton("downloadLMPostHoc",
+                                                tagList(icon("file-excel"), " Télécharger Excel"),
+                                                class = "btn-success btn-block",
+                                                style = "height:50px; font-weight:bold;")
+                             )
+                      ),
+                      column(8,
+                             tabsetPanel(type = "tabs",
+                                         tabPanel(
+                                           title = tagList(icon("layer-group"), " Lettres CLD"),
+                                           br(),
+                                           div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                               icon("info-circle"),
+                                               " Niveaux partageant une même lettre = pas de différence significative (alpha = 0.05)."
+                                           ),
+                                           withSpinner(DTOutput("lmPostHocLettersTable"), color = "#1565C0")
+                                         ),
+                                         tabPanel(
+                                           title = tagList(icon("code-branch"), " Paires (emmeans)"),
+                                           br(),
+                                           div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                               icon("info-circle"),
+                                               " Comparaisons par paires sur les moyennes marginales estimées (emmeans). ",
+                                               "Pour les GLM non-gaussiens, les valeurs sont sur l'échelle du lien."
+                                           ),
+                                           withSpinner(DTOutput("lmPostHocPairsTable"), color = "#fb8c00")
+                                         )
+                             )
+                      )
+                    )
+                  ),
+                  conditionalPanel(
+                    condition = "!output.hasLMPostHoc",
+                    div(style = "text-align:center; padding:40px; color:#95a5a6;",
+                        icon("calculator", style = "font-size:4em; opacity:0.3;"),
+                        h4("Aucun PostHoc LM/GLM calculé"),
+                        p("Pour activer cette section :"),
+                        tags$ul(style = "text-align:left; display:inline-block; color:#555;",
+                                tags$li("Lancez d'abord une ", strong("Régression linéaire"),
+                                        " ou un ", strong("GLM"),
+                                        " dans l'onglet 'Tests statistiques'"),
+                                tags$li("Le modèle doit contenir au moins ", strong("un prédicteur catégoriel (factor)")),
+                                tags$li("Revenez ici, sélectionnez ", strong("'LM / GLM (emmeans + lettres CLD)'"),
+                                        " dans la liste 'Méthode post-hoc paramétrique'"),
+                                tags$li("Cliquez sur ", strong("LANCER L'ANALYSE"))
+                        )
+                    )
+                  )
+                )
+              ),
+              
+              # MANOVA / PERMANOVA POSTHOC -- Comparaisons multivariees par paires + lettres
+              
+              fluidRow(
+                box(
+                  title = tagList(icon("layer-group"),
+                                  " PostHoc MANOVA/PERMANOVA -- Comparaisons multivariées par paires et lettres de groupes"),
+                  status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
+                  
+                  conditionalPanel(
+                    condition = "output.hasMultivariatePosthoc",
+                    
+                    fluidRow(
+                      column(4,
+                             div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                                 h5(tagList(icon("filter"), " Sélection du facteur"),
+                                    style = "font-weight:bold; margin-top:0; color:#2e7d32;"),
+                                 uiOutput("multivariatePosthocFactorSelect"),
+                                 br(),
+                                 uiOutput("multivariatePosthocInfo"),
+                                 br(),
+                                 downloadButton("downloadMultivariatePosthoc",
+                                                tagList(icon("file-excel"), " Télécharger Excel (lettres + paires)"),
+                                                class = "btn-success btn-block",
+                                                style = "height: 50px; font-weight: bold;")
+                             )
+                      ),
+                      column(8,
+                             tabsetPanel(type = "tabs",
+                                         tabPanel(
+                                           title = tagList(icon("layer-group"), " Groupes distincts (lettres)"),
+                                           br(),
+                                           div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                               icon("info-circle"),
+                                               " Les niveaux partageant une même lettre ne diffèrent pas significativement sur l'ensemble des réponses (test multivarié, alpha = 0.05)."
+                                           ),
+                                           withSpinner(DTOutput("multivariatePosthocLettersTable"), color = "#2e7d32")
+                                         ),
+                                         tabPanel(
+                                           title = tagList(icon("code-branch"), " Paires (PERMANOVA Bonferroni)"),
+                                           br(),
+                                           div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                               icon("info-circle"),
+                                               " Comparaisons par paires sur l'ensemble des variables réponses. ",
+                                               "Pour chaque paire : F (pseudo), R², p-value brute, p-value ajustée (Bonferroni)."
+                                           ),
+                                           withSpinner(DTOutput("multivariatePosthocPairsTable"), color = "#f39c12")
+                                         )
+                             )
+                      )
+                    )
+                  ),
+                  
+                  conditionalPanel(
+                    condition = "!output.hasMultivariatePosthoc",
+                    div(style = "text-align: center; padding: 40px; color: #95a5a6;",
+                        icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
+                        h4("Aucun PostHoc multivarié calculé"),
+                        p("Pour activer cette section :"),
+                        tags$ul(style = "text-align: left; display: inline-block; color: #555;",
+                                tags$li("Sélectionnez ", strong(">= 2 variables réponses"),
+                                        " dans le panneau de configuration"),
+                                tags$li("Sélectionnez au moins ", strong("1 facteur")),
+                                tags$li("Cliquez sur ", strong("LANCER L'ANALYSE")),
+                                tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
+                        )
+                    )
+                  )
+                )
+              ),
+              
+              # CHI2 POSTHOC
+              
+              fluidRow(
+                box(
+                  title = tagList(icon("code-branch"), " PostHoc Chi² -- Comparaisons par paires et groupes"),
+                  status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  
+                  fluidRow(
+                    # - Colonne gauche : info + personnalisation graphique -
+                    column(4,
+                           uiOutput("chiSqPostHocInfo"),
+                           br(),
+                           div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                               h5(tagList(icon("sliders-h"), " Personnalisation du graphique"),
+                                  style = "font-weight:bold; margin-top:0; color:#1565C0;"),
+                               
+                               # Type
+                               selectInput("chiSqPHGraphType", tagList(icon("chart-pie"), " Type"),
+                                           choices = c("Barplot vertical"  = "bar_v",
+                                                       "Camembert (Pie)"   = "pie",
+                                                       "Résidus standardisés" = "residus"),
+                                           selected = "bar_v"),
+                               
+                               hr(style = "margin:8px 0;"),
+                               
+                               # Titres et labels
+                               h6(tagList(icon("heading"), " Titres et labels"),
+                                  style = "color:#555; font-weight:bold; margin-bottom:6px;"),
+                               textInput("chiSqPHTitle",    tagList(icon("font"),  " Titre"),
+                                         placeholder = "Auto"),
+                               textInput("chiSqPHSubtitle", tagList(icon("align-left"), " Sous-titre"),
+                                         placeholder = "Auto (p-valeur si coché)"),
+                               textInput("chiSqPHXLabel",   tagList(icon("arrows-alt-h"), " Label axe X"),
+                                         placeholder = "(vide = aucun)"),
+                               textInput("chiSqPHYLabel",   tagList(icon("arrows-alt-v"), " Label axe Y"),
+                                         placeholder = "Auto"),
+                               textInput("chiSqPHLegTitle", tagList(icon("list"), " Titre légende"),
+                                         placeholder = "(vide = aucune légende)"),
+                               
+                               hr(style = "margin:8px 0;"),
+                               
+                               # Renommer les modalités
+                               h6(tagList(icon("tags"), " Renommer les modalités"),
+                                  style = "color:#555; font-weight:bold; margin-bottom:4px;"),
+                               div(style = "background:#fffde7; padding:6px 8px; border-radius:4px; font-size:10px; margin-bottom:6px; border-left:3px solid #f9a825;",
+                                   icon("info-circle"), " Vide = nom d'origine conservé."),
+                               div(style = "max-height:180px; overflow-y:auto;",
+                                   uiOutput("chiSqPHLevelLabels")
+                               ),
+                               
+                               hr(style = "margin:8px 0;"),
+                               
+                               # Affichage
+                               h6(tagList(icon("eye"), " Affichage"),
+                                  style = "color:#555; font-weight:bold; margin-bottom:4px;"),
+                               checkboxInput("chiSqPHShowGroupes",
+                                             tagList(icon("layer-group"), " Lettres de groupe"),  TRUE),
+                               checkboxInput("chiSqPHShowValeurs",
+                                             tagList(icon("percent"),     " Valeurs (%) sur graph"), TRUE),
+                               checkboxInput("chiSqPHShowPval",
+                                             tagList(icon("vial"),        " P-valeur en sous-titre"), TRUE),
+                               
+                               hr(style = "margin:8px 0;"),
+                               
+                               # Résolution export
+                               h6(tagList(icon("crosshairs"), " Résolution export"),
+                                  style = "color:#555; font-weight:bold; margin-bottom:4px;"),
+                               div(style = "background:#e3f2fd; padding:6px 8px; border-radius:4px; font-size:10px; margin-bottom:6px; border-left:3px solid #1565C0;",
+                                   icon("info-circle"), " Pixels = pouces x DPI (calculé automatiquement)."),
+                               fluidRow(
+                                 column(6,
+                                        numericInput("chiSqPHWidthIn", "Largeur (po)",
+                                                     value = 8, min = 2, max = 40, step = 0.5)),
+                                 column(6,
+                                        numericInput("chiSqPHHeightIn", "Hauteur (po)",
+                                                     value = 6, min = 2, max = 40, step = 0.5))
+                               ),
+                               numericInput("chiSqPHDPI",
+                                            tagList(icon("crosshairs"), " DPI (300 - 20 000)"),
+                                            value = 300, min = 300, max = 20000, step = 100),
+                               uiOutput("chiSqPHExportSizeInfo"),
+                               br(),
+                               downloadButton("downloadChiSqPHPlot",
+                                              tagList(icon("image"), " Télécharger PNG"),
+                                              class = "btn-warning btn-block"),
+                               br(),
+                               downloadButton("downloadChiSqPHExcel",
+                                              tagList(icon("file-excel"), " Télécharger Excel"),
+                                              class = "btn-success btn-block")
+                           )
+                    ),
+                    
+                    # - Colonne droite : tableaux + graphique -
+                    column(8,
+                           tabsetPanel(type = "tabs",
+                                       tabPanel(tagList(icon("layer-group"), " Groupes distincts"), br(),
+                                                withSpinner(DTOutput("chiSqPostHocGroupesTable"), color = "#1565C0")
+                                       ),
+                                       tabPanel(tagList(icon("code-branch"), " Paires Bonferroni"), br(),
+                                                withSpinner(DTOutput("chiSqPostHocPairesTable"),  color = "#1565C0")
+                                       ),
+                                       tabPanel(tagList(icon("chart-bar"), " Graphique"), br(),
+                                                withSpinner(plotOutput("chiSqPostHocGraph", height = "420px"),
+                                                            color = "#1565C0")
+                                       )
+                           )
+                    )
+                  )
+                )
               )
       ),
       # ---- Analyses multivariees ----
@@ -3974,7 +4483,7 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "Analyse en Composantes Principales (ACP)", status = "info", width = 6, solidHeader = TRUE,
                     
-                    # ── Panneau Info ACP ──────────────────────────────────────────────────
+                    # - Panneau Info ACP -
                     div(style = "margin-bottom:10px;",
                         div(
                           style = "cursor:pointer; background:linear-gradient(135deg,#1565c0,#1976d2); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
@@ -3994,13 +4503,13 @@ ui <- dashboardPage(
                                      tags$b(style="color:#1565c0;", icon("ruler"), " Taille nécessaire :"),
                                      tags$ul(style="margin:2px 0 6px 12px; padding:0; color:#333;",
                                              tags$li("Minimum absolu : n", icon("arrow-right"), "30"),
-                                             tags$li("Recommandé : n", icon("arrow-right"), "max(50, 5×p)"),
+                                             tags$li("Recommandé : n", icon("arrow-right"), "max(50, 5xp)"),
                                              tags$li("Idéal : n", icon("arrow-right"), "100 pour stabilité")
                                      ),
                                      tags$b(style="color:#1565c0;", icon("hashtag"), " Variables minimales :"),
                                      tags$ul(style="margin:2px 0 0 12px; padding:0; color:#333;",
                                              tags$li("Minimum absolu : p", icon("arrow-right"), "2"),
-                                             tags$li("Recommandé : p", icon("arrow-right"), "3–5"),
+                                             tags$li("Recommandé : p", icon("arrow-right"), "3-5"),
                                              tags$li("Toutes doivent être numériques")
                                      )
                               )
@@ -4032,7 +4541,7 @@ ui <- dashboardPage(
                                  choices = c("Variables" = "var", "Individus" = "ind", "Biplot" = "biplot"),
                                  selected = "var", inline = TRUE),
                     
-                    # ── Coloration ────────────────────────────────────────────────────────
+                    # - Coloration -
                     div(style = "background:#f0f7ff; border-left:3px solid #2196f3; padding:8px 12px; margin:6px 0 10px 0; border-radius:0 4px 4px 0;",
                         selectInput("pcaColorBy", 
                                     tagList(icon("palette"), " Colorer les éléments par :"),
@@ -4231,7 +4740,7 @@ ui <- dashboardPage(
                     status = "success", width = 12, solidHeader = TRUE,
                     p("Cette analyse combine l'ACP avec une classification hierarchique automatique."),
                     
-                    # ── Panneau Info HCPC ─────────────────────────────────────────────────
+                    # - Panneau Info HCPC -
                     div(style = "margin-bottom:10px;",
                         div(
                           style = "cursor:pointer; background:linear-gradient(135deg,#2e7d32,#388e3c); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
@@ -4250,8 +4759,8 @@ ui <- dashboardPage(
                               column(6,
                                      tags$b(style="color:#2e7d32;", icon("ruler"), " Taille nécessaire :"),
                                      tags$ul(style="margin:2px 0 6px 12px; padding:0; color:#333;",
-                                             tags$li("Minimum absolu : n", icon("arrow-right"), "2×k (k=clusters)"),
-                                             tags$li("Recommandé : n", icon("arrow-right"), "10×k pour stabilité"),
+                                             tags$li("Minimum absolu : n", icon("arrow-right"), "2xk (k=clusters)"),
+                                             tags$li("Recommandé : n", icon("arrow-right"), "10xk pour stabilité"),
                                              tags$li("Hérite des conditions de l'ACP")
                                      ),
                                      tags$b(style="color:#2e7d32;", icon("hashtag"), " Composantes nécessaires :"),
@@ -4487,7 +4996,7 @@ ui <- dashboardPage(
                 box(title = "Analyse Factorielle Discriminante (AFD)", 
                     status = "primary", width = 12, solidHeader = TRUE,
                     
-                    # ── Panneau Info AFD ──────────────────────────────────────────────────
+                    # - Panneau Info AFD -
                     div(style = "margin-bottom:12px;",
                         div(
                           style = "cursor:pointer; background:linear-gradient(135deg,#1a237e,#283593); color:white; padding:8px 12px; border-radius:6px; font-weight:bold; font-size:13px; user-select:none;",
@@ -5087,8 +5596,6 @@ ui <- dashboardPage(
                            style = "color: white; font-weight: bold; margin: 0;")
                     ),
                     
-                    
-                    
                     # Paramètres d'export détaillés
                     div(style = "background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;",
                         h6(icon("cogs"), " Paramètres personnalisés", 
@@ -5137,8 +5644,6 @@ ui <- dashboardPage(
                                          selected = "png")
                       )
                     ),
-                    
-                    
                     
                     # Bouton de téléchargement stylisé
                     downloadButton("downloadThresholdPlot", 
