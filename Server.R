@@ -7298,7 +7298,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # --- MANOVA paramétrique -- alimente testResultsDF (comme ANOVA) ---
   observeEvent(input$testMANOVA, {
     req(input$responseVar, input$factorVar)
     
@@ -7376,7 +7375,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # --- PERMANOVA -- alimente testResultsDF (comme Kruskal-Wallis) ---
   observeEvent(input$testPERMANOVA, {
     req(input$responseVar, input$factorVar)
     
@@ -7460,7 +7458,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # --- Diagnostic assistant : recommande le test optimal ----------------------
   observeEvent(input$runManovaDiagnostic, {
     req(input$responseVar, input$factorVar)
     if (length(input$responseVar) < 2) {
@@ -7512,7 +7509,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # --- Effets simples multivariés (declenchés si interaction significative) -----
   observeEvent(input$runManovaSimpleEffects, {
     req(input$responseVar, input$factorVar, input$manovaSimpleFixed, input$manovaSimpleTested)
     if (length(input$factorVar) < 2) {
@@ -7552,7 +7548,6 @@ server <- function(input, output, session) {
     })
   })
   
-  # --- Outputs MANOVA/PERMANOVA : flags et tables de diagnostic ----------------
   
   # Flags d'affichage conditionnel (utilisés par conditionalPanel côté UI)
   output$showManovaDiagnostics <- reactive({
@@ -7586,7 +7581,43 @@ server <- function(input, output, session) {
     use_round <- isTRUE(input$testsRoundResults)
     if (use_round) {
       dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
+      num <- vapply(df, is.numeric, logical(1))
+      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
+    }
+    dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+    
+    # Colore les colonnes de la statistique recommandee par l'assistant
+    rec <- values$manovaRecommendation
+    if (!is.null(rec)) {
+      stat_lbl <- rec$statistique_recommandee
+      target <- if (grepl("Wilks", stat_lbl)) "Wilks"
+      else if (grepl("Pillai", stat_lbl)) "Pillai"
+      else if (grepl("Hotelling", stat_lbl)) "Hotelling"
+      else if (grepl("Roy", stat_lbl)) "Roy"
+      else NA
+      if (!is.na(target)) {
+        cols_to_color <- intersect(
+          c(target, paste0("F_", target), paste0("p_", target)),
+          names(df)
+        )
+        if (length(cols_to_color) > 0)
+          dt <- dt %>% formatStyle(cols_to_color,
+                                   backgroundColor = "#c8e6c9",
+                                   fontWeight = "bold")
+      }
+    }
+    dt
+  })
+  
+  output$manovaPermanovaTable <- renderDT({
+    req(values$manovaPermanovaResults)
+    df <- values$manovaPermanovaResults
+    if ("p_value" %in% names(df))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+    use_round <- isTRUE(input$testsRoundResults)
+    if (use_round) {
+      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
+      num <- vapply(df, is.numeric, logical(1))
       df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
     }
     datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
@@ -7720,7 +7751,6 @@ server <- function(input, output, session) {
     }
   )
   
-  # --- Workflow assistant : frise + recommandation ----------------------------
   
   output$showManovaWorkflow <- reactive({
     ctt <- values$currentTestType
@@ -7734,11 +7764,15 @@ server <- function(input, output, session) {
   outputOptions(output, "hasManovaRecommendation", suspendWhenHidden = FALSE)
   
   output$hasManovaInteraction <- reactive({
-    df <- values$testResultsDF
-    ctt <- values$currentTestType
-    isTRUE(!is.null(ctt) && ctt %in% c("manova", "permanova")) &&
-      !is.null(df) && any(grepl(":", df$Facteur)) &&
-      any(df$p_value[grepl(":", df$Facteur)] < 0.05, na.rm = TRUE)
+    param_res <- values$manovaParamResults
+    perm_res  <- values$manovaPermanovaResults
+    check_df <- function(df, effet_col, p_col) {
+      if (is.null(df)) return(FALSE)
+      inter <- grepl(":", df[[effet_col]])
+      any(inter) && any(df[[p_col]][inter] < 0.05, na.rm = TRUE)
+    }
+    check_df(param_res, "Effet", "p_Pillai") ||
+      check_df(perm_res, "Effet", "p_value")
   })
   outputOptions(output, "hasManovaInteraction", suspendWhenHidden = FALSE)
   
@@ -7801,17 +7835,33 @@ server <- function(input, output, session) {
                            "elevee" = "#43a047", "moderee" = "#fb8c00", "#e53935")
     
     is_param <- grepl("MANOVA", rec$test_recommande) && !grepl("PERM", rec$test_recommande)
-    btn <- if (is_param) {
-      actionButton("testMANOVA",
-                   tagList(icon("play"), " Lancer la MANOVA paramétrique recommandée"),
-                   class = "btn-success btn-lg",
-                   style = "width:100%; font-weight:bold; margin-top:10px;")
-    } else {
-      actionButton("testPERMANOVA",
-                   tagList(icon("play"), " Lancer la PERMANOVA recommandée"),
-                   class = "btn-warning btn-lg",
-                   style = "width:100%; font-weight:bold; margin-top:10px;")
-    }
+    
+    btn_manova <- actionButton(
+      "testMANOVA",
+      tagList(icon("play"), if (is_param) " Lancer la MANOVA paramétrique (recommandée)"
+              else " Lancer quand même la MANOVA paramétrique"),
+      class = if (is_param) "btn-success btn-lg" else "btn-default",
+      style = paste0("width:100%; margin-top:8px;",
+                     if (is_param) " font-weight:bold;" else " font-size:13px;")
+    )
+    btn_permanova <- actionButton(
+      "testPERMANOVA",
+      tagList(icon("play"), if (!is_param) " Lancer la PERMANOVA (recommandée)"
+              else " Lancer plutôt la PERMANOVA (alternative robuste)"),
+      class = if (!is_param) "btn-warning btn-lg" else "btn-default",
+      style = paste0("width:100%; margin-top:8px;",
+                     if (!is_param) " font-weight:bold;" else " font-size:13px;")
+    )
+    
+    buttons <- div(
+      style = "margin-top:10px;",
+      div(style = "font-size:11px; color:#777; margin-bottom:4px;",
+          "Choisissez le test à exécuter :"),
+      fluidRow(
+        column(6, if (is_param) btn_manova else btn_permanova),
+        column(6, if (is_param) btn_permanova else btn_manova)
+      )
+    )
     
     div(style = paste0("background:", bg_color, "; border-left:6px solid ", border_color,
                        "; padding:18px 22px; border-radius:8px;"),
@@ -7838,7 +7888,7 @@ server <- function(input, output, session) {
               tags$ul(style = "margin:6px 0 0 18px;",
                       lapply(rec$alertes, function(a) tags$li(style = "color:#bf360c;", a))))
         } else NULL,
-        btn
+        buttons
     )
   })
   
@@ -7867,30 +7917,52 @@ server <- function(input, output, session) {
   
   # Panneau d'interpretation guidee
   output$manovaInterpretationGuidance <- renderUI({
-    req(values$testResultsDF, values$currentTestType)
-    ctt <- values$currentTestType
-    if (!ctt %in% c("manova", "permanova")) return(NULL)
+    param_res <- values$manovaParamResults
+    perm_res  <- values$manovaPermanovaResults
     
-    df <- values$testResultsDF
-    sig_effects   <- df[df$p_value < 0.05 & !is.na(df$p_value), , drop = FALSE]
-    insig_effects <- df[df$p_value >= 0.05 & !is.na(df$p_value), , drop = FALSE]
-    has_interaction <- any(grepl(":", sig_effects$Facteur))
+    # Cas 1 : aucun test lancé, seulement le diagnostic
+    if (is.null(param_res) && is.null(perm_res)) {
+      return(div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:14px 18px; border-radius:8px;",
+                 icon("info-circle", style = "color:#1565C0;"),
+                 strong(" En attente d'un test multivarié. "),
+                 "Lancez une MANOVA ou une PERMANOVA depuis l'onglet ",
+                 strong("'1. Diagnostic & recommandation'"),
+                 " pour obtenir l'interprétation guidée de vos résultats."))
+    }
+    
+    if (!is.null(param_res)) {
+      effet_col <- "Effet"
+      p_col     <- "p_Pillai"
+      df        <- param_res
+      test_lbl  <- "MANOVA paramétrique (statistique de Pillai)"
+    } else {
+      effet_col <- "Effet"
+      p_col     <- "p_value"
+      df        <- perm_res
+      test_lbl  <- "PERMANOVA (pseudo-F par permutations)"
+    }
+    
+    effets  <- df[[effet_col]]
+    pvals   <- df[[p_col]]
+    sig_idx   <- which(pvals < 0.05 & !is.na(pvals))
+    insig_idx <- which(pvals >= 0.05 & !is.na(pvals))
+    has_interaction <- any(grepl(":", effets[sig_idx]))
     
     msg_lines <- list()
-    if (nrow(sig_effects) > 0) {
+    if (length(sig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
         tags$li(style = "color:#2e7d32;",
                 icon("check-circle"), " ",
-                strong(paste0(nrow(sig_effects), " effet(s) significatif(s)")),
-                " détecté(s) : ", paste(sig_effects$Facteur, collapse = ", "))
+                strong(paste0(length(sig_idx), " effet(s) significatif(s)")),
+                " détecté(s) : ", paste(effets[sig_idx], collapse = ", "))
       ))
     }
-    if (nrow(insig_effects) > 0) {
+    if (length(insig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
         tags$li(style = "color:#757575;",
                 icon("minus-circle"), " ",
-                paste0(nrow(insig_effects), " effet(s) non significatif(s)"),
-                " : ", paste(insig_effects$Facteur, collapse = ", "))
+                paste0(length(insig_idx), " effet(s) non significatif(s)"),
+                " : ", paste(effets[insig_idx], collapse = ", "))
       ))
     }
     
@@ -7901,12 +7973,12 @@ server <- function(input, output, session) {
           "Une interaction est significative. Calculez les ",
           strong("effets simples"),
           " ci-dessous pour comprendre quel facteur agit dans quel contexte.")
-    } else if (nrow(sig_effects) > 0) {
+    } else if (length(sig_idx) > 0) {
       div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; margin-top:10px; border-radius:4px;",
           icon("lightbulb", style = "color:#0d47a1;"),
           strong(" Action recommandée : "),
-          "Allez à l'onglet ", strong("Comparaisons multiples PostHoc"),
-          " pour identifier précisément quels niveaux diffèrent (lettres de groupes).")
+          "Allez à la section ", strong("'PostHoc MANOVA/PERMANOVA'"),
+          " (onglet Comparaisons multiples) pour identifier quels niveaux diffèrent (lettres de groupes).")
     } else {
       div(style = "background:#f5f5f5; border-left:4px solid #9e9e9e; padding:10px 14px; margin-top:10px; border-radius:4px;",
           icon("info-circle"),
@@ -7917,6 +7989,8 @@ server <- function(input, output, session) {
     div(style = "background:white; border:1px solid #cfd8dc; padding:14px 18px; border-radius:8px;",
         h5(icon("brain"), " Ce que vos résultats signifient",
            style = "margin-top:0; color:#1565C0;"),
+        div(style = "font-size:12px; color:#777; margin-bottom:8px;",
+            "Test analysé : ", strong(test_lbl)),
         tags$ul(style = "margin-bottom:0; padding-left:18px;", msg_lines),
         action_box
     )
@@ -10565,13 +10639,13 @@ server <- function(input, output, session) {
       showNotification("Aucun résultat généré", type = "warning")
     }
     
-    # PostHoc multivarié indépendant : pour chaque facteur, calcule les lettres CLD
-    # à partir d'une pairwise PERMANOVA. Activé dès que >= 2 variables réponses,
-    # quelle que soit la réussite des analyses univariées (run indépendant).
+    # PostHoc multivarié : pour chaque facteur, comparaisons par paires (PERMANOVA)
+    # ET lettres CLD calculées séparément pour chaque variable réponse.
     values$manovaMultiPostHoc <- NULL
     if (length(input$multiResponse) >= 2 && length(input$multiFactor) >= 1) {
       mvg_test  <- if (input$testType == "param") "MANOVA" else "PERMANOVA"
       mvg_label <- paste(input$multiResponse, collapse = " + ")
+      is_param  <- isTRUE(input$testType == "param")
       
       keep_rows <- stats::complete.cases(
         df[, c(input$multiResponse, input$multiFactor), drop = FALSE]
@@ -10595,14 +10669,18 @@ server <- function(input, output, session) {
           )
           if (is.null(pairs_df) || nrow(pairs_df) == 0) next
           
-          letters_df <- build_letters_df(pairs_df, grp, Y = Ymat)
-          if (is.null(letters_df)) next
+          # Lettres CLD par variable reponse (et non agregees)
+          letters_per_var <- build_letters_per_variable(
+            df_mvg, input$multiResponse, fvar, parametric = is_param
+          )
+          if (is.null(letters_per_var)) next
           
           multi_posthoc_list[[fvar]] <- list(
             pairs          = pairs_df,
-            letters        = letters_df,
+            letters        = letters_per_var,
             test           = mvg_test,
             response_label = mvg_label,
+            responses      = input$multiResponse,
             n_levels       = nlevels(grp)
           )
         }, error = function(e) {
@@ -10617,7 +10695,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # --- PostHoc LM / GLM : comparaisons sur predicteurs categoriels --------------
   observeEvent(input$runLMPostHoc, {
     req(values$modelList)
     if (length(values$modelList) == 0) {
@@ -10764,7 +10841,6 @@ server <- function(input, output, session) {
     }
   )
   
-  # --- Outputs pour la box "PostHoc MANOVA/PERMANOVA" --------------------------
   
   # Flag d'affichage (suspendWhenHidden = FALSE pour conditionalPanel)
   output$hasMultivariatePosthoc <- reactive({
@@ -10778,7 +10854,7 @@ server <- function(input, output, session) {
     fcts <- names(values$manovaMultiPostHoc)
     if (length(fcts) == 0) return(NULL)
     selectInput("multivariatePosthocFactor",
-                tagList(icon("filter"), " Facteur à inspecter :"),
+                label = NULL,
                 choices = fcts,
                 selected = fcts[1],
                 width = "100%")
@@ -10820,11 +10896,21 @@ server <- function(input, output, session) {
     if ("Moyenne_pm_SE" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
     
+    use_round <- isTRUE(input$testsRoundResults)
+    if (use_round) {
+      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
+      num <- vapply(df, is.numeric, logical(1))
+      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
+    }
+    
     dt <- datatable(df,
                     options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
                     rownames = FALSE) %>%
       formatStyle("Groupes", fontWeight = "bold", backgroundColor = "#e8f5e9",
                   color = "#1b5e20", textAlign = "center")
+    if ("Variable" %in% names(df))
+      dt <- dt %>% formatStyle("Variable", fontWeight = "bold",
+                               backgroundColor = "#e3f2fd")
     dt
   })
   
@@ -10841,7 +10927,7 @@ server <- function(input, output, session) {
     use_round <- isTRUE(input$testsRoundResults)
     if (use_round) {
       dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
+      num <- vapply(df, is.numeric, logical(1))
       df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
     }
     
@@ -10849,7 +10935,6 @@ server <- function(input, output, session) {
                     options = list(pageLength = 25, scrollX = TRUE),
                     rownames = FALSE)
     
-    # Surligner les paires significatives
     if ("Significatif" %in% names(df)) {
       dt <- dt %>% formatStyle("Significatif",
                                backgroundColor = styleEqual(c("Oui", "Non"),
@@ -10866,13 +10951,14 @@ server <- function(input, output, session) {
       wb <- openxlsx::createWorkbook()
       for (fname in names(values$manovaMultiPostHoc)) {
         entry <- values$manovaMultiPostHoc[[fname]]
-        # Noms de feuilles tronques a 31 caracteres (limite Excel)
         sheet_letters <- substr(paste0("Lettres_", fname), 1, 31)
         sheet_pairs   <- substr(paste0("Paires_",  fname), 1, 31)
-        openxlsx::addWorksheet(wb, sheet_letters)
+        
         letters_export <- entry$letters
         names(letters_export)[names(letters_export) == "Niveau"] <- fname
+        openxlsx::addWorksheet(wb, sheet_letters)
         openxlsx::writeData(wb, sheet_letters, letters_export)
+        
         openxlsx::addWorksheet(wb, sheet_pairs)
         openxlsx::writeData(wb, sheet_pairs, entry$pairs)
       }

@@ -1162,6 +1162,95 @@ build_letters_df <- function(pairs_df, group, Y = NULL, digits = 3) {
   out
 }
 
+
+#' PostHoc univarie par variable reponse (decomposition d'un posthoc multivarie)
+#'
+#' Pour chaque variable reponse, lance un posthoc adapte :
+#' - methode parametrique  -> ANOVA + Tukey HSD
+#' - methode non parametrique -> Kruskal-Wallis + Dunn (Bonferroni)
+#' puis derive les lettres CLD propres a cette variable.
+#'
+#' @param df       data.frame nettoye
+#' @param response variables reponses (vecteur)
+#' @param factor_name un seul facteur
+#' @param parametric TRUE = ANOVA/Tukey, FALSE = Kruskal/Dunn
+#' @param digits   decimales d'affichage
+#' @return data.frame long : Variable, Niveau, N, Moyenne, Ecart_type, Erreur_type,
+#'         Groupes, Moyenne_pm_SD, Moyenne_pm_SE
+build_letters_per_variable <- function(df, response, factor_name,
+                                       parametric = TRUE, digits = 3) {
+  if (length(factor_name) != 1) return(NULL)
+  fvar <- factor_name
+  df <- df[stats::complete.cases(df[, c(response, fvar), drop = FALSE]), , drop = FALSE]
+  if (!is.factor(df[[fvar]])) df[[fvar]] <- factor(as.character(df[[fvar]]))
+  df[[fvar]] <- droplevels(df[[fvar]])
+  levs <- levels(df[[fvar]])
+  if (length(levs) < 2) return(NULL)
+  
+  fmt_val <- function(m, s) ifelse(is.na(m) | is.na(s), "NA",
+                                   paste0(formatC(m, digits = digits, format = "f"),
+                                          " \u00b1 ",
+                                          formatC(s, digits = digits, format = "f")))
+  
+  rows <- list()
+  for (v in response) {
+    y  <- df[[v]]
+    g  <- df[[fvar]]
+    n_per   <- as.numeric(table(g))[match(levs, levels(g))]
+    means   <- vapply(levs, function(lv) mean(y[g == lv], na.rm = TRUE), numeric(1))
+    sds     <- vapply(levs, function(lv) stats::sd(y[g == lv], na.rm = TRUE), numeric(1))
+    ses     <- sds / sqrt(pmax(n_per, 1))
+    
+    # Lettres CLD pour cette variable
+    letters_v <- tryCatch({
+      if (parametric) {
+        fit  <- stats::aov(y ~ g)
+        tuk  <- stats::TukeyHSD(fit)[[1]]
+        pv   <- tuk[, "p adj"]
+        nm   <- rownames(tuk)
+        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
+        for (i in seq_along(nm)) {
+          pair <- strsplit(nm[i], "-", fixed = TRUE)[[1]]
+          if (length(pair) == 2 && all(pair %in% levs)) {
+            pmat[pair[1], pair[2]] <- pv[i]
+            pmat[pair[2], pair[1]] <- pv[i]
+          }
+        }
+        multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
+      } else {
+        kt <- stats::kruskal.test(y ~ g)
+        dn <- FSA::dunnTest(y, g, method = "bonferroni")$res
+        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
+        for (i in seq_len(nrow(dn))) {
+          pair <- trimws(strsplit(as.character(dn$Comparison[i]), "-", fixed = TRUE)[[1]])
+          if (length(pair) == 2 && all(pair %in% levs)) {
+            pmat[pair[1], pair[2]] <- dn$P.adj[i]
+            pmat[pair[2], pair[1]] <- dn$P.adj[i]
+          }
+        }
+        multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
+      }
+    }, error = function(e) stats::setNames(rep("a", length(levs)), levs))
+    
+    rows[[v]] <- data.frame(
+      Variable      = v,
+      Niveau        = levs,
+      N             = n_per,
+      Moyenne       = means,
+      Ecart_type    = sds,
+      Erreur_type   = ses,
+      Groupes       = as.character(letters_v),
+      Moyenne_pm_SD = paste0(fmt_val(means, sds), " ", as.character(letters_v)),
+      Moyenne_pm_SE = paste0(fmt_val(means, ses), " ", as.character(letters_v)),
+      stringsAsFactors = FALSE,
+      row.names = NULL
+    )
+  }
+  if (length(rows) == 0) return(NULL)
+  out <- do.call(rbind, rows); rownames(out) <- NULL
+  out
+}
+
 ################################################################################
 #
 #  MANOVA - Assistant decisionnel et diagnostics avances
@@ -1326,21 +1415,33 @@ manova_simple_effects <- function(df, response, fixed, tested) {
   if (!is.factor(df[[tested]])) df[[tested]] <- factor(as.character(df[[tested]]))
   
   results <- list()
+  skipped  <- character()
   for (lev in levels(df[[fixed]])) {
     sub <- df[df[[fixed]] == lev, , drop = FALSE]
     sub[[tested]] <- droplevels(sub[[tested]])
     if (nlevels(sub[[tested]]) < 2) next
     n_sub <- nrow(sub); p <- length(response)
-    if (n_sub < p + nlevels(sub[[tested]]) + 1) next
+    if (n_sub < p + nlevels(sub[[tested]]) + 1) {
+      skipped <- c(skipped, lev); next
+    }
+    
+    # Verifier le rang de la matrice des reponses : variables colineaires -> MANOVA impossible
+    Ysub <- as.matrix(sub[, response, drop = FALSE])
+    rg <- tryCatch(qr(scale(Ysub, center = TRUE, scale = FALSE))$rank,
+                   error = function(e) NA_integer_)
+    if (is.na(rg) || rg < p) {
+      skipped <- c(skipped, lev); next
+    }
     
     fml <- stats::as.formula(paste0(
       "cbind(", paste(sapply(response, function(x) paste0("`", x, "`")), collapse = ", "),
       ") ~ `", tested, "`"
     ))
     fit <- tryCatch(stats::manova(fml, data = sub), error = function(e) NULL)
-    if (is.null(fit)) next
+    if (is.null(fit)) { skipped <- c(skipped, lev); next }
     
-    s <- summary(fit, test = "Pillai")$stats
+    s <- tryCatch(summary(fit, test = "Pillai")$stats, error = function(e) NULL)
+    if (is.null(s)) { skipped <- c(skipped, lev); next }
     eff_row <- which(rownames(s) == tested)
     if (length(eff_row) == 0) eff_row <- 1
     results[[lev]] <- data.frame(
@@ -1354,7 +1455,12 @@ manova_simple_effects <- function(df, response, fixed, tested) {
       stringsAsFactors = FALSE
     )
   }
-  if (length(results) == 0) return(NULL)
+  if (length(results) == 0) {
+    if (length(skipped) > 0)
+      attr(results, "skip_reason") <-
+        "Variables réponses colinéaires ou sous-groupes trop petits : effets simples MANOVA non calculables."
+    return(NULL)
+  }
   out <- do.call(rbind, results); rownames(out) <- NULL
   out$p_adj        <- stats::p.adjust(out$p_value, method = "bonferroni")
   out$Significatif <- ifelse(is.na(out$p_adj), "NA",
@@ -1409,6 +1515,11 @@ permanova_simple_effects <- function(df, response, fixed, tested,
 #' Resume l'etat actuel de l'analyse multivariee pour la frise de workflow
 #' @return liste de booleens decrivant chaque etape du workflow
 workflow_state <- function(values) {
+  detect_interaction <- function(df, effet_col, p_col) {
+    if (is.null(df)) return(FALSE)
+    inter <- grepl(":", df[[effet_col]])
+    any(inter) && any(df[[p_col]][inter] < 0.05, na.rm = TRUE)
+  }
   list(
     has_data        = !is.null(values$filteredData),
     has_diagnostic  = !is.null(values$manovaMardia) || !is.null(values$manovaBoxM),
@@ -1416,10 +1527,8 @@ workflow_state <- function(values) {
     has_posthoc     = !is.null(values$manovaMultiPostHoc),
     is_param        = !is.null(values$manovaParamResults),
     is_nonparam     = !is.null(values$manovaPermanovaResults),
-    has_interaction = {
-      df <- values$testResultsDF
-      !is.null(df) && any(grepl(":", df$Facteur)) && any(df$p_value[grepl(":", df$Facteur)] < 0.05, na.rm = TRUE)
-    }
+    has_interaction = detect_interaction(values$manovaParamResults, "Effet", "p_Pillai") ||
+      detect_interaction(values$manovaPermanovaResults, "Effet", "p_value")
   )
 }
 

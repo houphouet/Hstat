@@ -3405,6 +3405,17 @@ ui <- dashboardPage(
                                     br()
                                   ),
                                   
+                                  conditionalPanel(
+                                    condition = "output.hasManovaPermanova",
+                                    h5(icon("random"), " Résultats PERMANOVA (par permutations)",
+                                       style = "color:#f39c12; margin-top:0;"),
+                                    div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                        icon("info-circle"),
+                                        " pseudo-F, R² (part de variance expliquée), p-value par permutations. Interactions incluses si l'option est cochée."),
+                                    withSpinner(DTOutput("manovaPermanovaTable"), color = "#f39c12"),
+                                    br()
+                                  ),
+                                  
                                   h5(icon("chart-area"), " Normalite multivariee (Mardia)",
                                      style = "color:#1565C0; margin-top:0;"),
                                   withSpinner(DTOutput("manovaMardiaTable"), color = "#1565C0"),
