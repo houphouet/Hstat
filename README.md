@@ -27,12 +27,20 @@ Required packages are installed automatically if needed.
 ## Project structure
 
 ```
-HStat/
-├── HStat.R        # Entry point: sources the modules and calls shinyApp()
+.
+├── HStat.R      # Entry point: sources the modules and calls shinyApp()
+├── Server.R     # Server logic (server function)
 ├── Utils.R      # Encoding, package installation, utility functions
 ├── UX.R         # User interface (ui object)
-├── Server.R     # Server logic (server function)
-└── README.md    # This file
+└── www
+    ├── fonts
+    │   ├── inter-latin-400-normal.woff2
+    │   ├── inter-latin-500-normal.woff2
+    │   ├── inter-latin-600-normal.woff2
+    │   ├── inter-latin-700-normal.woff2
+    │   └── Inter-LICENSE.txt
+    └── Sortable.min.js
+
 ```
 
 ## License
