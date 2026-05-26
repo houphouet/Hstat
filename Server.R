@@ -77,7 +77,17 @@ server <- function(input, output, session) {
     chiSqResults       = NULL,     # Résultat du test chi2 / multinomial
     chiSqFreqData      = NULL,     # Données fréquences/pct traitées
     chiSqPostHocData   = NULL,     # Post-hoc chi2 (lettres + paires)
-    chiSqPlotObj       = NULL      # Graphique chi2 courant
+    chiSqPlotObj       = NULL,     # Graphique chi2 courant
+    # ---- Moteur de donnees (memoire / hors-memoire DuckDB) ----
+    dbCon        = NULL,           # Connexion DuckDB (NULL en mode memoire)
+    dbTable      = NULL,           # Nom de la table/vue DuckDB
+    dataMode     = "memory",       # "memory" ou "duckdb"
+    fullNrow     = NULL,           # Nombre de lignes du jeu COMPLET
+    fullNcol     = NULL,           # Nombre de colonnes du jeu complet
+    fullNA       = NULL,           # Total de valeurs manquantes (jeu complet)
+    isSampled    = FALSE,          # TRUE si values$data est un echantillon
+    sourceKind   = NULL,           # Type de fichier source
+    sourceSize   = NULL            # Taille du fichier source (octets)
   )
   
   values$customXLevels <- reactiveVal(NULL)
@@ -158,6 +168,17 @@ server <- function(input, output, session) {
           values$chiSqRawObs      <- NULL
           values$chiSqModalites   <- NULL
           values$chiSqPGlobal     <- NULL
+          # Fermeture du moteur hors-memoire
+          if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
+          values$dbCon     <- NULL
+          values$dbTable   <- NULL
+          values$dataMode  <- "memory"
+          values$fullNrow  <- NULL
+          values$fullNcol  <- NULL
+          values$fullNA    <- NULL
+          values$isSampled <- FALSE
+          values$sourceKind <- NULL
+          values$sourceSize <- NULL
           
           reset("file")
           updateTabItems(session, "tabs", "load")
@@ -213,66 +234,130 @@ server <- function(input, output, session) {
   
   observeEvent(input$loadData, {
     req(input$file)
-    ext <- tools::file_ext(input$file$datapath)
+    kind <- hstat_file_kind(input$file$datapath)
+    if (kind == "inconnu") {
+      showNotification("Format de fichier non pris en charge.", type = "error")
+      return(invisible(NULL))
+    }
     tryCatch({
+      # Fermer une eventuelle connexion DuckDB precedente
+      if (!is.null(values$dbCon)) {
+        hstat_duckdb_close(values$dbCon)
+        values$dbCon <- NULL
+      }
+      res <- NULL
       withProgress(message = 'Chargement des données', value = 0, {
-        incProgress(0.3)
-        if (ext %in% c("csv", "txt")) {
-          values$data <- read.csv(input$file$datapath, header = input$header, sep = input$sep, check.names = FALSE)
-        } else if (ext %in% c("xlsx", "xls")) {
-          values$data <- readxl::read_excel(path = input$file$datapath, sheet = input$sheet %||% 1)
-        } else if (ext == "sav") {
-          values$data <- haven::read_sav(input$file$datapath)
-        } else if (ext == "dta") {
-          values$data <- haven::read_dta(input$file$datapath)
-        } else if (ext == "rds") {
-          values$data <- readRDS(input$file$datapath)
-        } else {
-          stop("Format non supporté.")
-        }
-        incProgress(0.7)
-        values$cleanData <- as.data.frame(values$data)
-        values$filteredData <- values$cleanData
+        incProgress(0.2, detail = "Analyse du fichier")
+        thr <- (input$bigDataThreshold %||% 500) * 1024^2
+        smp <- as.integer(input$sampleSize %||% HSTAT_SAMPLE_SIZE)
+        incProgress(0.3, detail = "Lecture")
+        res <- hstat_load_data(
+          path = input$file$datapath, kind = kind,
+          header = input$header %||% TRUE, sep = input$sep %||% ",",
+          sheet = input$sheet %||% 1,
+          threshold = thr, sample_size = smp)
+        incProgress(0.8, detail = "Préparation")
+        
+        values$data        <- res$data
+        values$cleanData   <- res$data
+        values$filteredData <- res$data
+        values$dbCon       <- res$con
+        values$dbTable     <- res$table
+        values$dataMode    <- res$mode
+        values$fullNrow    <- res$full_nrow
+        values$fullNcol    <- res$full_ncol
+        values$isSampled   <- res$is_sampled
+        values$sourceKind  <- res$kind
+        values$sourceSize  <- res$size
+        # Total des NA : direct en memoire, calcule en SQL en mode DuckDB
+        values$fullNA <- if (res$mode == "duckdb")
+          tryCatch(hstat_duckdb_na_total(res$con, res$table),
+                   error = function(e) NA_real_)
+        else res$full_na
         incProgress(1)
       })
-      showNotification("Données chargées avec succès", type = "message")
+      if (isTRUE(res$is_sampled)) {
+        showNotification(
+          sprintf("Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).",
+                  hstat_format_size(res$size),
+                  format(nrow(res$data), big.mark = " "),
+                  format(res$full_nrow, big.mark = " ")),
+          type = "warning", duration = 12)
+      } else {
+        showNotification("Données chargées avec succès.", type = "message")
+      }
     }, error = function(e) {
-      showNotification(paste("Erreur de chargement :", e$message), type = "error")
+      showNotification(paste("Erreur de chargement :", conditionMessage(e)), type = "error")
     })
+  })
+  
+  # Liberer la connexion DuckDB a la fermeture de la session
+  session$onSessionEnded(function() {
+    isolate({
+      if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
+    })
+  })
+  
+  # Banniere de mode (memoire vs hors-memoire)
+  output$dataModeBanner <- renderUI({
+    req(values$data)
+    if (identical(values$dataMode, "duckdb")) {
+      div(style = "background:#fff4e5; border:1px solid #ed6c02; border-left:5px solid #ed6c02;
+                   border-radius:8px; padding:12px 16px; margin-bottom:14px;",
+          h4(style = "margin:0 0 4px 0; color:#9a4a02; font-weight:700;",
+             icon("database"), " Mode hors-mémoire (out-of-core)"),
+          p(style = "margin:0; font-size:13px; color:#7a4a1a;",
+            HTML(sprintf(
+              "Fichier de <b>%s</b> (%s lignes). Le jeu complet reste sur disque (DuckDB) ; les analyses portent sur un <b>échantillon représentatif de %s lignes</b>. Les compteurs ci-dessous reflètent le jeu complet.",
+              hstat_format_size(values$sourceSize %||% 0),
+              format(values$fullNrow %||% 0, big.mark = " "),
+              format(nrow(values$data), big.mark = " ")))))
+    } else {
+      div(style = "background:#e8f5e9; border:1px solid #2e7d32; border-left:5px solid #2e7d32;
+                   border-radius:8px; padding:10px 16px; margin-bottom:14px;",
+          p(style = "margin:0; font-size:13px; color:#1b5e20;",
+            icon("memory"), HTML(sprintf(
+              " Mode en mémoire — jeu de données entièrement chargé (%s lignes).",
+              format(values$fullNrow %||% nrow(values$data), big.mark = " ")))))
+    }
   })
   
   output$nrowBox <- renderValueBox({
     req(values$data)
     valueBox(
-      nrow(values$data), "Lignes", icon = icon("list"),
-      color = "purple"
+      format(values$fullNrow %||% nrow(values$data), big.mark = " "),
+      if (isTRUE(values$isSampled)) "Lignes (jeu complet)" else "Lignes",
+      icon = icon("list"), color = "purple"
     )
   })
   
   output$ncolBox <- renderValueBox({
     req(values$data)
     valueBox(
-      ncol(values$data), "Colonnes", icon = icon("columns"),
+      values$fullNcol %||% ncol(values$data), "Colonnes", icon = icon("columns"),
       color = "purple"
     )
   })
   
   output$naBox <- renderValueBox({
     req(values$data)
-    na_count <- sum(is.na(values$data))
+    na_count <- values$fullNA
+    if (is.null(na_count) || is.na(na_count)) na_count <- sum(is.na(values$data))
     valueBox(
-      na_count, "Valeurs manquantes", icon = icon("question"),
+      format(na_count, big.mark = " "), "Valeurs manquantes", icon = icon("question"),
       color = ifelse(na_count > 0, "red", "green")
     )
   })
   
   output$memBox <- renderValueBox({
     req(values$data)
-    mem_size <- format(object.size(values$data), units = "auto")
-    valueBox(
-      mem_size, "Taille mémoire", icon = icon("memory"),
-      color = "blue"
-    )
+    if (identical(values$dataMode, "duckdb")) {
+      valueBox(hstat_format_size(values$sourceSize %||% 0), "Taille du fichier",
+               icon = icon("hard-drive"), color = "blue")
+    } else {
+      valueBox(format(object.size(values$data), units = "auto"), "Taille mémoire",
+               icon = icon("memory"), color = "blue")
+    }
   })
   
   output$preview <- renderDT({
@@ -320,7 +405,14 @@ server <- function(input, output, session) {
       actionButton("selectAllCorrVars", "Tout sélectionner", 
                    class = "btn-success btn-sm", icon = icon("check-square")),
       actionButton("deselectAllCorrVars", "Tout désélectionner", 
-                   class = "btn-danger btn-sm", icon = icon("square"))
+                   class = "btn-danger btn-sm", icon = icon("square")),
+      if (identical(values$dataMode, "duckdb") && !is.null(values$dbCon))
+        div(style = "margin-top:10px; padding:8px 10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:6px;",
+            checkboxInput("corrFullData",
+                          HTML("<b><i class='fa fa-server'></i> Corrélation exacte sur le jeu complet</b>"),
+                          value = FALSE),
+            tags$small(style = "color:#7a4a1a;",
+                       "Calcul exact via DuckDB (méthode de Pearson uniquement)."))
     )
   })
   
@@ -336,7 +428,7 @@ server <- function(input, output, session) {
   # Fonction réutilisable pour générer le plot de corrélation
   generate_corr_plot <- function(data, vars, method = "pearson", display = "number", 
                                  type = "upper", label_size = 0.8, text_size = 0.8,
-                                 title = NULL, center_title = TRUE) {
+                                 title = NULL, center_title = TRUE, full_cor = FALSE) {
     
     if (is.null(vars) || length(vars) < 2) {
       return(NULL)
@@ -349,7 +441,17 @@ server <- function(input, output, session) {
       showNotification("Moins de 2 variables avec variance non nulle pour la corrélation.", type="warning", duration=5)
       return(NULL)
     }
-    cor_matrix <- suppressWarnings(cor(cor_data, use = "complete.obs", method = method))
+    cor_matrix <- NULL
+    # Mode hors-memoire + option activee : correlation EXACTE sur le jeu complet.
+    # DuckDB CORR() calcule la correlation de Pearson uniquement.
+    if (isTRUE(full_cor) && identical(values$dataMode, "duckdb") &&
+        !is.null(values$dbCon) && method == "pearson") {
+      cor_matrix <- tryCatch(
+        hstat_duckdb_cor(values$dbCon, values$dbTable, names(cor_data)),
+        error = function(e) NULL)
+    }
+    if (is.null(cor_matrix))
+      cor_matrix <- suppressWarnings(cor(cor_data, use = "complete.obs", method = method))
     
     method_label <- switch(method,
                            "pearson" = "Pearson",
@@ -403,7 +505,8 @@ server <- function(input, output, session) {
         label_size = params$label_size,
         text_size = params$text_size,
         title = params$title,
-        center_title = params$center_title
+        center_title = params$center_title,
+        full_cor = isTRUE(input$corrFullData)
       )
     }, error = function(e) {
       showNotification(paste("Erreur lors de la création de la matrice:", e$message), 
@@ -435,7 +538,8 @@ server <- function(input, output, session) {
           label_size = params$label_size,
           text_size = params$text_size,
           title = params$title,
-          center_title = params$center_title
+          center_title = params$center_title,
+          full_cor = isTRUE(input$corrFullData)
         )
       }, error = function(e) {
         showNotification(paste("Erreur téléchargement:", e$message), type = "error")
@@ -1675,6 +1779,95 @@ server <- function(input, output, session) {
     })
   })
   
+  # Indicateur global : l'application est-elle en mode hors-memoire ?
+  # (utilise par les conditionalPanel "calculer sur le jeu complet")
+  output$hstatBigData <- reactive({
+    identical(values$dataMode, "duckdb") && !is.null(values$dbCon)
+  })
+  outputOptions(output, "hstatBigData", suspendWhenHidden = FALSE)
+  
+  # Ligne d'information sur l'echantillon courant
+  output$sampleInfoLine <- renderUI({    req(values$data)
+    if (!identical(values$dataMode, "duckdb")) return(NULL)
+    full <- values$fullNrow %||% 0
+    cur  <- nrow(values$data)
+    pct  <- if (full > 0) round(100 * cur / full, 2) else 0
+    div(style = "margin-top:8px; padding:8px 12px; background:#f4f6f8; border-radius:6px;",
+        p(style = "margin:0; font-size:13px; color:#2c3e50;",
+          icon("circle-info"),
+          HTML(sprintf(" Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet).",
+                       format(cur, big.mark = " "), format(full, big.mark = " "), pct))))
+  })
+  
+  # Re-tirage de l'echantillon de travail (mode hors-memoire)
+  observeEvent(input$redrawSample, {
+    if (!identical(values$dataMode, "duckdb") || is.null(values$dbCon)) {
+      showNotification("Le re-tirage n'est disponible qu'en mode hors-mémoire.",
+                       type = "warning")
+      return(invisible(NULL))
+    }
+    n <- as.integer(input$sampleSizeLive %||% HSTAT_SAMPLE_SIZE)
+    if (is.na(n) || n < 1000) {
+      showNotification("Taille d'échantillon invalide (minimum 1000).", type = "warning")
+      return(invisible(NULL))
+    }
+    tryCatch({
+      withProgress(message = "Tirage d'un nouvel échantillon (DuckDB)", value = 0.4, {
+        smp <- hstat_duckdb_sample(values$dbCon, values$dbTable, n)
+        incProgress(0.8)
+        values$data         <- smp
+        values$cleanData    <- smp
+        values$filteredData <- smp
+        values$isSampled    <- (values$fullNrow %||% nrow(smp)) > nrow(smp)
+        incProgress(1)
+      })
+      showNotification(
+        sprintf("Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.",
+                format(nrow(values$data), big.mark = " ")),
+        type = "message", duration = 7)
+    }, error = function(e) {
+      showNotification(paste("Erreur de tirage :", conditionMessage(e)),
+                       type = "error", duration = 6)
+    })
+  })
+  
+  # Calcul des statistiques descriptives EXACTES sur le jeu complet (DuckDB)
+  observeEvent(input$calcDescFull, {
+    if (!identical(values$dataMode, "duckdb") || is.null(values$dbCon)) {
+      showNotification("Le calcul sur jeu complet n'est disponible qu'en mode hors-mémoire.",
+                       type = "warning")
+      return(invisible(NULL))
+    }
+    if (is.null(input$numVars) || length(input$numVars) == 0) {
+      showNotification("Sélectionnez au moins une variable numérique.", type = "warning")
+      return(invisible(NULL))
+    }
+    stats_sel <- input$descStats
+    if (is.null(stats_sel) || length(stats_sel) == 0) {
+      showNotification("Sélectionnez au moins une statistique.", type = "warning")
+      return(invisible(NULL))
+    }
+    tryCatch({
+      withProgress(message = "Calcul exact sur le jeu complet (DuckDB)", value = 0.4, {
+        if (!is.null(input$descFactors) && length(input$descFactors) > 0) {
+          values$descStats <- hstat_duckdb_describe_grouped(
+            values$dbCon, values$dbTable, input$descFactors, input$numVars, stats_sel)
+        } else {
+          values$descStats <- hstat_duckdb_describe_global(
+            values$dbCon, values$dbTable, input$numVars, stats_sel)
+        }
+        incProgress(1)
+      })
+      showNotification(
+        sprintf("Statistiques exactes calculées sur le jeu complet (%s lignes).",
+                format(values$fullNrow %||% 0, big.mark = " ")),
+        type = "message", duration = 6)
+    }, error = function(e) {
+      showNotification(paste("Erreur (jeu complet) :", conditionMessage(e)),
+                       type = "error", duration = 6)
+    })
+  })
+  
   # Affichage des résultats
   output$descResults <- renderDT({
     req(values$descStats)
@@ -2437,7 +2630,27 @@ server <- function(input, output, session) {
       df[[input$crosstabColVar]] <- droplevels(as.factor(df[[input$crosstabColVar]]))
       
       # - Table de contingence brute -
-      raw_ct <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
+      # En mode hors-memoire avec l'option activee : table EXACTE sur le jeu complet (DuckDB).
+      use_full <- isTRUE(input$crosstabFullData) &&
+        identical(values$dataMode, "duckdb") && !is.null(values$dbCon)
+      if (use_full) {
+        raw_ct <- tryCatch(
+          hstat_duckdb_crosstab(values$dbCon, values$dbTable,
+                                input$crosstabRowVar, input$crosstabColVar),
+          error = function(e) NULL)
+        if (is.null(raw_ct)) {
+          showNotification("Echec du calcul sur le jeu complet -- repli sur l'echantillon.",
+                           type = "warning", duration = 5)
+          raw_ct <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
+        } else {
+          showNotification(
+            sprintf("Tableau croise calcule sur le jeu complet (%s lignes).",
+                    format(values$fullNrow %||% 0, big.mark = " ")),
+            type = "message", duration = 5)
+        }
+      } else {
+        raw_ct <- table(df[[input$crosstabRowVar]], df[[input$crosstabColVar]])
+      }
       
       if (any(dim(raw_ct) == 0)) {
         showNotification("Une variable ne contient aucune modalité après filtrage !",
@@ -7384,9 +7597,13 @@ server <- function(input, output, session) {
       return()
     }
     
+    showNotification("PERMANOVA en cours (999 permutations)...",
+                     type = "message", duration = NULL, id = "permanovaProgress")
+    
     tryCatch({
       chk <- check_manova_data(values$filteredData, input$responseVar, input$factorVar)
       if (!isTRUE(chk$ok)) {
+        removeNotification("permanovaProgress")
         showNotification(chk$message, type = "error", duration = 8)
         return()
       }
@@ -7448,12 +7665,14 @@ server <- function(input, output, session) {
       values$homogeneityResults     <- NULL
       values$modelList              <- NULL
       
+      removeNotification("permanovaProgress")
       showNotification(
         paste0("PERMANOVA terminée : ", nrow(out), " effet(s) (", nperm,
                " permutations, distance ", dist_method, ")."),
         type = "message", duration = 4
       )
     }, error = function(e) {
+      removeNotification("permanovaProgress")
       showNotification(paste("Erreur PERMANOVA :", e$message), type = "error", duration = 10)
     })
   })
@@ -7526,23 +7745,49 @@ server <- function(input, output, session) {
         showNotification(chk$message, type = "error"); return()
       }
       
-      is_param <- isTRUE(values$currentTestType == "manova")
-      res <- if (is_param) {
-        manova_simple_effects(chk$df_clean, input$responseVar,
-                              input$manovaSimpleFixed, input$manovaSimpleTested)
+      want_param <- isTRUE(values$currentTestType == "manova")
+      res <- NULL
+      used_fallback <- FALSE
+      
+      if (want_param) {
+        res <- manova_simple_effects(chk$df_clean, input$responseVar,
+                                     input$manovaSimpleFixed, input$manovaSimpleTested)
+        # Si la MANOVA conditionnelle echoue (colinearite / rang deficient),
+        # on bascule sur la PERMANOVA conditionnelle, plus robuste.
+        if (is.null(res)) {
+          res <- permanova_simple_effects(chk$df_clean, input$responseVar,
+                                          input$manovaSimpleFixed, input$manovaSimpleTested,
+                                          permutations = 999)
+          used_fallback <- !is.null(res)
+        }
       } else {
-        permanova_simple_effects(chk$df_clean, input$responseVar,
-                                 input$manovaSimpleFixed, input$manovaSimpleTested,
-                                 permutations = 999)
+        res <- permanova_simple_effects(chk$df_clean, input$responseVar,
+                                        input$manovaSimpleFixed, input$manovaSimpleTested,
+                                        permutations = 999)
       }
+      
       if (is.null(res)) {
-        showNotification("Aucun effet simple calculable (groupes trop petits ?).",
-                         type = "warning"); return()
+        showNotification(paste0("Effets simples non calculables : sous-groupes trop petits ",
+                                "ou variables réponses problématiques."),
+                         type = "warning", duration = 7); return()
       }
-      res$Type_test <- if (is_param) "MANOVA conditionnelle" else "PERMANOVA conditionnelle"
+      
+      is_param_result <- want_param && !used_fallback
+      res$Type_test <- if (is_param_result) "MANOVA conditionnelle"
+      else "PERMANOVA conditionnelle"
       values$manovaSimpleEffects <- res
-      showNotification(paste0("Effets simples calculés : ", nrow(res), " niveau(x) testé(s)."),
-                       type = "message", duration = 4)
+      
+      if (used_fallback) {
+        showNotification(paste0("La MANOVA conditionnelle n'est pas calculable ",
+                                "(variables réponses colinéaires) : bascule automatique ",
+                                "sur la PERMANOVA conditionnelle. ", nrow(res),
+                                " niveau(x) testé(s)."),
+                         type = "warning", duration = 8)
+      } else {
+        showNotification(paste0("Effets simples calculés : ", nrow(res),
+                                " niveau(x) testé(s)."),
+                         type = "message", duration = 4)
+      }
     }, error = function(e) {
       showNotification(paste("Erreur effets simples :", e$message), type = "error")
     })
@@ -7578,12 +7823,7 @@ server <- function(input, output, session) {
     for (col in c("p_Pillai", "p_Wilks", "p_Hotelling", "p_Roy")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
     
     # Colore les colonnes de la statistique recommandee par l'assistant
@@ -7614,12 +7854,7 @@ server <- function(input, output, session) {
     df <- values$manovaPermanovaResults
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
   })
   
@@ -7630,12 +7865,7 @@ server <- function(input, output, session) {
     for (col in c("p_Skewness", "p_Kurtosis")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
@@ -7657,12 +7887,7 @@ server <- function(input, output, session) {
     df <- values$manovaBoxM
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
@@ -7670,12 +7895,27 @@ server <- function(input, output, session) {
     req(values$manovaBoxM)
     conclusions <- values$manovaBoxM$Conclusion
     any_violation <- any(grepl("Violation", conclusions))
-    color <- if (!any_violation) "#2e7d32" else "#c62828"
-    bg    <- if (!any_violation) "#e8f5e9" else "#fff3e0"
-    msg <- if (!any_violation)
-      "Homogénéité des matrices de covariance respectée pour tous les facteurs."
-    else
-      "Au moins un facteur viole l'homogénéité -- privilégier Pillai (le plus robuste) ou la PERMANOVA."
+    any_singular  <- any(grepl("singuli|non applicable|trop petit|indisponible",
+                               conclusions, ignore.case = TRUE))
+    n_ok <- sum(grepl("respect|OK", conclusions, ignore.case = TRUE))
+    
+    if (any_violation) {
+      color <- "#c62828"; bg <- "#fff3e0"
+      msg <- "Au moins un facteur viole l'homogénéité des matrices de covariance -- privilégier Pillai (le plus robuste) ou la PERMANOVA."
+    } else if (any_singular && n_ok == 0) {
+      color <- "#e65100"; bg <- "#fff8e1"
+      msg <- paste0("Le test de Box's M n'a pas pu être calculé : matrice de covariance ",
+                    "singulière dans au moins un groupe (variables réponses colinéaires ou ",
+                    "effectifs trop faibles). Utilisez la statistique de Pillai ou la PERMANOVA, ",
+                    "qui ne dépendent pas de cette hypothèse.")
+    } else if (any_singular) {
+      color <- "#e65100"; bg <- "#fff8e1"
+      msg <- paste0("Box's M calculable pour certains facteurs seulement (matrices ",
+                    "singulières ailleurs). Interprétez avec prudence ; Pillai reste le choix sûr.")
+    } else {
+      color <- "#2e7d32"; bg <- "#e8f5e9"
+      msg <- "Homogénéité des matrices de covariance respectée pour tous les facteurs."
+    }
     div(style = paste0("padding:8px 12px; background:", bg,
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
@@ -7689,12 +7929,7 @@ server <- function(input, output, session) {
     df <- values$manovaPermDisp
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
@@ -7754,9 +7989,24 @@ server <- function(input, output, session) {
   
   output$showManovaWorkflow <- reactive({
     ctt <- values$currentTestType
-    isTRUE(!is.null(ctt) && ctt %in% c("manova", "permanova", "manova_diagnostic"))
+    test_done <- isTRUE(!is.null(ctt) && ctt %in% c("manova", "permanova", "manova_diagnostic"))
+    enough_vars <- length(input$responseVar) >= 2
+    test_done || enough_vars
   })
   outputOptions(output, "showManovaWorkflow", suspendWhenHidden = FALSE)
+  
+  observeEvent(input$responseVar, {
+    if (length(input$responseVar) >= 2) {
+      session$sendCustomMessage("expandBox", "boxWrap_manovaAssist")
+    }
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
+  
+  # Repli des boxes de l'assistant multivarie au demarrage (le conditionalPanel
+  # peut empecher collapsed=TRUE de s'appliquer correctement au rendu initial).
+  session$onFlushed(function() {
+    session$sendCustomMessage("collapseBox", "boxWrap_manovaPlaceholder")
+    session$sendCustomMessage("collapseBox", "boxWrap_manovaAssist")
+  }, once = TRUE)
   
   output$hasManovaRecommendation <- reactive({
     !is.null(values$manovaRecommendation)
@@ -7787,43 +8037,6 @@ server <- function(input, output, session) {
   outputOptions(output, "hasManovaOutliers", suspendWhenHidden = FALSE)
   
   # Frise visuelle des etapes du workflow
-  output$manovaWorkflowSteps <- renderUI({
-    st <- workflow_state(values)
-    step_css <- function(active, done) {
-      if (done) "background:#43a047;color:white;border:2px solid #2e7d32;"
-      else if (active) "background:#1565C0;color:white;border:2px solid #0d47a1;"
-      else "background:#eceff1;color:#90a4ae;border:2px solid #cfd8dc;"
-    }
-    arrow_css <- "color:#90a4ae;font-size:24px;align-self:center;margin:0 4px;"
-    step_indicator <- function(done, active) {
-      if (done) icon("check", style = "font-size:18px;margin-top:2px;")
-      else if (active) icon("caret-right", style = "font-size:20px;margin-top:2px;")
-      else icon("circle", style = "font-size:6px;margin-top:8px;color:transparent;")
-    }
-    steps <- list(
-      list(num = 1, label = "Diagnostic", done = st$has_diagnostic, active = !st$has_diagnostic),
-      list(num = 2, label = "Choix du test", done = st$has_test, active = st$has_diagnostic && !st$has_test),
-      list(num = 3, label = if (st$has_interaction) "Effets simples" else "PostHoc",
-           done = st$has_posthoc, active = st$has_test && !st$has_posthoc),
-      list(num = 4, label = "Interprétation", done = FALSE, active = st$has_posthoc)
-    )
-    div(style = "display:flex;align-items:stretch;gap:0;padding:14px 18px;background:#f5f7fa;border-radius:10px;margin-bottom:14px;",
-        lapply(seq_along(steps), function(i) {
-          s <- steps[[i]]
-          tagList(
-            div(style = paste0("flex:1;padding:14px;border-radius:8px;text-align:center;",
-                               "font-weight:bold;transition:all 0.3s;",
-                               step_css(s$active, s$done)),
-                div(style = "font-size:11px;opacity:0.8;letter-spacing:1px;", paste("ÉTAPE", s$num)),
-                div(style = "font-size:14px;margin-top:4px;", s$label),
-                step_indicator(s$done, s$active)
-            ),
-            if (i < length(steps)) div(style = arrow_css, icon("angle-right")) else NULL
-          )
-        })
-    )
-  })
-  
   # Carte de recommandation du test
   output$manovaRecommendationCard <- renderUI({
     req(values$manovaRecommendation)
@@ -7836,27 +8049,25 @@ server <- function(input, output, session) {
     
     is_param <- grepl("MANOVA", rec$test_recommande) && !grepl("PERM", rec$test_recommande)
     
+    btn_style <- "width:100%; height:48px; font-size:14px; font-weight:bold; margin-top:8px;"
+    
     btn_manova <- actionButton(
       "testMANOVA",
-      tagList(icon("play"), if (is_param) " Lancer la MANOVA paramétrique (recommandée)"
-              else " Lancer quand même la MANOVA paramétrique"),
-      class = if (is_param) "btn-success btn-lg" else "btn-default",
-      style = paste0("width:100%; margin-top:8px;",
-                     if (is_param) " font-weight:bold;" else " font-size:13px;")
+      tagList(icon("play"), " Lancer la MANOVA paramétrique"),
+      class = if (is_param) "btn-success" else "btn-default",
+      style = btn_style
     )
     btn_permanova <- actionButton(
       "testPERMANOVA",
-      tagList(icon("play"), if (!is_param) " Lancer la PERMANOVA (recommandée)"
-              else " Lancer plutôt la PERMANOVA (alternative robuste)"),
-      class = if (!is_param) "btn-warning btn-lg" else "btn-default",
-      style = paste0("width:100%; margin-top:8px;",
-                     if (!is_param) " font-weight:bold;" else " font-size:13px;")
+      tagList(icon("play"), " Lancer la PERMANOVA"),
+      class = if (!is_param) "btn-warning" else "btn-default",
+      style = btn_style
     )
     
     buttons <- div(
       style = "margin-top:10px;",
       div(style = "font-size:11px; color:#777; margin-bottom:4px;",
-          "Choisissez le test à exécuter :"),
+          "Choisissez le test à exécuter (le test recommandé est mis en couleur) :"),
       fluidRow(
         column(6, if (is_param) btn_manova else btn_permanova),
         column(6, if (is_param) btn_permanova else btn_manova)
@@ -8024,12 +8235,7 @@ server <- function(input, output, session) {
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- sapply(df, is.numeric)
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
     if ("Significatif" %in% names(df)) {
       dt <- dt %>% formatStyle("Significatif",
@@ -10691,6 +10897,35 @@ server <- function(input, output, session) {
       
       if (length(multi_posthoc_list) > 0) {
         values$manovaMultiPostHoc <- multi_posthoc_list
+        session$sendCustomMessage("expandBox", "boxWrap_manovaPosthoc")
+      }
+      
+      # PostHoc d'interaction : si l'option est cochee et qu'il y a >= 2 facteurs,
+      # comparer les cellules croisees (combinaisons de niveaux) pour apprecier
+      # simultanement le facteur fixe et le facteur evalue.
+      values$manovaInteractionPostHoc <- NULL
+      if (isTRUE(input$posthocInteraction) && length(input$multiFactor) >= 2) {
+        inter_letters <- tryCatch(
+          build_letters_interaction(df_mvg, input$multiResponse, input$multiFactor,
+                                    parametric = is_param),
+          error = function(e) NULL
+        )
+        if (!is.null(inter_letters)) {
+          Ymat_all <- as.matrix(df_mvg[, input$multiResponse, drop = FALSE])
+          cell_all <- droplevels(interaction(df_mvg[input$multiFactor], sep = " . ", drop = TRUE))
+          inter_pairs <- tryCatch(
+            pairwise_permanova(Ymat_all, cell_all, permutations = 999,
+                               dist_method = "euclidean", p_adjust = "bonferroni"),
+            error = function(e) NULL
+          )
+          values$manovaInteractionPostHoc <- list(
+            letters   = inter_letters,
+            pairs     = inter_pairs,
+            factors   = input$multiFactor,
+            responses = input$multiResponse,
+            test      = mvg_test
+          )
+        }
       }
     }
   })
@@ -10764,18 +10999,15 @@ server <- function(input, output, session) {
     entry <- values$lmPostHocResults[[input$lmPostHocCombo]]
     req(entry$letters)
     df <- entry$letters
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    if ("Moyenne_pm_SD" %in% names(df))
+      names(df)[names(df) == "Moyenne_pm_SD"] <- "Moyenne \u00b1 Ecart-type groupe"
+    if ("Moyenne_pm_SE" %in% names(df))
+      names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 15, dom = "tip"),
                     rownames = FALSE)
     if ("Groupes" %in% names(df))
-      dt <- dt %>% formatStyle("Groupes", fontWeight = "bold",
-                               backgroundColor = "#e8f5e9", color = "#1b5e20",
-                               textAlign = "center")
+      dt <- color_groups_dt(dt, df, "Groupes")
     dt
   })
   
@@ -10787,12 +11019,7 @@ server <- function(input, output, session) {
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 15), rownames = FALSE)
     if ("Significatif" %in% names(df))
       dt <- dt %>% formatStyle("Significatif",
@@ -10896,18 +11123,12 @@ server <- function(input, output, session) {
     if ("Moyenne_pm_SE" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
     
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
     dt <- datatable(df,
                     options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
-                    rownames = FALSE) %>%
-      formatStyle("Groupes", fontWeight = "bold", backgroundColor = "#e8f5e9",
-                  color = "#1b5e20", textAlign = "center")
+                    rownames = FALSE)
+    dt <- color_groups_dt(dt, df, "Groupes")
     if ("Variable" %in% names(df))
       dt <- dt %>% formatStyle("Variable", fontWeight = "bold",
                                backgroundColor = "#e3f2fd")
@@ -10924,12 +11145,7 @@ server <- function(input, output, session) {
       if (col %in% names(df))
         df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
-    use_round <- isTRUE(input$testsRoundResults)
-    if (use_round) {
-      dec <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num <- vapply(df, is.numeric, logical(1))
-      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
-    }
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
     dt <- datatable(df,
                     options = list(pageLength = 25, scrollX = TRUE),
@@ -10962,17 +11178,83 @@ server <- function(input, output, session) {
         openxlsx::addWorksheet(wb, sheet_pairs)
         openxlsx::writeData(wb, sheet_pairs, entry$pairs)
       }
+      if (!is.null(values$manovaInteractionPostHoc)) {
+        openxlsx::addWorksheet(wb, "Interaction_lettres")
+        openxlsx::writeData(wb, "Interaction_lettres", values$manovaInteractionPostHoc$letters)
+        if (!is.null(values$manovaInteractionPostHoc$pairs)) {
+          openxlsx::addWorksheet(wb, "Interaction_paires")
+          openxlsx::writeData(wb, "Interaction_paires", values$manovaInteractionPostHoc$pairs)
+        }
+      }
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     }
   )
+  
+  output$hasManovaInteractionPostHoc <- reactive({
+    !is.null(values$manovaInteractionPostHoc) &&
+      !is.null(values$manovaInteractionPostHoc$letters)
+  })
+  outputOptions(output, "hasManovaInteractionPostHoc", suspendWhenHidden = FALSE)
+  
+  output$manovaInteractionPostHocInfo <- renderUI({
+    req(values$manovaInteractionPostHoc)
+    ent <- values$manovaInteractionPostHoc
+    div(style = "background:#fff3e0; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+        icon("project-diagram", style = "color:#e65100;"),
+        strong(" Comparaison des cellules d'interaction : "),
+        "chaque cellule combine un niveau de ", strong(paste(ent$factors, collapse = " et de ")),
+        ". Les lettres comparent simultanément l'effet du facteur fixé et du facteur évalué. ",
+        "Deux cellules partageant une lettre ne diffèrent pas significativement (alpha = 0.05)."
+    )
+  })
+  
+  output$manovaInteractionLettersTable <- renderDT({
+    req(values$manovaInteractionPostHoc)
+    df <- values$manovaInteractionPostHoc$letters
+    if ("Moyenne_pm_SD" %in% names(df))
+      names(df)[names(df) == "Moyenne_pm_SD"] <- "Moyenne \u00b1 Ecart-type groupe"
+    if ("Moyenne_pm_SE" %in% names(df))
+      names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
+    dt <- datatable(df, options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
+                    rownames = FALSE)
+    dt <- color_groups_dt(dt, df, "Groupes")
+    if ("Variable" %in% names(df))
+      dt <- dt %>% formatStyle("Variable", fontWeight = "bold", backgroundColor = "#e3f2fd")
+    dt
+  })
+  
+  output$manovaInteractionPairsTable <- renderDT({
+    req(values$manovaInteractionPostHoc)
+    df <- values$manovaInteractionPostHoc$pairs
+    if (is.null(df))
+      return(datatable(data.frame(Information = "Comparaisons par paires indisponibles."),
+                       options = list(dom = "t"), rownames = FALSE))
+    for (col in c("p_value", "p_adj")) {
+      if (col %in% names(df))
+        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+    }
+    df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
+    dt <- datatable(df, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE)
+    if ("Significatif" %in% names(df))
+      dt <- dt %>% formatStyle("Significatif",
+                               backgroundColor = styleEqual(c("Oui", "Non"),
+                                                            c("#ffebee", "#f1f8e9")),
+                               fontWeight = "bold")
+    dt
+  })
   
   # Multi-Selection 
   output$multiResponseSelect <- renderUI({
     req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     
-    # Pré-sélectionner depuis les résultats de tests
-    pre_selected <- if (!is.null(values$testResultsDF) && "Variable" %in% names(values$testResultsDF)) {
+    # Pré-sélection initiale : variables choisies dans "Paramètres des tests",
+    # sinon repli sur les variables des résultats de tests.
+    pre_selected <- if (!is.null(isolate(input$responseVar)) &&
+                        length(isolate(input$responseVar)) > 0) {
+      isolate(input$responseVar)
+    } else if (!is.null(values$testResultsDF) && "Variable" %in% names(values$testResultsDF)) {
       sig_vars <- unique(values$testResultsDF$Variable[
         !is.na(values$testResultsDF$p_value) & values$testResultsDF$p_value < 0.05
       ])
@@ -10995,6 +11277,15 @@ server <- function(input, output, session) {
     )
   })
   
+  # Synchronise multiResponse avec les variables choisies dans "Paramètres des tests"
+  observeEvent(input$responseVar, {
+    req(values$filteredData)
+    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    sel <- intersect(input$responseVar, num_cols)
+    if (length(sel) > 0)
+      updatePickerInput(session, "multiResponse", selected = sel)
+  }, ignoreNULL = TRUE)
+  
   observeEvent(input$selectAllMultiResponse, {
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     updatePickerInput(session, "multiResponse", selected = num_cols)
@@ -11008,8 +11299,12 @@ server <- function(input, output, session) {
     req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
     
-    # Pré-sélectionner les facteurs des résultats de tests si disponibles
-    pre_fac <- if (!is.null(values$testResultsDF) && "Facteur" %in% names(values$testResultsDF)) {
+    # Pré-sélection initiale : facteurs choisis dans "Paramètres des tests",
+    # sinon repli sur les facteurs des résultats de tests.
+    pre_fac <- if (!is.null(isolate(input$factorVar)) &&
+                   length(isolate(input$factorVar)) > 0) {
+      isolate(input$factorVar)
+    } else if (!is.null(values$testResultsDF) && "Facteur" %in% names(values$testResultsDF)) {
       unique(values$testResultsDF$Facteur[!is.na(values$testResultsDF$Facteur)])
     } else { character(0) }
     pre_fac <- intersect(pre_fac, fac_cols)
@@ -11030,6 +11325,15 @@ server <- function(input, output, session) {
       )
     )
   })
+  
+  # Synchronise multiFactor avec les facteurs choisis dans "Paramètres des tests"
+  observeEvent(input$factorVar, {
+    req(values$filteredData)
+    fac_cols <- get_all_factor_candidates(values$filteredData)
+    sel <- intersect(input$factorVar, fac_cols)
+    if (length(sel) > 0)
+      updatePickerInput(session, "multiFactor", selected = sel)
+  }, ignoreNULL = TRUE)
   
   observeEvent(input$selectAllMultiFactors, {
     updatePickerInput(session, "multiFactor", selected = get_all_factor_candidates(values$filteredData))
@@ -11104,7 +11408,7 @@ server <- function(input, output, session) {
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(main_data)]
     
-    datatable(
+    dt <- datatable(
       main_data[, cols_to_show, drop = FALSE],
       options = list(
         scrollX = TRUE,
@@ -11116,8 +11420,16 @@ server <- function(input, output, session) {
       rownames = FALSE,
       extensions = 'Buttons',
       class = 'cell-border stripe'
-    ) %>%
-      formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV"), digits = 2) %>%
+    )
+    if (isTRUE(input$multiRoundResults)) {
+      dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
+      else as.integer(input$multiDecimals)
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV"),
+                              cols_to_show)
+      if (length(round_cols) > 0)
+        dt <- dt %>% formatRound(columns = round_cols, digits = dec)
+    }
+    dt %>%
       formatStyle(
         'groups',
         backgroundColor = styleEqual(
@@ -11155,7 +11467,7 @@ server <- function(input, output, session) {
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(simple_data)]
     
-    datatable(
+    dt <- datatable(
       simple_data[, cols_to_show, drop = FALSE],
       options = list(
         scrollX = TRUE,
@@ -11167,8 +11479,16 @@ server <- function(input, output, session) {
       rownames = FALSE,
       extensions = 'Buttons',
       class = 'cell-border stripe'
-    ) %>%
-      formatRound(columns = c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"), digits = 4) %>%
+    )
+    if (isTRUE(input$multiRoundResults)) {
+      dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
+      else as.integer(input$multiDecimals)
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"),
+                              cols_to_show)
+      if (length(round_cols) > 0)
+        dt <- dt %>% formatRound(columns = round_cols, digits = dec)
+    }
+    dt %>%
       formatStyle(
         'groups',
         backgroundColor = styleEqual(
@@ -12564,19 +12884,17 @@ server <- function(input, output, session) {
         tags$strong(style = "font-size: 12px; color: #495057;",
                     icon("tools"), " Corriger la multicolinéarité :"),
         div(
-          style = "margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;",
+          style = "margin-top: 8px; display: flex; flex-direction: column; gap: 6px;",
           
           #  supprimer les variables suggérées automatiquement
           if (length(suggest_remove) > 0) {
             actionButton(
               "pcaAutoRemoveCollinear",
-              tagList(
-                icon("magic"),
-                paste0(" Supprimer automatiquement (",
-                       paste(suggest_remove, collapse = ", "), ")")
-              ),
-              class = "btn-sm btn-warning",
-              style = "font-size: 11px;"
+              tagList(icon("magic"),
+                      sprintf(" Supprimer automatiquement les %d variable(s) suggérée(s)",
+                              length(suggest_remove))),
+              class = "btn-sm btn-warning btn-block",
+              style = "font-size: 11px; white-space: normal; text-align: left;"
             )
           },
           
@@ -12584,18 +12902,20 @@ server <- function(input, output, session) {
           actionButton(
             "pcaForceStandardize",
             tagList(icon("balance-scale"), " Forcer la standardisation"),
-            class = "btn-sm btn-outline-secondary",
-            style = "font-size: 11px;"
+            class = "btn-sm btn-outline-secondary btn-block",
+            style = "font-size: 11px; white-space: normal; text-align: left;"
           )
         ),
         
         if (length(suggest_remove) > 0) {
           div(
-            style = "margin-top: 6px; font-size: 11px; color: #6c757d;",
+            style = "margin-top: 8px; padding: 8px 10px; background: #fff8e1; border-radius: 6px; font-size: 11px; color: #6c757d; word-break: break-word;",
             icon("info-circle"),
-            paste0(" Variables suggérées à retirer : ",
-                   paste(suggest_remove, collapse = ", "),
-                   ". Vous pouvez aussi les désélectionner manuellement ci-dessus.")
+            tags$b(" Variables suggérées à retirer : "),
+            tags$span(paste(suggest_remove, collapse = ", ")),
+            tags$br(),
+            tags$span(style = "font-style: italic;",
+                      "Vous pouvez aussi les désélectionner manuellement ci-dessus.")
           )
         }
       )
@@ -13327,19 +13647,52 @@ server <- function(input, output, session) {
     use_round <- !is.null(input$pcaRoundResults) && input$pcaRoundResults
     dec <- if (use_round && !is.null(input$pcaDecimals)) input$pcaDecimals else 4
     
+    # Affiche un tableau numerique avec EXACTEMENT 'dec' decimales pour
+    # chaque valeur (alignement homogene, aucune troncature).
+    print_fixed <- function(m, digits) {
+      m <- as.matrix(m)
+      out <- format(round(m, digits), nsmall = digits, scientific = FALSE,
+                    trim = FALSE)
+      dimnames(out) <- dimnames(m)
+      print(noquote(out))
+    }
+    
     cat("=== ANALYSE EN COMPOSANTES PRINCIPALES (ACP) ===\n\n")
     
     eigenvals <- get_eigenvalue(res.pca)
     cat("Variance expliquee par les composantes principales:\n")
-    print(round(eigenvals, dec))
+    print_fixed(eigenvals, dec)
     cat("\n")
     
     cat("Contribution des variables aux composantes principales:\n")
-    print(round(res.pca$var$contrib, dec))
+    print_fixed(res.pca$var$contrib, dec)
+    cat("\n")
+    
+    cat("Indice de saturation (correlation variables-axes):\n")
+    cat("------------------------------------------------------------\n")
+    cat("Correlation de chaque variable avec chaque axe principal.\n")
+    cat("Seuils de lecture (en valeur absolue) :\n")
+    cat("  - |saturation| >= 0.70 : variable fortement liee a l'axe\n")
+    cat("  - |saturation| 0.50 a 0.70 : liaison moderee\n")
+    cat("  - |saturation| < 0.50 : liaison faible\n")
+    cat("------------------------------------------------------------\n\n")
+    saturations <- res.pca$var$coord
+    print_fixed(saturations, dec)
+    cat("\n")
+    
+    # Variable la mieux corrélée a chacun des deux premiers axes
+    n_axes <- min(2, ncol(saturations))
+    for (ax in seq_len(n_axes)) {
+      sat_ax <- saturations[, ax]
+      best   <- names(which.max(abs(sat_ax)))
+      cat(sprintf("  Axe %d : variable la plus saturante = %s (saturation = %s)\n",
+                  ax, best,
+                  format(round(sat_ax[best], dec), nsmall = dec, scientific = FALSE)))
+    }
     cat("\n")
     
     cat("Qualite de representation (cos2) des variables:\n")
-    print(round(res.pca$var$cos2, dec))
+    print_fixed(res.pca$var$cos2, dec)
   })
   
   # ACP - MÉTRIQUES DE VALIDATION SUPPLÉMENTAIRES
@@ -13371,7 +13724,18 @@ server <- function(input, output, session) {
       bartlett <- suppressWarnings(cortest.bartlett(R, n = n))
       chi2_val  <- round(bartlett$chisq, 3)
       df_val    <- bartlett$df
-      p_val     <- round(bartlett$p.value, 4)
+      p_val     <- bartlett$p.value          # valeur brute, non arrondie
+      # Affichage de la p-value : jamais un "0" trompeur pour les tres
+      # petites valeurs ; notation decimale complete ou scientifique.
+      p_display <- if (is.na(p_val)) {
+        "n/d"
+      } else if (p_val == 0 || p_val < 1e-15) {
+        "< 1e-15"
+      } else if (p_val < 1e-4) {
+        format(p_val, scientific = TRUE, digits = 4)
+      } else {
+        format(round(p_val, 6), scientific = FALSE, nsmall = 6)
+      }
       
       # KMO (suppressWarnings évite "FUN(min) Inf" quand corrélations <= 0)
       kmo_res  <- suppressWarnings(KMO(R))
@@ -13392,10 +13756,10 @@ server <- function(input, output, session) {
       }
       
       bartlett_interp <- if (p_val < 0.05) {
-        list(txt = paste0("Significatif (p = ", p_val, ") -- La matrice de corrélation n'est pas une matrice identité : l'ACP est justifiée."), 
+        list(txt = paste0("Significatif (p = ", p_display, ") -- La matrice de corrélation n'est pas une matrice identité : l'ACP est justifiée."), 
              color = "#27ae60", icon = "check-circle")
       } else {
-        list(txt = paste0("Non significatif (p = ", p_val, ") -- Les variables semblent indépendantes. L'ACP n'apportera pas de structure factorielle utile."), 
+        list(txt = paste0("Non significatif (p = ", p_display, ") -- Les variables semblent indépendantes. L'ACP n'apportera pas de structure factorielle utile."), 
              color = "#dc3545", icon = "times-circle")
       }
       
@@ -13414,7 +13778,7 @@ server <- function(input, output, session) {
                             h4(style = "margin: 4px 0; color: #2c3e50; font-weight: bold;", df_val))),
               column(4, div(style = "text-align: center; background: white; border-radius: 6px; padding: 10px; border: 1px solid #dee2e6;",
                             p(style = "margin: 0; font-size: 11px; color: #888; text-transform: uppercase;", "p-value"),
-                            h4(style = paste0("margin: 4px 0; font-weight: bold; color: ", bartlett_interp$color, ";"), p_val)))
+                            h4(style = paste0("margin: 4px 0; font-weight: bold; color: ", bartlett_interp$color, ";"), p_display)))
             ),
             div(style = paste0("margin-top: 10px; padding: 8px 12px; border-left: 4px solid ", bartlett_interp$color, "; background-color: white; border-radius: 0 4px 4px 0;"),
                 p(style = paste0("margin: 0; font-size: 12px; color: ", bartlett_interp$color, ";"),
@@ -13502,14 +13866,23 @@ server <- function(input, output, session) {
     p <- ncol(pca_data_raw)
     n_iter <- 100
     
-    eig_mat      <- res.pca$eig
+    eig_mat       <- res.pca$eig
     eigenvals_obs <- as.numeric(eig_mat[, 1])
     
-    sim_eigenvals <- matrix(0, nrow = n_iter, ncol = p)
+    # FactoMineR peut renvoyer moins (ncp) ou un nombre de valeurs propres
+    # different de p (colonnes a variance nulle, etc.). On aligne tout sur
+    # le nombre commun de composantes pour eviter tout decalage de longueur.
+    n_pc <- min(length(eigenvals_obs), p)
+    if (n_pc < 2)
+      stop("Nombre de composantes insuffisant pour l'analyse parallèle (minimum 2).")
+    eigenvals_obs <- eigenvals_obs[seq_len(n_pc)]
+    
+    sim_eigenvals <- matrix(0, nrow = n_iter, ncol = n_pc)
     for (i in 1:n_iter) {
       random_data <- matrix(rnorm(n * p), nrow = n, ncol = p)
       random_pca  <- prcomp(random_data, scale. = TRUE)
-      sim_eigenvals[i, ] <- random_pca$sdev^2
+      ev <- random_pca$sdev^2
+      sim_eigenvals[i, ] <- ev[seq_len(n_pc)]
     }
     
     mean_sim   <- colMeans(sim_eigenvals)
@@ -13517,8 +13890,8 @@ server <- function(input, output, session) {
     n_retain   <- sum(eigenvals_obs > perc95_sim)
     
     df_plot <- data.frame(
-      PC           = 1:p,
-      Observees    = eigenvals_obs,
+      PC            = seq_len(n_pc),
+      Observees     = eigenvals_obs,
       Aleatoire_moy = mean_sim,
       Aleatoire_p95 = perc95_sim
     )
@@ -13534,7 +13907,7 @@ server <- function(input, output, session) {
         "Simulation al\u00e9atoire (p95)"  = "#e74c3c",
         "Simulation al\u00e9atoire (moy)"  = "#f39c12"
       ), name = NULL) +
-      scale_x_continuous(breaks = 1:p) +
+      scale_x_continuous(breaks = seq_len(n_pc)) +
       labs(
         title    = "Analyse parall\u00e8le de Horn",
         subtitle = paste0(n_retain, " composante(s) \u00e0 retenir (valeurs observ\u00e9es > percentile 95 des simulations, ",
@@ -13948,7 +14321,7 @@ server <- function(input, output, session) {
       df_bartlett_kmo <- data.frame(
         Test                     = c("Bartlett Chi2", "Bartlett df", "Bartlett p-value", "KMO MSA"),
         Valeur                   = c(round(bartlett$chisq, 3), bartlett$df,
-                                     round(bartlett$p.value, 4), round(kmo_res$MSA, 3)),
+                                     signif(bartlett$p.value, 6), round(kmo_res$MSA, 3)),
         Interpretation           = c(
           ifelse(bartlett$p.value < 0.05, "Significatif -- ACP justifiée", "Non significatif -- ACP non justifiée"),
           "",
@@ -16761,6 +17134,1795 @@ server <- function(input, output, session) {
       options = list(`actions-box` = TRUE)
     )
   })
+  # ============================================================================
+  # ---- Analyses multivariees etendues (quanti / quali / mixtes) ----
+  # ============================================================================
+  
+  # -- Packages optionnels (installation differee) --
+  local({
+    opt <- c("lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet")
+    inst <- tryCatch(rownames(installed.packages()), error = function(e) character(0))
+    miss <- opt[!opt %in% inst]
+    if (length(miss) > 0)
+      try(install.packages(miss, repos = "https://cran.r-project.org", quiet = TRUE),
+          silent = TRUE)
+  })
+  mv_has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
+  
+  # -- Stockage des resultats --
+  mv_res <- reactiveValues()
+  
+  # -- Helpers donnees --
+  mv_data <- reactive(values$filteredData)
+  mv_num_cols <- reactive({
+    d <- mv_data(); if (is.null(d)) return(character(0))
+    names(d)[sapply(d, is.numeric)]
+  })
+  mv_cat_cols <- reactive({
+    d <- mv_data(); if (is.null(d)) return(character(0))
+    names(d)[sapply(d, function(x) is.factor(x) || is.character(x) || is.logical(x))]
+  })
+  mv_subsample <- function(df, cap = 5000) {
+    if (nrow(df) <= cap) return(df)
+    df[sort(sample(seq_len(nrow(df)), cap)), , drop = FALSE]
+  }
+  
+  # -- Couleurs / icones d'etat --
+  mv_col <- function(st) switch(st,
+                                ok = "#27ae60", warn = "#f39c12", err = "#e74c3c", info = "#2980b9", "#7f8c8d")
+  mv_ic <- function(st) switch(st,
+                               ok = "check-circle", warn = "exclamation-triangle", err = "times-circle",
+                               info = "info-circle", "circle")
+  
+  # -- Carte stylisee (style ACP/AFD) --
+  mv_card <- function(..., border_color = "#dee2e6", bg = "white") {
+    div(style = paste0("background:", bg, "; border-radius:8px; padding:16px; margin-bottom:14px;",
+                       " border:1px solid ", border_color, "; box-shadow:0 1px 4px rgba(0,0,0,.06);"),
+        ...)
+  }
+  mv_section_header <- function(label, color = "#3a6186", icon_name = "chart-bar") {
+    div(style = paste0("background:linear-gradient(135deg,", color, " 0%,", color,
+                       "cc 100%); border-radius:6px; padding:11px 16px; margin-bottom:12px;"),
+        h5(style = "color:white; margin:0; font-weight:bold; font-size:15px;",
+           icon(icon_name), paste0("  ", label)))
+  }
+  mv_info_note <- function(text) {
+    p(style = "font-size:13px; color:#5a6a7a; font-style:italic; margin:6px 0 10px 0;", text)
+  }
+  mv_interp_bar <- function(text, color) {
+    div(style = paste0("margin-top:8px; padding:8px 14px; border-left:4px solid ", color,
+                       "; background:#f4f6f8; border-radius:0 4px 4px 0;"),
+        p(style = "margin:0; font-size:13px; color:#2c3e50; font-weight:500;",
+          icon("info-circle"), " ", text))
+  }
+  
+  # -- Tableau de metriques structure (Metrique / Valeur / Seuil / Interpretation) --
+  # df : Metrique, Valeur, Seuil, Interpretation, Statut
+  mv_metrics_table <- function(df, accent = "#3a6186") {
+    if (is.null(df) || nrow(df) == 0)
+      return(p(style = "color:#888; font-style:italic;",
+               icon("info-circle"), " Aucune metrique disponible."))
+    rows <- lapply(seq_len(nrow(df)), function(i) {
+      st <- df$Statut[i]; bg <- if (i %% 2 == 0) "#f4f6f8" else "white"
+      tags$tr(style = paste0("background:", bg, ";"),
+              tags$td(style = "padding:8px 10px; font-weight:bold; font-size:12px; color:#2c3e50; border-bottom:1px solid #ecf0f1;",
+                      df$Metrique[i]),
+              tags$td(style = "padding:8px 10px; font-family:monospace; font-size:13px; text-align:center; border-bottom:1px solid #ecf0f1;",
+                      df$Valeur[i]),
+              tags$td(style = "padding:8px 10px; font-size:11px; color:#666; border-bottom:1px solid #ecf0f1;",
+                      df$Seuil[i]),
+              tags$td(style = paste0("padding:8px 10px; font-size:12px; font-weight:bold; border-bottom:1px solid #ecf0f1; color:",
+                                     mv_col(st), ";"),
+                      icon(mv_ic(st)), " ", df$Interpretation[i]))
+    })
+    tags$table(style = "width:100%; border-collapse:collapse; margin-top:6px;",
+               tags$thead(tags$tr(style = paste0("background:", accent, "; color:white;"),
+                                  tags$th(style = "padding:8px 10px; text-align:left; font-size:11px; border-radius:4px 0 0 0;", "Metrique"),
+                                  tags$th(style = "padding:8px 10px; text-align:center; font-size:11px;", "Valeur"),
+                                  tags$th(style = "padding:8px 10px; text-align:left; font-size:11px;", "Seuil de reference"),
+                                  tags$th(style = "padding:8px 10px; text-align:left; font-size:11px; border-radius:0 4px 0 0;", "Interpretation"))),
+               tags$tbody(rows))
+  }
+  
+  # -- Tableau generique (data.frame -> table HTML compacte) --
+  mv_data_table <- function(df, accent = "#3a6186", digits = 3) {
+    if (is.null(df) || nrow(df) == 0) return(NULL)
+    nums <- sapply(df, is.numeric)
+    df2 <- df
+    df2[nums] <- lapply(df2[nums], function(x) round(x, digits))
+    rows <- lapply(seq_len(nrow(df2)), function(i) {
+      bg <- if (i %% 2 == 0) "#f4f6f8" else "white"
+      tags$tr(style = paste0("background:", bg, ";"),
+              lapply(seq_len(ncol(df2)), function(j)
+                tags$td(style = "padding:6px 10px; font-size:12px; text-align:center; border-bottom:1px solid #ecf0f1;",
+                        as.character(df2[i, j]))))
+    })
+    tags$table(style = "width:100%; border-collapse:collapse; margin-top:6px;",
+               tags$thead(tags$tr(style = paste0("background:", accent, "; color:white;"),
+                                  lapply(names(df2), function(nm)
+                                    tags$th(style = "padding:7px 10px; text-align:center; font-size:11px;", nm)))),
+               tags$tbody(rows))
+  }
+  
+  # -- Message de statut --
+  mv_status_box <- function(type, text) {
+    col <- mv_col(if (type == "err") "err" else if (type == "warn") "warn" else "info")
+    bg  <- if (type == "err") "#fdf0ef" else if (type == "warn") "#fef9ec" else "#eaf2f8"
+    div(style = paste0("border-left:4px solid ", col, "; background:", bg,
+                       "; padding:10px 14px; margin:8px 0; border-radius:0 4px 4px 0;"),
+        p(style = paste0("margin:0; color:", col, "; font-size:13px; font-weight:bold;"),
+          icon(mv_ic(if (type == "err") "err" else if (type == "warn") "warn" else "info")),
+          " ", text))
+  }
+  
+  # -- Badge de condition --
+  mv_badge <- function(st, label) {
+    div(style = paste0("display:inline-block; background:", mv_col(st),
+                       "; color:white; border-radius:4px; padding:2px 8px;",
+                       " font-size:11px; margin:2px;"),
+        icon(mv_ic(st)), " ", label)
+  }
+  mv_cond_render <- function(title, badges, msgs, level) {
+    border <- mv_col(level); bg <- switch(level, ok = "#eafaf1", warn = "#fef9ec", "#fdf0ef")
+    tagList(
+      hr(style = "margin:8px 0;"),
+      div(style = paste0("border:2px solid ", border,
+                         "; border-radius:6px; padding:8px 12px; background:", bg, ";"),
+          div(style = "margin-bottom:6px;",
+              tags$b(style = "font-size:12px; color:#2c3e50;", icon("clipboard-check"), " ", title),
+              tags$br(), badges),
+          if (length(msgs) > 0)
+            tagList(lapply(msgs, function(m)
+              p(style = "margin:3px 0; font-size:11px; color:#555;", m)),
+              if (level == "err")
+                div(style = "margin-top:6px; padding:5px 10px; background:rgba(231,76,60,0.1); border-radius:4px;",
+                    p(style = "margin:0; font-size:11px; color:#c0392b; font-weight:bold;",
+                      icon("exclamation-triangle"),
+                      " Conditions non remplies -- resultats a interpreter avec prudence."))))
+    )
+  }
+  
+  # -- Constructeur de ligne de metrique --
+  mv_row <- function(metrique, valeur, seuil, interpretation, statut)
+    data.frame(Metrique = metrique, Valeur = as.character(valeur),
+               Seuil = seuil, Interpretation = interpretation,
+               Statut = statut, stringsAsFactors = FALSE)
+  
+  # -- Theme ggplot2 commun (style ACP/HCPC/AFD) --
+  mv_gg_theme <- function() {
+    theme_minimal(base_size = 12) +
+      theme(
+        plot.title    = element_text(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
+        plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 11),
+        legend.position = "bottom",
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 0, hjust = 0.5)
+      )
+  }
+  mv_empty_plot <- function(msg = "Lancez l'analyse pour afficher le graphique.") {
+    ggplot() + annotate("text", x = 0, y = 0, label = msg, size = 5, color = "#888") +
+      theme_void()
+  }
+  
+  
+  # -- Enregistrement generique des sorties --
+  mv_register <- function(key, accent = "#3a6186") {
+    output[[paste0("mv_", key, "_status")]] <- renderUI({
+      r <- mv_res[[key]]
+      if (is.null(r)) return(mv_status_box("info",
+                                           "Configurez les parametres puis cliquez sur 'Lancer l'analyse'."))
+      if (isFALSE(r$ok)) return(mv_status_box("err", r$error))
+      mv_status_box("info", if (!is.null(r$note)) r$note else "Analyse realisee avec succes.")
+    })
+    output[[paste0("mv_", key, "_metrics")]] <- renderUI({
+      r <- mv_res[[key]]
+      if (is.null(r))
+        return(p(style = "color:#888; font-style:italic; padding:20px; text-align:center;",
+                 icon("hourglass-half"), " En attente du lancement de l'analyse."))
+      if (isFALSE(r$ok)) return(mv_status_box("err", r$error))
+      r$render
+    })
+    output[[paste0("mv_", key, "_plot")]] <- renderPlot({
+      r <- mv_res[[key]]
+      if (is.null(r) || isFALSE(r$ok) || is.null(r$plotfn)) return(mv_empty_plot())
+      r$plotfn()
+    })
+    output[[paste0("mv_", key, "_summary")]] <- renderPrint({
+      r <- mv_res[[key]]
+      if (is.null(r)) { cat("En attente du lancement de l'analyse.\n"); return(invisible()) }
+      if (isFALSE(r$ok)) { cat("Erreur :", r$error, "\n"); return(invisible()) }
+      cat(paste(r$summary, collapse = "\n"), "\n")
+    })
+    output[[paste0("mv_", key, "_dl_xlsx")]] <- downloadHandler(
+      filename = function() paste0("HStat_", key, "_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
+      content = function(file) {
+        r <- mv_res[[key]]
+        wb <- openxlsx::createWorkbook()
+        exps <- if (!is.null(r) && !is.null(r$exports)) r$exports else
+          list(Info = data.frame(Message = "Aucun resultat disponible"))
+        for (nm in names(exps)) {
+          sh <- substr(gsub("[^A-Za-z0-9_]", "_", nm), 1, 31)
+          openxlsx::addWorksheet(wb, sh)
+          openxlsx::writeData(wb, sh, exps[[nm]])
+        }
+        openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+      })
+    output[[paste0("mv_", key, "_dl_csv")]] <- downloadHandler(
+      filename = function() paste0("HStat_", key, "_", format(Sys.Date(), "%Y%m%d"), ".csv"),
+      content = function(file) {
+        r <- mv_res[[key]]
+        d <- if (!is.null(r) && !is.null(r$metrics)) r$metrics else
+          data.frame(Message = "Aucun resultat disponible")
+        utils::write.csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
+      })
+  }
+  for (k in c("kmeans","efa","cfa","pls","regmult","afc","mca",
+              "kmodes","lca","logit","famd","mfa","kproto"))
+    mv_register(k)
+  
+  # ============================ CONTROLES =====================================
+  mv_pick_num <- function(id, label, multiple = TRUE, selected = NULL) {
+    nc <- mv_num_cols()
+    pickerInput(id, label, choices = nc, multiple = multiple,
+                selected = if (is.null(selected)) (if (multiple) nc else nc[1]) else selected,
+                options = list(`actions-box` = TRUE, `live-search` = TRUE))
+  }
+  mv_pick_cat <- function(id, label, multiple = TRUE, selected = NULL) {
+    cc <- mv_cat_cols()
+    pickerInput(id, label, choices = cc, multiple = multiple,
+                selected = if (is.null(selected)) (if (multiple) cc else cc[1]) else selected,
+                options = list(`actions-box` = TRUE, `live-search` = TRUE))
+  }
+  mv_opt_box <- function(...) div(
+    style = "background:#f8f9fa; border-left:4px solid #6c757d; padding:10px; margin:8px 0;", ...)
+  
+  output$mv_kmeans_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("chart-line"), " Variables numeriques"),
+                 mv_pick_num("mv_kmeans_vars", "Variables a partitionner :")),
+      fluidRow(
+        column(4, numericInput("mv_kmeans_k", tagList(icon("object-group"), " Nombre de clusters k :"),
+                               value = 3, min = 2, max = 15)),
+        column(4, numericInput("mv_kmeans_nstart", tagList(icon("redo"), " Initialisations :"),
+                               value = 25, min = 1, max = 100)),
+        column(4, div(style = "margin-top:25px;",
+                      checkboxInput("mv_kmeans_scale", tagList(icon("balance-scale"), " Standardiser"), TRUE)))))
+  })
+  
+  output$mv_efa_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("chart-line"), " Variables numeriques"),
+                 mv_pick_num("mv_efa_vars", "Variables observees :")),
+      fluidRow(
+        column(4, numericInput("mv_efa_nf", tagList(icon("hashtag"), " Nombre de facteurs :"),
+                               value = 2, min = 1, max = 15)),
+        column(4, selectInput("mv_efa_rot", tagList(icon("sync-alt"), " Rotation :"),
+                              choices = c("Varimax (orthogonale)" = "varimax",
+                                          "Oblimin (oblique)" = "oblimin",
+                                          "Promax (oblique)" = "promax",
+                                          "Aucune" = "none"), selected = "varimax")),
+        column(4, selectInput("mv_efa_fm", tagList(icon("cogs"), " Extraction :"),
+                              choices = c("Maximum de vraisemblance" = "ml",
+                                          "Axes principaux" = "pa",
+                                          "Moindres carres" = "minres"), selected = "ml"))))
+  })
+  
+  output$mv_cfa_controls <- renderUI({
+    req(mv_data())
+    nc <- mv_num_cols()
+    ex <- if (length(nc) >= 4)
+      paste0("F1 =~ ", paste(nc[1:2], collapse = " + "), "\n",
+             "F2 =~ ", paste(nc[3:min(4,length(nc))], collapse = " + "))
+    else "F1 =~ var1 + var2 + var3"
+    tagList(
+      mv_opt_box(
+        h5(icon("project-diagram"), " Modele de mesure (syntaxe lavaan)"),
+        p(style = "font-size:11px; color:#555;",
+          "Un facteur par ligne. Exemple : ", tags$code("F1 =~ x1 + x2 + x3")),
+        textAreaInput("mv_cfa_model", NULL, value = ex, rows = 5, width = "100%"),
+        p(style = "font-size:11px; color:#888;", icon("lightbulb"),
+          " Variables numeriques disponibles : ", paste(nc, collapse = ", "))),
+      selectInput("mv_cfa_est", tagList(icon("cogs"), " Estimateur :"),
+                  choices = c("ML (max. vraisemblance)" = "ML", "MLR (robuste)" = "MLR"),
+                  selected = "MLR"))
+  })
+  
+  output$mv_pls_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(
+        h5(icon("bullseye"), " Variable reponse Y"),
+        selectInput("mv_pls_y", "Reponse a predire :", choices = names(mv_data())),
+        p(style = "font-size:11px; color:#555;",
+          "Y numerique => PLS | Y categorielle => PLS-DA (detection automatique)")),
+      mv_opt_box(h5(icon("chart-line"), " Predicteurs X"),
+                 mv_pick_num("mv_pls_x", "Predicteurs numeriques :")),
+      fluidRow(
+        column(6, numericInput("mv_pls_ncomp", tagList(icon("hashtag"), " Composantes :"),
+                               value = 3, min = 1, max = 15)),
+        column(6, div(style = "margin-top:25px;",
+                      checkboxInput("mv_pls_cv", tagList(icon("redo"), " Validation croisee"), TRUE)))))
+  })
+  
+  output$mv_regmult_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("bullseye"), " Variable reponse Y (numerique)"),
+                 selectInput("mv_regmult_y", "Reponse a expliquer :", choices = mv_num_cols())),
+      mv_opt_box(h5(icon("chart-line"), " Predicteurs X"),
+                 pickerInput("mv_regmult_x", "Predicteurs :", choices = names(mv_data()),
+                             multiple = TRUE,
+                             options = list(`actions-box` = TRUE, `live-search` = TRUE))))
+  })
+  
+  output$mv_afc_controls <- renderUI({
+    req(mv_data())
+    cc <- mv_cat_cols()
+    tagList(
+      mv_opt_box(h5(icon("shapes"), " Deux variables qualitatives"),
+                 fluidRow(
+                   column(6, selectInput("mv_afc_row", tagList(icon("grip-lines"), " Variable-ligne :"),
+                                         choices = cc)),
+                   column(6, selectInput("mv_afc_col", tagList(icon("grip-lines-vertical"), " Variable-colonne :"),
+                                         choices = cc, selected = if (length(cc) > 1) cc[2] else cc[1])))))
+  })
+  
+  output$mv_mca_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("shapes"), " Variables qualitatives"),
+                 mv_pick_cat("mv_mca_vars", "Variables a analyser :")),
+      numericInput("mv_mca_ncp", tagList(icon("hashtag"), " Dimensions a retenir :"),
+                   value = 5, min = 2, max = 15))
+  })
+  
+  output$mv_kmodes_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("shapes"), " Variables qualitatives"),
+                 mv_pick_cat("mv_kmodes_vars", "Variables a partitionner :")),
+      fluidRow(
+        column(6, numericInput("mv_kmodes_k", tagList(icon("object-group"), " Nombre de clusters k :"),
+                               value = 3, min = 2, max = 15)),
+        column(6, numericInput("mv_kmodes_iter", tagList(icon("redo"), " Iterations max :"),
+                               value = 20, min = 5, max = 100))))
+  })
+  
+  output$mv_lca_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("shapes"), " Variables qualitatives (indicateurs)"),
+                 mv_pick_cat("mv_lca_vars", "Indicateurs categoriels :")),
+      fluidRow(
+        column(6, numericInput("mv_lca_nclass", tagList(icon("object-group"), " Nombre de classes :"),
+                               value = 2, min = 2, max = 10)),
+        column(6, numericInput("mv_lca_rep", tagList(icon("redo"), " Repetitions EM :"),
+                               value = 5, min = 1, max = 30))))
+  })
+  
+  output$mv_logit_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("bullseye"), " Variable reponse Y (categorielle)"),
+                 selectInput("mv_logit_y", "Reponse a predire :", choices = mv_cat_cols()),
+                 p(style = "font-size:11px; color:#555;",
+                   "2 modalites => logistique binaire | >2 => logistique multinomiale")),
+      mv_opt_box(h5(icon("chart-line"), " Predicteurs X"),
+                 pickerInput("mv_logit_x", "Predicteurs :", choices = names(mv_data()),
+                             multiple = TRUE,
+                             options = list(`actions-box` = TRUE, `live-search` = TRUE))))
+  })
+  
+  output$mv_famd_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("layer-group"), " Variables mixtes (quanti + quali)"),
+                 pickerInput("mv_famd_vars", "Variables a analyser :",
+                             choices = names(mv_data()), multiple = TRUE,
+                             selected = names(mv_data()),
+                             options = list(`actions-box` = TRUE, `live-search` = TRUE))),
+      numericInput("mv_famd_ncp", tagList(icon("hashtag"), " Dimensions a retenir :"),
+                   value = 5, min = 2, max = 15))
+  })
+  
+  output$mv_mfa_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("ruler-combined"), " Bloc QUANTITATIF"),
+                 mv_pick_num("mv_mfa_quanti", "Variables numeriques :")),
+      mv_opt_box(h5(icon("shapes"), " Bloc QUALITATIF"),
+                 mv_pick_cat("mv_mfa_quali", "Variables qualitatives :")),
+      numericInput("mv_mfa_ncp", tagList(icon("hashtag"), " Dimensions a retenir :"),
+                   value = 5, min = 2, max = 15))
+  })
+  
+  output$mv_kproto_controls <- renderUI({
+    req(mv_data())
+    tagList(
+      mv_opt_box(h5(icon("layer-group"), " Variables mixtes (quanti + quali)"),
+                 pickerInput("mv_kproto_vars", "Variables a partitionner :",
+                             choices = names(mv_data()), multiple = TRUE,
+                             selected = names(mv_data()),
+                             options = list(`actions-box` = TRUE, `live-search` = TRUE))),
+      fluidRow(
+        column(6, numericInput("mv_kproto_k", tagList(icon("object-group"), " Nombre de clusters k :"),
+                               value = 3, min = 2, max = 15)),
+        column(6, numericInput("mv_kproto_iter", tagList(icon("redo"), " Iterations max :"),
+                               value = 20, min = 5, max = 100))))
+  })
+  
+  # ====================== VERIFICATION DES CONDITIONS =========================
+  output$mv_kmeans_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); k <- input$mv_kmeans_k %||% 3
+    p <- length(input$mv_kmeans_vars %||% character(0))
+    n_st <- if (n >= 10*k) "ok" else if (n >= 2*k) "warn" else "err"
+    p_st <- if (p >= 3) "ok" else if (p >= 2) "warn" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif critique : n=", n, " < 2k=", 2*k, "."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (recommande 10k=", 10*k, ")."))
+    if (p_st == "err") msgs <- c(msgs, "Selectionnez au moins 2 variables numeriques.")
+    lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- k-means",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " var.")),
+                            .mv_badge("info", paste0("k = ", k))), msgs, lvl)
+  })
+  
+  # ---- AFE -----------------------------------------------------------------
+  output$mv_efa_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_efa_vars %||% character(0))
+    n_st <- if (n >= 200) "ok" else if (n >= 100 || n >= 5*p) "warn" else "err"
+    p_st <- if (p >= 3) "ok" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 100, ideal 200)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (ideal n>=200, >=10 ind./var.)."))
+    if (p_st == "err") msgs <- c(msgs, "L'AFE requiert au moins 3 variables observees.")
+    lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- AFE",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " var.")),
+                            .mv_badge("info", "KMO & Bartlett verifies au lancement")), msgs, lvl)
+  })
+  
+  # ---- AFC confirmatoire ---------------------------------------------------
+  output$mv_cfa_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data())
+    n_st <- if (n >= 200) "ok" else if (n >= 100) "warn" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 100, recommande 200)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (recommande n>=200)."))
+    if (!mv_has("lavaan")) msgs <- c(msgs, "Package 'lavaan' indisponible -- installation requise.")
+    lvl <- if (n_st == "err" || !mv_has("lavaan")) "err" else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- AFC confirmatoire",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(if (mv_has("lavaan")) "ok" else "err", "lavaan")), msgs, lvl)
+  })
+  
+  # ---- PLS -----------------------------------------------------------------
+  output$mv_pls_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_pls_x %||% character(0))
+    n_st <- if (n >= 20) "ok" else "warn"
+    p_st <- if (p >= 2) "ok" else "err"
+    msgs <- list()
+    if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (PLS reste valide mais validation croisee conseillee)."))
+    if (p_st == "err") msgs <- c(msgs, "Selectionnez au moins 2 predicteurs numeriques.")
+    if (!mv_has("pls")) msgs <- c(msgs, "Package 'pls' indisponible -- installation requise.")
+    lvl <- if (p_st == "err" || !mv_has("pls")) "err" else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- PLS / PLS-DA",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " predicteurs")),
+                            .mv_badge(if (mv_has("pls")) "ok" else "err", "pls")), msgs, lvl)
+  })
+  
+  # ---- Regression lineaire multiple ----------------------------------------
+  output$mv_regmult_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_regmult_x %||% character(0))
+    ratio <- if (p > 0) n / p else NA
+    n_st <- if (!is.na(ratio) && ratio >= 15) "ok" else if (!is.na(ratio) && ratio >= 10) "warn" else "err"
+    p_st <- if (p >= 1) "ok" else "err"
+    msgs <- list()
+    if (p_st == "err") msgs <- c(msgs, "Selectionnez au moins 1 predicteur.")
+    else if (n_st == "err") msgs <- c(msgs, paste0("Ratio n/p faible : ", round(ratio,1), " (recommande >=10, ideal >=20)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Ratio n/p modere : ", round(ratio,1), " (ideal >=20)."))
+    lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- Regression lineaire multiple",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " predicteurs")),
+                            .mv_badge(n_st, paste0("n/p = ", if (is.na(ratio)) "-" else round(ratio,1)))), msgs, lvl)
+  })
+  
+  # ---- AFC (correspondances) ----------------------------------------------
+  output$mv_afc_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data())
+    diff_ok <- !is.null(input$mv_afc_row) && !is.null(input$mv_afc_col) &&
+      input$mv_afc_row != input$mv_afc_col
+    n_st <- if (n >= 50) "ok" else "warn"
+    v_st <- if (diff_ok) "ok" else "err"
+    msgs <- list()
+    if (!diff_ok) msgs <- c(msgs, "Choisissez deux variables qualitatives DIFFERENTES.")
+    if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (recommande >=50, effectifs theoriques >=5)."))
+    lvl <- if (v_st == "err") "err" else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- AFC",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(v_st, "2 variables distinctes")), msgs, lvl)
+  })
+  
+  # ---- ACM -----------------------------------------------------------------
+  output$mv_mca_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_mca_vars %||% character(0))
+    n_st <- if (n >= 100) "ok" else if (n >= 50) "warn" else "err"
+    p_st <- if (p >= 3) "ok" else if (p >= 2) "warn" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 50, recommande 100)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (recommande >=100)."))
+    if (p_st == "err") msgs <- c(msgs, "L'ACM requiert au moins 2 variables qualitatives.")
+    lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- ACM",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " var. quali"))), msgs, lvl)
+  })
+  
+  # ---- k-modes -------------------------------------------------------------
+  output$mv_kmodes_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); k <- input$mv_kmodes_k %||% 3
+    p <- length(input$mv_kmodes_vars %||% character(0))
+    n_st <- if (n >= 10*k) "ok" else if (n >= 2*k) "warn" else "err"
+    p_st <- if (p >= 3) "ok" else if (p >= 2) "warn" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif critique : n=", n, " < 2k=", 2*k, "."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (recommande 10k=", 10*k, ")."))
+    if (p_st == "err") msgs <- c(msgs, "Selectionnez au moins 2 variables qualitatives.")
+    if (!mv_has("klaR")) msgs <- c(msgs, "Package 'klaR' indisponible -- installation requise.")
+    lvl <- if ("err" %in% c(n_st,p_st) || !mv_has("klaR")) "err"
+    else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- k-modes",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " var. quali")),
+                            .mv_badge(if (mv_has("klaR")) "ok" else "err", "klaR")), msgs, lvl)
+  })
+  
+  # ---- LCA -----------------------------------------------------------------
+  output$mv_lca_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_lca_vars %||% character(0))
+    n_st <- if (n >= 300) "ok" else if (n >= 100) "warn" else "err"
+    p_st <- if (p >= 3) "ok" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 100, recommande 300)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (recommande >=300)."))
+    if (p_st == "err") msgs <- c(msgs, "La LCA requiert au moins 3 indicateurs categoriels.")
+    if (!mv_has("poLCA")) msgs <- c(msgs, "Package 'poLCA' indisponible -- installation requise.")
+    lvl <- if (p_st == "err" || n_st == "err" || !mv_has("poLCA")) "err"
+    else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- LCA",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " indicateurs")),
+                            .mv_badge(if (mv_has("poLCA")) "ok" else "err", "poLCA")), msgs, lvl)
+  })
+  
+  # ---- Regression logistique ----------------------------------------------
+  output$mv_logit_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); p <- length(input$mv_logit_x %||% character(0))
+    epp <- if (p > 0) n / (10 * p) else NA  # >=10 evenements par predicteur
+    n_st <- if (!is.na(epp) && epp >= 1) "ok" else if (!is.na(epp) && epp >= 0.5) "warn" else "err"
+    p_st <- if (p >= 1) "ok" else "err"
+    msgs <- list()
+    if (p_st == "err") msgs <- c(msgs, "Selectionnez au moins 1 predicteur.")
+    else if (n_st == "err") msgs <- c(msgs, paste0("Effectif faible vs nb predicteurs (regle : >=10 evenements/predicteur)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif limite (regle des 10 evenements/predicteur a surveiller)."))
+    lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
+    .mv_cond_render("Conditions -- Regression logistique",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(p_st, paste0("p = ", p, " predicteurs"))), msgs, lvl)
+  })
+  
+  # ---- AFDM ----------------------------------------------------------------
+  output$mv_famd_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data())
+    sel <- input$mv_famd_vars %||% character(0)
+    d <- mv_data()
+    nq <- sum(sapply(sel, function(v) v %in% names(d) && is.numeric(d[[v]])))
+    nc <- length(sel) - nq
+    n_st <- if (n >= 100) "ok" else if (n >= 50) "warn" else "err"
+    mix_st <- if (nq >= 1 && nc >= 1) "ok" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 50)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (recommande >=100)."))
+    if (mix_st == "err") msgs <- c(msgs, "L'AFDM requiert au moins 1 variable quantitative ET 1 qualitative.")
+    lvl <- if ("err" %in% c(n_st,mix_st)) "err" else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- AFDM",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(mix_st, paste0(nq, " quanti / ", nc, " quali"))), msgs, lvl)
+  })
+  
+  # ---- AFM -----------------------------------------------------------------
+  output$mv_mfa_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data())
+    nq <- length(input$mv_mfa_quanti %||% character(0))
+    nc <- length(input$mv_mfa_quali %||% character(0))
+    n_st <- if (n >= 100) "ok" else if (n >= 50) "warn" else "err"
+    b_st <- if (nq >= 1 && nc >= 1) "ok" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 50)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modere : n=", n, " (recommande >=100)."))
+    if (b_st == "err") msgs <- c(msgs, "Definissez au moins 1 variable dans chaque bloc (quanti et quali).")
+    lvl <- if ("err" %in% c(n_st,b_st)) "err" else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- AFM",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(b_st, paste0("bloc quanti : ", nq)),
+                            .mv_badge(b_st, paste0("bloc quali : ", nc))), msgs, lvl)
+  })
+  
+  # ---- k-prototypes --------------------------------------------------------
+  output$mv_kproto_conditions <- renderUI({
+    req(mv_data())
+    n <- nrow(mv_data()); k <- input$mv_kproto_k %||% 3
+    sel <- input$mv_kproto_vars %||% character(0)
+    d <- mv_data()
+    nq <- sum(sapply(sel, function(v) v %in% names(d) && is.numeric(d[[v]])))
+    nc <- length(sel) - nq
+    n_st <- if (n >= 10*k) "ok" else if (n >= 2*k) "warn" else "err"
+    mix_st <- if (nq >= 1 && nc >= 1) "ok" else "err"
+    msgs <- list()
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif critique : n=", n, " < 2k=", 2*k, "."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (recommande 10k=", 10*k, ")."))
+    if (mix_st == "err") msgs <- c(msgs, "k-prototypes requiert au moins 1 variable quantitative ET 1 qualitative.")
+    if (!mv_has("clustMixType")) msgs <- c(msgs, "Package 'clustMixType' indisponible -- installation requise.")
+    lvl <- if ("err" %in% c(n_st,mix_st) || !mv_has("clustMixType")) "err"
+    else if (n_st == "warn") "warn" else "ok"
+    .mv_cond_render("Conditions -- k-prototypes",
+                    tagList(.mv_badge(n_st, paste0("n = ", n)),
+                            .mv_badge(mix_st, paste0(nq, " quanti / ", nc, " quali")),
+                            .mv_badge(if (mv_has("clustMixType")) "ok" else "err", "clustMixType")), msgs, lvl)
+  })
+  
+  
+  # ====================== MOTEURS D'ANALYSE (QUANTI) ==========================
+  
+  # ---- k-means -------------------------------------------------------------
+  observeEvent(input$mv_kmeans_run, {
+    mv_res[["kmeans"]] <- local({
+      tryCatch({
+        d <- mv_data(); vars <- input$mv_kmeans_vars
+        if (is.null(vars) || length(vars) < 2)
+          return(list(ok = FALSE, error = "Selectionnez au moins 2 variables numeriques."))
+        k <- input$mv_kmeans_k %||% 3
+        X <- d[, vars, drop = FALSE]; X <- X[stats::complete.cases(X), , drop = FALSE]
+        if (nrow(X) < 2*k)
+          return(list(ok = FALSE, error = "Effectif insuffisant apres suppression des valeurs manquantes."))
+        Xs <- if (isTRUE(input$mv_kmeans_scale)) scale(X) else as.matrix(X)
+        Xc <- mv_subsample(as.data.frame(Xs), 8000)
+        km <- stats::kmeans(Xc, centers = k, nstart = input$mv_kmeans_nstart %||% 25, iter.max = 50)
+        bss <- km$betweenss / km$totss
+        sil <- NA
+        if (mv_has("cluster") && nrow(Xc) <= 5000)
+          sil <- mean(cluster::silhouette(km$cluster, dist(Xc))[, 3])
+        ch <- (km$betweenss/(k-1)) / (km$tot.withinss/(nrow(Xc)-k))
+        st_bss <- if (bss >= .5) "ok" else if (bss >= .3) "warn" else "err"
+        st_sil <- if (is.na(sil)) "info" else if (sil >= .5) "ok" else if (sil >= .25) "warn" else "err"
+        st_bal <- if (min(km$size) >= .05*nrow(Xc)) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Inertie inter/totale (R2)", paste0(round(100*bss,1)," %"),
+                 ">= 50 % nette ; 30-50 % moderee ; < 30 % faible",
+                 if (st_bss=="ok") "Partition nette" else if (st_bss=="warn") "Partition moderee" else "Partition peu separee",
+                 st_bss),
+          mv_row("Silhouette moyenne", if (is.na(sil)) "n/d" else round(sil,3),
+                 "> 0,50 forte ; 0,25-0,50 raisonnable ; < 0,25 faible",
+                 if (st_sil=="ok") "Structure forte" else if (st_sil=="warn") "Structure raisonnable"
+                 else if (st_sil=="err") "Structure faible" else "Non calculee (n>5000)",
+                 st_sil),
+          mv_row("Calinski-Harabasz", round(ch,1),
+                 "Plus eleve = meilleure separation (comparatif)",
+                 "A maximiser entre solutions k", "info"),
+          mv_row("Equilibre des clusters", paste(km$size, collapse=" / "),
+                 "Eviter clusters vides ou tres minoritaires",
+                 if (st_bal=="ok") "Repartition acceptable" else "Cluster tres minoritaire",
+                 st_bal))
+        pc <- stats::prcomp(Xc)
+        coord <- as.data.frame(pc$x[, 1:2]); names(coord) <- c("Dim1","Dim2")
+        coord$Cluster <- factor(km$cluster)
+        cen <- as.data.frame(stats::predict(pc, km$centers)[, 1:2]); names(cen) <- c("Dim1","Dim2")
+        cen$Cluster <- factor(seq_len(k))
+        var_pc <- round(100*pc$sdev^2/sum(pc$sdev^2), 1)
+        render <- tagList(
+          mv_card(border_color = "#4a7fa5",
+                  mv_section_header("Qualite de la partition", "#4a7fa5", "object-group"),
+                  mv_info_note("Chaque metrique de separation des clusters est confrontee a son seuil de reference."),
+                  mv_metrics_table(metrics, "#4a7fa5"),
+                  mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(Xc),
+                                       " individus. Inertie inter-classes = ", round(100*bss,1), " %."),
+                                mv_col(st_bss))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Centres des clusters (variables d'origine)", "#6c757d", "crosshairs"),
+                  mv_data_table(data.frame(Cluster = seq_len(k), round(km$centers,3),
+                                           check.names = FALSE), "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("k-means : ", k, " clusters sur ", nrow(Xc), " individus."),
+             summary = c("=== Classification k-means ===",
+                         paste0("Variables : ", paste(vars, collapse=", ")),
+                         paste0("k = ", k, " | nstart = ", input$mv_kmeans_nstart),
+                         paste0("Inertie inter/totale = ", round(100*bss,2), " %"),
+                         "", "Centres :", paste(utils::capture.output(round(km$centers,3)), collapse="\n")),
+             plotfn = function() {
+               ggplot(coord, aes(Dim1, Dim2, color = Cluster)) +
+                 geom_point(size = 2.4, alpha = .75) +
+                 geom_point(data = cen, aes(Dim1, Dim2, fill = Cluster),
+                            shape = 23, size = 5, color = "black", stroke = 1.1, show.legend = FALSE) +
+                 labs(title = "Classification k-means -- projection ACP",
+                      subtitle = paste0(k, " clusters | inertie inter = ", round(100*bss,1), " %"),
+                      x = paste0("Dim 1 (", var_pc[1], " %)"),
+                      y = paste0("Dim 2 (", var_pc[2], " %)"),
+                      caption = "Les losanges noirs marquent les centres de cluster.") +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics,
+                            Centres = data.frame(Cluster = seq_len(k), round(km$centers,4), check.names = FALSE),
+                            Effectifs = data.frame(Cluster = seq_len(k), Effectif = km$size)))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- AFE -----------------------------------------------------------------
+  observeEvent(input$mv_efa_run, {
+    mv_res[["efa"]] <- local({
+      tryCatch({
+        d <- mv_data(); vars <- input$mv_efa_vars
+        if (is.null(vars) || length(vars) < 3)
+          return(list(ok = FALSE, error = "Selectionnez au moins 3 variables."))
+        X <- d[, vars, drop = FALSE]; X <- X[stats::complete.cases(X), , drop = FALSE]
+        nf <- input$mv_efa_nf %||% 2
+        if (nrow(X) < 3*ncol(X))
+          return(list(ok = FALSE, error = "Effectif trop faible pour une AFE fiable."))
+        R <- stats::cor(X)
+        kmo <- psych::KMO(R)$MSA
+        bart <- psych::cortest.bartlett(R, n = nrow(X))
+        fa <- psych::fa(X, nfactors = nf, rotate = input$mv_efa_rot %||% "varimax",
+                        fm = input$mv_efa_fm %||% "ml")
+        load <- unclass(fa$loadings)
+        var_exp <- sum(fa$Vaccounted["Proportion Var", ])
+        comm <- fa$communality
+        n_low <- sum(comm < .40)
+        cross <- sum(apply(abs(load), 1, function(r) sum(r > .30) > 1))
+        st_kmo <- if (kmo >= .80) "ok" else if (kmo >= .60) "warn" else "err"
+        st_bar <- if (bart$p.value < .05) "ok" else "err"
+        st_var <- if (var_exp >= .60) "ok" else if (var_exp >= .50) "warn" else "err"
+        st_com <- if (n_low == 0) "ok" else "warn"
+        st_cro <- if (cross == 0) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Indice KMO", round(kmo,3),
+                 "> 0,80 tres bon ; 0,60-0,80 acceptable ; < 0,60 inadequat",
+                 if (st_kmo=="ok") "Donnees tres adaptees" else if (st_kmo=="warn") "Adequation acceptable" else "Donnees peu factorisables",
+                 st_kmo),
+          mv_row("Test de Bartlett (p)", format.pval(bart$p.value, digits=3),
+                 "p < 0,05 : correlations exploitables",
+                 if (st_bar=="ok") "Factorisation justifiee" else "Matrice proche de l'identite",
+                 st_bar),
+          mv_row("Variance cumulee expliquee", paste0(round(100*var_exp,1)," %"),
+                 ">= 60 % bon ; 50-60 % acceptable ; < 50 % faible",
+                 if (st_var=="ok") "Bonne restitution" else if (st_var=="warn") "Restitution acceptable" else "Restitution insuffisante",
+                 st_var),
+          mv_row("Communautes < 0,40", n_low,
+                 "0 ideal : chaque variable communaute >= 0,40",
+                 if (st_com=="ok") "Variables bien restituees" else paste0(n_low, " variable(s) mal restituee(s)"),
+                 st_com),
+          mv_row("Cross-loadings (|charge|>0,30)", cross,
+                 "0 souhaite : structure simple",
+                 if (st_cro=="ok") "Structure factorielle simple" else paste0(cross, " variable(s) ambigue(s)"),
+                 st_cro))
+        ld <- as.data.frame(load); ld$Variable <- rownames(load)
+        ldl <- stats::reshape(ld, direction = "long",
+                              varying = list(colnames(load)), v.names = "Saturation",
+                              timevar = "Facteur", times = colnames(load), idvar = "Variable")
+        comm_df <- data.frame(Variable = names(comm), Communaute = round(comm,3))
+        render <- tagList(
+          mv_card(border_color = "#1565c0",
+                  mv_section_header("Adequation & qualite factorielle", "#1565c0", "sliders"),
+                  mv_info_note("Verification de la factorisabilite (KMO, Bartlett) et de la qualite de restitution."),
+                  mv_metrics_table(metrics, "#1565c0"),
+                  mv_interp_bar(paste0(nf, " facteurs extraits, rotation ", input$mv_efa_rot,
+                                       ". Variance expliquee = ", round(100*var_exp,1), " %."), mv_col(st_var))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Saturations (loadings)", "#6c757d", "table"),
+                  mv_data_table(data.frame(Variable = rownames(load), round(load,3),
+                                           check.names = FALSE), "#6c757d")),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Communautes", "#6c757d", "percentage"),
+                  mv_data_table(comm_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("AFE : ", nf, " facteurs, rotation ", input$mv_efa_rot, "."),
+             summary = c("=== Analyse Factorielle Exploratoire ===",
+                         paste0("KMO = ", round(kmo,3), " | Bartlett p = ", format.pval(bart$p.value,digits=3)),
+                         "", "Saturations :", paste(utils::capture.output(round(load,3)), collapse="\n"),
+                         "", "Communautes :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
+             plotfn = function() {
+               ggplot(ldl, aes(Facteur, Variable, fill = Saturation)) +
+                 geom_tile(color = "white", linewidth = .6) +
+                 geom_text(aes(label = round(Saturation, 2)), size = 3.4,
+                           color = ifelse(abs(ldl$Saturation) > .5, "white", "#2c3e50")) +
+                 scale_fill_gradient2(low = "#c0392b", mid = "white", high = "#1565c0",
+                                      midpoint = 0, limits = c(-1, 1)) +
+                 labs(title = "AFE -- carte des saturations",
+                      subtitle = paste0(nf, " facteurs | rotation ", input$mv_efa_rot),
+                      x = "Facteur", y = "Variable",
+                      caption = "Saturation |x| > 0,40 = variable bien associee au facteur.") +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics,
+                            Saturations = data.frame(Variable = rownames(load), round(load,4), check.names = FALSE),
+                            Communautes = comm_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- AFC confirmatoire ---------------------------------------------------
+  observeEvent(input$mv_cfa_run, {
+    mv_res[["cfa"]] <- local({
+      tryCatch({
+        if (!mv_has("lavaan"))
+          return(list(ok = FALSE, error = "Package 'lavaan' indisponible."))
+        d <- mv_data(); mdl <- input$mv_cfa_model
+        if (is.null(mdl) || !nzchar(trimws(mdl)))
+          return(list(ok = FALSE, error = "Renseignez la syntaxe du modele de mesure."))
+        fit <- lavaan::cfa(mdl, data = d, estimator = input$mv_cfa_est %||% "MLR",
+                           missing = "fiml")
+        fm <- lavaan::fitMeasures(fit)
+        gv <- function(a,b) if (a %in% names(fm)) fm[[a]] else if (b %in% names(fm)) fm[[b]] else NA
+        cfi <- gv("cfi.robust","cfi"); tli <- gv("tli.robust","tli")
+        rmsea <- gv("rmsea.robust","rmsea"); srmr <- gv("srmr","srmr")
+        chisq <- gv("chisq.scaled","chisq"); df <- gv("df.scaled","df")
+        ratio <- if (!is.na(df) && df > 0) chisq/df else NA
+        st_r <- if (!is.na(ratio) && ratio < 2) "ok" else if (!is.na(ratio) && ratio < 3) "warn" else "err"
+        st_c <- if (cfi >= .95) "ok" else if (cfi >= .90) "warn" else "err"
+        st_t <- if (tli >= .95) "ok" else if (tli >= .90) "warn" else "err"
+        st_m <- if (rmsea < .05) "ok" else if (rmsea < .08) "warn" else "err"
+        st_s <- if (srmr < .08) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Chi2 / ddl", if (is.na(ratio)) "n/d" else round(ratio,2),
+                 "< 2 bon ; < 3 acceptable ; >= 3 mediocre",
+                 if (st_r=="ok") "Tres bon ajustement" else if (st_r=="warn") "Ajustement acceptable" else "Ajustement mediocre",
+                 st_r),
+          mv_row("CFI", round(cfi,3),
+                 "> 0,95 bon ; 0,90-0,95 acceptable ; < 0,90 insuffisant",
+                 if (st_c=="ok") "Bon ajustement" else if (st_c=="warn") "Acceptable" else "Insuffisant", st_c),
+          mv_row("TLI", round(tli,3),
+                 "> 0,95 bon ; 0,90-0,95 acceptable ; < 0,90 insuffisant",
+                 if (st_t=="ok") "Bon ajustement" else if (st_t=="warn") "Acceptable" else "Insuffisant", st_t),
+          mv_row("RMSEA", round(rmsea,3),
+                 "< 0,05 bon ; 0,05-0,08 acceptable ; > 0,10 mediocre",
+                 if (st_m=="ok") "Erreur d'approximation faible" else if (st_m=="warn") "Erreur acceptable" else "Erreur trop elevee",
+                 st_m),
+          mv_row("SRMR", round(srmr,3), "< 0,08 ajustement acceptable",
+                 if (st_s=="ok") "Residus standardises faibles" else "Residus eleves", st_s))
+        std <- lavaan::standardizedSolution(fit)
+        lt <- std[std$op == "=~", c("lhs","rhs","est.std","pvalue")]
+        names(lt) <- c("Facteur","Indicateur","Charge_std","p_value")
+        lt$Lien <- paste(lt$Facteur, lt$Indicateur, sep = " <- ")
+        render <- tagList(
+          mv_card(border_color = "#1565c0",
+                  mv_section_header("Indices d'ajustement du modele", "#1565c0", "check-double"),
+                  mv_info_note("Le modele de mesure pre-specifie est confronte aux seuils d'ajustement usuels."),
+                  mv_metrics_table(metrics, "#1565c0"),
+                  mv_interp_bar(paste0("Estimateur ", input$mv_cfa_est,
+                                       ". CFI = ", round(cfi,3), " | RMSEA = ", round(rmsea,3), "."),
+                                mv_col(st_c))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Saturations standardisees", "#6c757d", "table"),
+                  mv_data_table(data.frame(Facteur = lt$Facteur, Indicateur = lt$Indicateur,
+                                           Charge_std = round(lt$Charge_std,3), p_value = round(lt$p_value,4)), "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = "AFC confirmatoire estimee.",
+             summary = c("=== Analyse Factorielle Confirmatoire ===",
+                         paste(utils::capture.output(lavaan::summary(fit, fit.measures = TRUE,
+                                                                     standardized = TRUE)), collapse = "\n")),
+             plotfn = function() {
+               ggplot(lt, aes(stats::reorder(Lien, Charge_std), Charge_std,
+                              fill = Charge_std >= .7)) +
+                 geom_col(width = .65) +
+                 geom_hline(yintercept = c(.5,.7), linetype = "dashed",
+                            color = c("#f39c12","#27ae60")) +
+                 geom_text(aes(label = round(Charge_std,2)), hjust = -0.2, size = 3.4) +
+                 scale_fill_manual(values = c("TRUE"="#27ae60","FALSE"="#e67e22"),
+                                   labels = c("TRUE"=">= 0,70","FALSE"="< 0,70"),
+                                   name = "Charge std") +
+                 coord_flip(ylim = c(0, 1.05)) +
+                 labs(title = "AFC -- saturations standardisees",
+                      x = NULL, y = "Charge standardisee",
+                      caption = "Lignes : seuils 0,50 (orange) et 0,70 (vert).") +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics,
+                            Saturations = data.frame(Facteur = lt$Facteur, Indicateur = lt$Indicateur,
+                                                     Charge_std = round(lt$Charge_std,4), p_value = round(lt$p_value,4))))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  
+  # ---- PLS / PLS-DA --------------------------------------------------------
+  observeEvent(input$mv_pls_run, {
+    mv_res[["pls"]] <- local({
+      tryCatch({
+        if (!mv_has("pls"))
+          return(list(ok = FALSE, error = "Package 'pls' indisponible."))
+        d <- mv_data(); yv <- input$mv_pls_y; xv <- input$mv_pls_x
+        if (is.null(yv) || is.null(xv) || length(xv) < 2)
+          return(list(ok = FALSE, error = "Definissez Y et au moins 2 predicteurs X."))
+        sub <- d[, c(yv, xv), drop = FALSE]
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        is_da <- !is.numeric(sub[[yv]])
+        ncomp <- min(input$mv_pls_ncomp %||% 3, length(xv), nrow(sub)-1)
+        X <- as.matrix(sub[, xv, drop = FALSE])
+        valid <- if (isTRUE(input$mv_pls_cv)) "CV" else "none"
+        
+        if (is_da) {
+          yf <- factor(sub[[yv]])
+          Ydum <- stats::model.matrix(~ yf - 1)
+          dat <- data.frame(Y = I(Ydum), X = I(scale(X)))
+          fit <- pls::plsr(Y ~ X, ncomp = ncomp, data = dat, validation = valid)
+          pred <- predict(fit, ncomp = ncomp)
+          cls <- factor(levels(yf)[apply(pred[,,1], 1, which.max)], levels = levels(yf))
+          acc <- mean(cls == yf)
+          st_acc <- if (acc >= .80) "ok" else if (acc >= .60) "warn" else "err"
+          metrics <- rbind(
+            mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
+                   ">= 80 % bon ; 60-80 % modere ; < 60 % faible",
+                   if (st_acc=="ok") "Bonne discrimination" else if (st_acc=="warn") "Discrimination moderee" else "Discrimination faible",
+                   st_acc),
+            mv_row("Composantes latentes", ncomp,
+                   "Choisir le minimum optimisant la prediction",
+                   "Modele PLS-DA", "info"),
+            mv_row("Classes de Y", paste(levels(yf), collapse=" / "),
+                   "Verifier l'equilibre des effectifs", "Reponse categorielle", "info"))
+          sc <- as.data.frame(fit$scores[, 1:min(2,ncomp), drop = FALSE])
+          if (ncol(sc) < 2) sc$Comp2 <- 0
+          names(sc)[1:2] <- c("Comp1","Comp2"); sc$Classe <- yf
+          plotfn <- function() {
+            ggplot(sc, aes(Comp1, Comp2, color = Classe)) +
+              geom_point(size = 2.6, alpha = .8) +
+              stat_ellipse(level = .9, linewidth = .7) +
+              labs(title = "PLS-DA -- scores des individus",
+                   subtitle = paste0(ncomp, " composantes | ", nlevels(yf), " classes"),
+                   x = "Composante 1", y = "Composante 2") +
+              mv_gg_theme()
+          }
+          exports <- list(Metriques = metrics,
+                          Predictions = data.frame(Observe = yf, Predit = cls))
+          note <- paste0("PLS-DA : ", ncomp, " composantes, ", nlevels(yf), " classes.")
+          extra_card <- NULL
+        } else {
+          y <- sub[[yv]]
+          dat <- data.frame(Y = y, X = I(scale(X)))
+          fit <- pls::plsr(Y ~ X, ncomp = ncomp, data = dat, validation = valid)
+          r2y <- pls::R2(fit)$val[1,1,ncomp+1]
+          q2 <- if (valid == "CV") {
+            press <- fit$validation$PRESS[1, ncomp]
+            1 - press/sum((y-mean(y))^2)
+          } else NA
+          st_r2 <- if (!is.na(r2y) && r2y >= .5) "ok" else if (!is.na(r2y) && r2y >= .3) "warn" else "err"
+          st_q2 <- if (is.na(q2)) "info" else if (q2 >= .5) "ok" else if (q2 >= 0) "warn" else "err"
+          gap <- if (!is.na(q2)) abs(r2y-q2) else NA
+          st_g <- if (is.na(gap)) "info" else if (gap < .3) "ok" else "warn"
+          metrics <- rbind(
+            mv_row("R2Y (variance Y expliquee)", round(r2y,3),
+                   ">= 0,50 bon ; 0,30-0,50 modere ; < 0,30 faible",
+                   if (st_r2=="ok") "Bonne explication" else if (st_r2=="warn") "Explication moderee" else "Explication faible",
+                   st_r2),
+            mv_row("Q2 (predictivite, CV)", if (is.na(q2)) "n/d" else round(q2,3),
+                   "> 0,50 bon ; > 0 acceptable ; < 0 nul",
+                   if (st_q2=="ok") "Bon pouvoir predictif" else if (st_q2=="warn") "Predictivite limitee"
+                   else if (st_q2=="err") "Aucun pouvoir predictif" else "Validation croisee desactivee",
+                   st_q2),
+            mv_row("Ecart R2Y - Q2", if (is.na(gap)) "n/d" else round(gap,3),
+                   "< 0,30 : pas de sur-ajustement",
+                   if (st_g=="ok") "Modele non sur-ajuste" else if (st_g=="warn") "Risque de sur-ajustement" else "Validation croisee desactivee",
+                   st_g),
+            mv_row("Composantes latentes", ncomp,
+                   "Choisir le minimum optimisant Q2", "Modele PLS", "info"))
+          pr <- predict(fit, ncomp = ncomp)[,1,1]
+          pdf <- data.frame(Observe = y, Predit = pr)
+          plotfn <- function() {
+            ggplot(pdf, aes(Observe, Predit)) +
+              geom_point(size = 2.4, alpha = .75, color = "#1565c0") +
+              geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#c0392b") +
+              labs(title = "PLS -- valeurs predites vs observees",
+                   subtitle = paste0("R2Y = ", round(r2y,3),
+                                     if (!is.na(q2)) paste0(" | Q2 = ", round(q2,3)) else ""),
+                   x = "Y observe", y = "Y predit") +
+              mv_gg_theme()
+          }
+          exports <- list(Metriques = metrics)
+          note <- paste0("PLS : ", ncomp, " composantes, reponse continue.")
+          extra_card <- NULL
+        }
+        vip <- tryCatch({
+          W <- fit$loading.weights[, 1:ncomp, drop = FALSE]
+          SS <- colSums(fit$Yloadings[, 1:ncomp, drop = FALSE]^2) *
+            colSums(fit$scores[, 1:ncomp, drop = FALSE]^2)
+          sqrt(nrow(W) * rowSums(sweep(W^2, 2, SS, "*")) / sum(SS))
+        }, error = function(e) NULL)
+        if (!is.null(vip)) {
+          n_imp <- sum(vip > 1)
+          metrics <- rbind(metrics,
+                           mv_row("Variables VIP > 1", n_imp,
+                                  "VIP > 1 : variable importante ; 0,8-1 zone grise",
+                                  paste0(n_imp, " predicteur(s) influent(s)"), "info"))
+          exports$VIP <- data.frame(Variable = names(vip), VIP = round(vip,4))
+          extra_card <- mv_card(border_color = "#6c757d",
+                                mv_section_header("Importance des variables (VIP)", "#6c757d", "ranking-star"),
+                                mv_data_table(data.frame(Variable = names(vip), VIP = round(vip,3)), "#6c757d"))
+        }
+        render <- tagList(
+          mv_card(border_color = "#1565c0",
+                  mv_section_header("Qualite du modele PLS", "#1565c0", "diagram-project"),
+                  mv_info_note("Pouvoir explicatif (R2Y) et predictif (Q2) du modele a composantes latentes."),
+                  mv_metrics_table(metrics, "#1565c0"),
+                  mv_interp_bar(note, "#1565c0")),
+          extra_card)
+        list(ok = TRUE, render = render, metrics = metrics, note = note,
+             summary = c("=== Regression PLS ===",
+                         paste(utils::capture.output(summary(fit)), collapse="\n")),
+             plotfn = plotfn, exports = exports)
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- Regression lineaire multiple ----------------------------------------
+  observeEvent(input$mv_regmult_run, {
+    mv_res[["regmult"]] <- local({
+      tryCatch({
+        d <- mv_data(); yv <- input$mv_regmult_y; xv <- input$mv_regmult_x
+        if (is.null(yv) || is.null(xv) || length(xv) < 1)
+          return(list(ok = FALSE, error = "Definissez Y et au moins 1 predicteur X."))
+        sub <- d[, c(yv, xv), drop = FALSE]
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        fml <- stats::as.formula(paste0("`", yv, "` ~ ",
+                                        paste0("`", xv, "`", collapse = " + ")))
+        fit <- stats::lm(fml, data = sub)
+        s <- summary(fit)
+        r2a <- s$adj.r.squared
+        fs <- s$fstatistic
+        fp <- stats::pf(fs[1], fs[2], fs[3], lower.tail = FALSE)
+        vif_max <- tryCatch(if (length(xv) >= 2) max(car::vif(fit)) else 1,
+                            error = function(e) NA)
+        bp <- tryCatch(lmtest::bptest(fit)$p.value, error = function(e) NA)
+        sw <- tryCatch(stats::shapiro.test(stats::residuals(fit)[1:min(5000,nrow(sub))])$p.value,
+                       error = function(e) NA)
+        dw <- tryCatch(lmtest::dwtest(fit)$statistic, error = function(e) NA)
+        st_r2 <- if (r2a >= .5) "ok" else if (r2a >= .3) "warn" else "err"
+        st_f  <- if (fp < .05) "ok" else "err"
+        st_v  <- if (is.na(vif_max)) "info" else if (vif_max < 5) "ok" else if (vif_max < 10) "warn" else "err"
+        st_bp <- if (is.na(bp)) "info" else if (bp > .05) "ok" else "warn"
+        st_sw <- if (is.na(sw)) "info" else if (sw > .05) "ok" else "warn"
+        st_dw <- if (is.na(dw)) "info" else if (dw > 1.5 && dw < 2.5) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("R2 ajuste", round(r2a,3),
+                 "Plus eleve = meilleur (>= 0,50 bon, selon domaine)",
+                 if (st_r2=="ok") "Bon pouvoir explicatif" else if (st_r2=="warn") "Pouvoir explicatif modere" else "Pouvoir explicatif faible",
+                 st_r2),
+          mv_row("Test F global (p)", format.pval(fp, digits=3),
+                 "p < 0,05 : modele globalement significatif",
+                 if (st_f=="ok") "Modele significatif" else "Modele non significatif", st_f),
+          mv_row("VIF maximal", if (is.na(vif_max)) "n/d" else round(vif_max,2),
+                 "< 5 OK ; 5-10 a surveiller ; > 10 multicolinearite forte",
+                 if (st_v=="ok") "Pas de multicolinearite" else if (st_v=="warn") "Multicolinearite moderee"
+                 else if (st_v=="err") "Multicolinearite problematique" else "Non applicable (1 predicteur)",
+                 st_v),
+          mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else format.pval(bp,digits=3),
+                 "p > 0,05 : homoscedasticite respectee",
+                 if (st_bp=="ok") "Variance des residus constante" else "Heteroscedasticite detectee",
+                 st_bp),
+          mv_row("Shapiro-Wilk residus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
+                 "p > 0,05 : normalite des residus",
+                 if (st_sw=="ok") "Residus normaux" else "Ecart a la normalite", st_sw),
+          mv_row("Durbin-Watson", if (is.na(dw)) "n/d" else round(dw,2),
+                 "Proche de 2 : independance des residus",
+                 if (st_dw=="ok") "Residus independants" else "Autocorrelation possible", st_dw))
+        coefs <- as.data.frame(s$coefficients)
+        coef_df <- data.frame(Terme = rownames(coefs),
+                              Estimation = round(coefs[,1],4), Err_std = round(coefs[,2],4),
+                              t = round(coefs[,3],3), p_value = round(coefs[,4],4))
+        res_df <- data.frame(Ajuste = stats::fitted(fit), Residu = stats::residuals(fit))
+        render <- tagList(
+          mv_card(border_color = "#1565c0",
+                  mv_section_header("Qualite d'ajustement & validite", "#1565c0", "chart-line"),
+                  mv_info_note("Pouvoir explicatif du modele et verification des hypotheses sur les residus."),
+                  mv_metrics_table(metrics, "#1565c0"),
+                  mv_interp_bar(paste0("R2 ajuste = ", round(r2a,3),
+                                       ". Modele ", if (fp < .05) "globalement significatif." else "non significatif."),
+                                mv_col(st_r2))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Coefficients estimes", "#6c757d", "table"),
+                  mv_data_table(coef_df, "#6c757d", digits = 4)))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("Regression lineaire : R2 ajuste = ", round(r2a,3), "."),
+             summary = c("=== Regression lineaire multiple ===",
+                         paste(utils::capture.output(s), collapse = "\n")),
+             plotfn = function() {
+               ggplot(res_df, aes(Ajuste, Residu)) +
+                 geom_point(size = 2.2, alpha = .7, color = "#1565c0") +
+                 geom_hline(yintercept = 0, linetype = "dashed", color = "#c0392b") +
+                 geom_smooth(method = "loess", se = FALSE, color = "#f39c12", linewidth = .8) +
+                 labs(title = "Regression -- residus vs valeurs ajustees",
+                      subtitle = "Un nuage sans tendance confirme l'homoscedasticite",
+                      x = "Valeurs ajustees", y = "Residus") +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics, Coefficients = coef_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  
+  # ====================== MOTEURS D'ANALYSE (QUALI) ==========================
+  
+  # ---- AFC (correspondances) ----------------------------------------------
+  observeEvent(input$mv_afc_run, {
+    mv_res[["afc"]] <- local({
+      tryCatch({
+        d <- mv_data(); rv <- input$mv_afc_row; cv <- input$mv_afc_col
+        if (is.null(rv) || is.null(cv) || rv == cv)
+          return(list(ok = FALSE, error = "Choisissez deux variables qualitatives differentes."))
+        tab <- table(d[[rv]], d[[cv]])
+        tab <- tab[rowSums(tab) > 0, colSums(tab) > 0, drop = FALSE]
+        if (nrow(tab) < 2 || ncol(tab) < 2)
+          return(list(ok = FALSE, error = "Table de contingence insuffisante (>=2x2 requise)."))
+        chi <- suppressWarnings(stats::chisq.test(tab))
+        ca <- FactoMineR::CA(tab, graph = FALSE)
+        eig <- ca$eig
+        inertia <- sum(eig[,1])
+        cramer <- sqrt(chi$statistic / (sum(tab) * (min(dim(tab)) - 1)))
+        exp_low <- mean(chi$expected < 5) * 100
+        dim12 <- sum(eig[1:min(2,nrow(eig)),2])
+        st_chi <- if (chi$p.value < .05) "ok" else "err"
+        st_exp <- if (exp_low <= 20) "ok" else "warn"
+        st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
+        st_cr  <- if (cramer >= .3) "ok" else if (cramer >= .1) "warn" else "err"
+        metrics <- rbind(
+          mv_row("Test du Chi2 (p)", format.pval(chi$p.value, digits=3),
+                 "p < 0,05 : association significative",
+                 if (st_chi=="ok") "Association significative" else "Pas d'association detectee",
+                 st_chi),
+          mv_row("Inertie totale (Chi2/n)", round(inertia,4),
+                 "Mesure l'intensite globale d'association",
+                 "Intensite de l'association lignes/colonnes", "info"),
+          mv_row("V de Cramer", round(cramer,3),
+                 ">= 0,30 forte ; 0,10-0,30 moderee ; < 0,10 faible",
+                 if (st_cr=="ok") "Association forte" else if (st_cr=="warn") "Association moderee" else "Association faible",
+                 st_cr),
+          mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
+                 ">= 70 % bonne restitution ; 50-70 % acceptable",
+                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 st_dim),
+          mv_row("Cases effectif theorique < 5", paste0(round(exp_low,1)," %"),
+                 "<= 20 % conseille pour la validite du Chi2",
+                 if (st_exp=="ok") "Validite du Chi2 satisfaisante" else "Trop de cases a faible effectif",
+                 st_exp))
+        rc <- as.data.frame(ca$row$coord[, 1:min(2,ncol(ca$row$coord)), drop = FALSE])
+        if (ncol(rc) < 2) rc$D2 <- 0
+        names(rc)[1:2] <- c("Dim1","Dim2"); rc$Label <- rownames(ca$row$coord); rc$Type <- "Ligne"
+        cc <- as.data.frame(ca$col$coord[, 1:min(2,ncol(ca$col$coord)), drop = FALSE])
+        if (ncol(cc) < 2) cc$D2 <- 0
+        names(cc)[1:2] <- c("Dim1","Dim2"); cc$Label <- rownames(ca$col$coord); cc$Type <- "Colonne"
+        biplot <- rbind(rc[,c("Dim1","Dim2","Label","Type")], cc[,c("Dim1","Dim2","Label","Type")])
+        eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
+                             Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
+        render <- tagList(
+          mv_card(border_color = "#6a1b9a",
+                  mv_section_header("Association & qualite factorielle", "#6a1b9a", "shapes"),
+                  mv_info_note("Significativite et intensite de l'association entre les deux variables qualitatives."),
+                  mv_metrics_table(metrics, "#6a1b9a"),
+                  mv_interp_bar(paste0("Table ", nrow(tab), "x", ncol(tab),
+                                       ". V de Cramer = ", round(cramer,3), "."), mv_col(st_cr))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Valeurs propres par axe", "#6c757d", "layer-group"),
+                  mv_data_table(eig_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("AFC : table ", nrow(tab), "x", ncol(tab), "."),
+             summary = c("=== Analyse Factorielle des Correspondances ===",
+                         paste0("Variables : ", rv, " (lignes) x ", cv, " (colonnes)"),
+                         "", "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
+             plotfn = function() {
+               ggplot(biplot, aes(Dim1, Dim2, color = Type, label = Label)) +
+                 geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_point(aes(shape = Type), size = 3) +
+                 geom_text(vjust = -0.8, size = 3.3, show.legend = FALSE) +
+                 scale_color_manual(values = c("Ligne"="#6a1b9a","Colonne"="#e67e22")) +
+                 labs(title = paste0("AFC : ", rv, " x ", cv),
+                      subtitle = paste0("Inertie axes 1-2 = ", round(dim12,1), " %"),
+                      x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
+                      y = paste0("Dim 2 (", round(eig[min(2,nrow(eig)),2],1), " %)")) +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics, Valeurs_propres = eig_df,
+                            Table = as.data.frame.matrix(tab)))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- ACM -----------------------------------------------------------------
+  observeEvent(input$mv_mca_run, {
+    mv_res[["mca"]] <- local({
+      tryCatch({
+        d <- mv_data(); vars <- input$mv_mca_vars
+        if (is.null(vars) || length(vars) < 2)
+          return(list(ok = FALSE, error = "Selectionnez au moins 2 variables qualitatives."))
+        sub <- d[, vars, drop = FALSE]
+        for (v in vars) sub[[v]] <- droplevels(factor(sub[[v]]))
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        ncp <- min(input$mv_mca_ncp %||% 5, sum(sapply(sub, nlevels)) - length(vars))
+        mca <- FactoMineR::MCA(sub, ncp = ncp, graph = FALSE)
+        eig <- mca$eig
+        n_mod <- sum(sapply(sub, nlevels)); Q <- length(vars)
+        raw <- eig[,1]; adj <- raw[raw > 1/Q]
+        adj_b <- (Q/(Q-1))^2 * (adj - 1/Q)^2
+        adj_pct <- 100 * adj_b / sum(adj_b)
+        dim12_raw <- sum(eig[1:min(2,nrow(eig)),2])
+        dim12_adj <- if (length(adj_pct) >= 2) sum(adj_pct[1:2]) else sum(adj_pct)
+        seuil_ctr <- 100 / n_mod
+        st_dim <- if (dim12_adj >= 70) "ok" else if (dim12_adj >= 50) "warn" else "err"
+        metrics <- rbind(
+          mv_row("Inertie brute axes 1-2", paste0(round(dim12_raw,1)," %"),
+                 "Sous-estime la structure (a corriger)",
+                 "Valeur brute -- privilegier l'inertie ajustee", "info"),
+          mv_row("Inertie ajustee axes 1-2 (Benzecri)", paste0(round(dim12_adj,1)," %"),
+                 ">= 70 % bonne restitution ; 50-70 % acceptable",
+                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 st_dim),
+          mv_row("Nombre de modalites", n_mod,
+                 "Regrouper les modalites rares (< 5 %)",
+                 "Total des modalites actives", "info"),
+          mv_row("Seuil de contribution moyen", paste0(round(seuil_ctr,2)," %"),
+                 "Une modalite contribue si CTR > 100/nb modalites",
+                 "Reference pour reperer les modalites structurantes", "info"))
+        vc <- as.data.frame(mca$var$coord[, 1:min(2,ncol(mca$var$coord)), drop = FALSE])
+        if (ncol(vc) < 2) vc$D2 <- 0
+        names(vc)[1:2] <- c("Dim1","Dim2"); vc$Modalite <- rownames(mca$var$coord)
+        eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
+                             Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
+        render <- tagList(
+          mv_card(border_color = "#6a1b9a",
+                  mv_section_header("Structure factorielle", "#6a1b9a", "shapes"),
+                  mv_info_note("L'inertie ajustee de Benzecri corrige la sous-estimation de l'inertie brute en ACM."),
+                  mv_metrics_table(metrics, "#6a1b9a"),
+                  mv_interp_bar(paste0(length(vars), " variables, ", n_mod,
+                                       " modalites. Inertie ajustee axes 1-2 = ", round(dim12_adj,1), " %."),
+                                mv_col(st_dim))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Valeurs propres par axe", "#6c757d", "layer-group"),
+                  mv_data_table(eig_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("ACM : ", length(vars), " variables, ", n_mod, " modalites."),
+             summary = c("=== Analyse des Correspondances Multiples ===",
+                         "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
+             plotfn = function() {
+               ggplot(vc, aes(Dim1, Dim2, label = Modalite)) +
+                 geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_point(size = 3, color = "#6a1b9a") +
+                 geom_text(vjust = -0.8, size = 3.3, color = "#2c3e50") +
+                 labs(title = "ACM -- plan des modalites",
+                      subtitle = paste0("Inertie ajustee axes 1-2 = ", round(dim12_adj,1), " %"),
+                      x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
+                      y = paste0("Dim 2 (", round(eig[min(2,nrow(eig)),2],1), " %)")) +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics, Valeurs_propres = eig_df,
+                            Modalites = data.frame(Modalite = rownames(mca$var$contrib),
+                                                   round(mca$var$contrib,3), check.names = FALSE)))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- k-modes -------------------------------------------------------------
+  observeEvent(input$mv_kmodes_run, {
+    mv_res[["kmodes"]] <- local({
+      tryCatch({
+        if (!mv_has("klaR"))
+          return(list(ok = FALSE, error = "Package 'klaR' indisponible."))
+        d <- mv_data(); vars <- input$mv_kmodes_vars
+        if (is.null(vars) || length(vars) < 2)
+          return(list(ok = FALSE, error = "Selectionnez au moins 2 variables qualitatives."))
+        k <- input$mv_kmodes_k %||% 3
+        sub <- d[, vars, drop = FALSE]
+        for (v in vars) sub[[v]] <- factor(sub[[v]])
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        sub <- mv_subsample(sub, 8000)
+        km <- klaR::kmodes(sub, modes = k, iter.max = input$mv_kmodes_iter %||% 20)
+        tot_diff <- sum(km$withindiff)
+        sizes <- km$size
+        d_tot <- sum(sapply(sub, function(col) { tb <- table(col); sum(tb) - max(tb) }))
+        pr2 <- if (d_tot > 0) 1 - tot_diff/d_tot else NA
+        st_r2 <- if (!is.na(pr2) && pr2 >= .5) "ok" else if (!is.na(pr2) && pr2 >= .3) "warn" else "err"
+        st_bal <- if (min(sizes) >= .05*nrow(sub)) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Dissimilarite intra totale", tot_diff,
+                 "Plus faible = clusters plus homogenes",
+                 "A minimiser entre solutions", "info"),
+          mv_row("Pseudo-R2 (separation)", if (is.na(pr2)) "n/d" else round(pr2,3),
+                 ">= 0,50 nette ; 0,30-0,50 moderee ; < 0,30 faible",
+                 if (st_r2=="ok") "Partition nette" else if (st_r2=="warn") "Partition moderee" else "Partition peu separee",
+                 st_r2),
+          mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
+                 "Eviter clusters vides ou tres minoritaires",
+                 if (st_bal=="ok") "Repartition acceptable" else "Cluster tres minoritaire",
+                 st_bal),
+          mv_row("Nombre de clusters", k,
+                 "Fixe a priori -- comparer plusieurs k",
+                 "Parametre du partitionnement", "info"))
+        sz_df <- data.frame(Cluster = factor(seq_len(k)), Effectif = sizes)
+        render <- tagList(
+          mv_card(border_color = "#6a1b9a",
+                  mv_section_header("Qualite de la partition", "#6a1b9a", "object-group"),
+                  mv_info_note("Separation des clusters categoriels evaluee par le pseudo-R2."),
+                  mv_metrics_table(metrics, "#6a1b9a"),
+                  mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(sub), " individus."),
+                                mv_col(st_r2))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Modes (centres) des clusters", "#6c757d", "crosshairs"),
+                  mv_data_table(data.frame(Cluster = seq_len(k), km$modes, check.names = FALSE), "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("k-modes : ", k, " clusters sur ", nrow(sub), " individus."),
+             summary = c("=== Classification k-modes ===",
+                         paste0("Variables : ", paste(vars, collapse=", ")),
+                         "", "Modes :", paste(utils::capture.output(km$modes), collapse="\n")),
+             plotfn = function() {
+               ggplot(sz_df, aes(Cluster, Effectif, fill = Cluster)) +
+                 geom_col(width = .65) +
+                 geom_text(aes(label = Effectif), vjust = -0.5, size = 3.6, fontface = "bold") +
+                 labs(title = "k-modes -- effectifs par cluster",
+                      subtitle = paste0(k, " clusters"),
+                      x = "Cluster", y = "Nombre d'individus") +
+                 mv_gg_theme() + theme(legend.position = "none")
+             },
+             exports = list(Metriques = metrics,
+                            Modes = data.frame(Cluster = seq_len(k), km$modes, check.names = FALSE),
+                            Effectifs = sz_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  
+  # ---- LCA -----------------------------------------------------------------
+  observeEvent(input$mv_lca_run, {
+    mv_res[["lca"]] <- local({
+      tryCatch({
+        if (!mv_has("poLCA"))
+          return(list(ok = FALSE, error = "Package 'poLCA' indisponible."))
+        d <- mv_data(); vars <- input$mv_lca_vars
+        if (is.null(vars) || length(vars) < 3)
+          return(list(ok = FALSE, error = "Selectionnez au moins 3 indicateurs categoriels."))
+        sub <- d[, vars, drop = FALSE]
+        for (v in vars) sub[[v]] <- as.integer(factor(sub[[v]]))
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        names(sub) <- vars
+        nclass <- input$mv_lca_nclass %||% 2
+        fml <- stats::as.formula(paste0("cbind(",
+                                        paste0("`", vars, "`", collapse = ","), ") ~ 1"))
+        fit <- poLCA::poLCA(fml, data = sub, nclass = nclass,
+                            nrep = input$mv_lca_rep %||% 5, verbose = FALSE)
+        post <- fit$posterior
+        ent <- -sum(post * log(post + 1e-12))
+        N <- nrow(post); K <- ncol(post)
+        ent_rel <- 1 - ent / (N * log(K))
+        min_sz <- min(table(fit$predclass)) / N
+        st_ent <- if (ent_rel >= .80) "ok" else if (ent_rel >= .60) "warn" else "err"
+        st_sz  <- if (min_sz >= .05) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("BIC", round(fit$bic,1),
+                 "Plus bas = meilleur (comparer entre nb de classes)",
+                 "Critere de selection du nombre de classes", "info"),
+          mv_row("AIC", round(fit$aic,1),
+                 "Plus bas = meilleur (penalise moins que le BIC)",
+                 "Critere complementaire de selection", "info"),
+          mv_row("Entropie relative", round(ent_rel,3),
+                 ">= 0,80 bonne separation ; 0,60-0,80 moderee ; < 0,60 faible",
+                 if (st_ent=="ok") "Classes bien separees" else if (st_ent=="warn") "Separation moderee" else "Classes mal separees",
+                 st_ent),
+          mv_row("G2 (rapport de vraisemblance)", round(fit$Gsq,1),
+                 "Plus faible = meilleur ajustement du modele",
+                 "Qualite d'ajustement", "info"),
+          mv_row("Plus petite classe", paste0(round(100*min_sz,1)," %"),
+                 ">= 5 % conseille pour une classe interpretable",
+                 if (st_sz=="ok") "Classes de taille suffisante" else "Classe tres minoritaire",
+                 st_sz))
+        cl_df <- as.data.frame(table(Classe = fit$predclass))
+        cl_df$Classe <- factor(cl_df$Classe)
+        render <- tagList(
+          mv_card(border_color = "#6a1b9a",
+                  mv_section_header("Selection & qualite du modele", "#6a1b9a", "shapes"),
+                  mv_info_note("Criteres d'information (AIC/BIC) et separation des classes latentes (entropie)."),
+                  mv_metrics_table(metrics, "#6a1b9a"),
+                  mv_interp_bar(paste0(nclass, " classes latentes. Entropie = ", round(ent_rel,3), "."),
+                                mv_col(st_ent))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Effectifs par classe latente", "#6c757d", "users"),
+                  mv_data_table(cl_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("LCA : ", nclass, " classes latentes."),
+             summary = c("=== Analyse en Classes Latentes ===",
+                         paste(utils::capture.output(print(fit)), collapse = "\n")),
+             plotfn = function() {
+               ggplot(cl_df, aes(Classe, Freq, fill = Classe)) +
+                 geom_col(width = .65) +
+                 geom_text(aes(label = Freq), vjust = -0.5, size = 3.6, fontface = "bold") +
+                 labs(title = "LCA -- effectifs par classe latente",
+                      subtitle = paste0(nclass, " classes | entropie = ", round(ent_rel,3)),
+                      x = "Classe latente", y = "Nombre d'individus") +
+                 mv_gg_theme() + theme(legend.position = "none")
+             },
+             exports = list(Metriques = metrics, Effectifs = cl_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- Regression logistique ----------------------------------------------
+  observeEvent(input$mv_logit_run, {
+    mv_res[["logit"]] <- local({
+      tryCatch({
+        d <- mv_data(); yv <- input$mv_logit_y; xv <- input$mv_logit_x
+        if (is.null(yv) || is.null(xv) || length(xv) < 1)
+          return(list(ok = FALSE, error = "Definissez Y et au moins 1 predicteur X."))
+        sub <- d[, c(yv, xv), drop = FALSE]
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        sub[[yv]] <- droplevels(factor(sub[[yv]]))
+        nlev <- nlevels(sub[[yv]])
+        if (nlev < 2)
+          return(list(ok = FALSE, error = "La reponse doit avoir au moins 2 modalites."))
+        fml <- stats::as.formula(paste0("`", yv, "` ~ ",
+                                        paste0("`", xv, "`", collapse = " + ")))
+        
+        if (nlev == 2) {
+          fit <- stats::glm(fml, data = sub, family = stats::binomial())
+          ll0 <- stats::glm(stats::as.formula(paste0("`",yv,"` ~ 1")),
+                            data = sub, family = stats::binomial())
+          mcf <- as.numeric(1 - stats::logLik(fit)/stats::logLik(ll0))
+          pp <- stats::predict(fit, type = "response")
+          pc <- factor(ifelse(pp > .5, levels(sub[[yv]])[2], levels(sub[[yv]])[1]),
+                       levels = levels(sub[[yv]]))
+          acc <- mean(pc == sub[[yv]])
+          yb <- as.integer(sub[[yv]]) - 1
+          auc <- tryCatch({
+            np <- sum(yb); nn <- sum(1-yb); r <- rank(pp)
+            (sum(r[yb == 1]) - np*(np+1)/2) / (np*nn)
+          }, error = function(e) NA)
+          hl_p <- tryCatch({
+            g <- 10
+            grp <- cut(pp, stats::quantile(pp, probs = seq(0,1,1/g)), include.lowest = TRUE)
+            obs <- tapply(yb, grp, sum); exp <- tapply(pp, grp, sum); cnt <- tapply(pp, grp, length)
+            chi <- sum((obs-exp)^2 / (exp*(1-exp/cnt)), na.rm = TRUE)
+            stats::pchisq(chi, g-2, lower.tail = FALSE)
+          }, error = function(e) NA)
+          aic <- stats::AIC(fit)
+          st_m <- if (mcf >= .2 && mcf <= .4) "ok" else if (mcf > .4 || mcf >= .1) "warn" else "err"
+          st_a <- if (is.na(auc)) "info" else if (auc >= .8) "ok" else if (auc >= .7) "warn" else "err"
+          st_h <- if (is.na(hl_p)) "info" else if (hl_p > .05) "ok" else "warn"
+          metrics <- rbind(
+            mv_row("Pseudo-R2 McFadden", round(mcf,3),
+                   "0,20-0,40 bon ajustement (echelle propre)",
+                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement a nuancer" else "Ajustement faible",
+                   st_m),
+            mv_row("AUC (courbe ROC)", if (is.na(auc)) "n/d" else round(auc,3),
+                   ">= 0,80 bon ; 0,70-0,80 acceptable ; < 0,70 faible",
+                   if (st_a=="ok") "Bon pouvoir discriminant" else if (st_a=="warn") "Discrimination acceptable" else "Discrimination faible",
+                   st_a),
+            mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
+                   "Plus eleve = meilleur (a comparer au hasard)",
+                   "Precision globale du modele", "info"),
+            mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else format.pval(hl_p,digits=3),
+                   "p > 0,05 : ajustement acceptable",
+                   if (st_h=="ok") "Calibration acceptable" else "Mauvaise calibration", st_h),
+            mv_row("AIC", round(aic,1),
+                   "Plus bas = meilleur (comparaison de modeles)",
+                   "Critere de comparaison", "info"))
+          ors <- exp(stats::coef(fit))
+          or_df <- data.frame(Terme = names(ors), Odds_ratio = round(ors,4))
+          o <- order(pp); yo <- yb[o]
+          roc_df <- data.frame(
+            FPR = c(0, cumsum(rev(1-yo))/sum(1-yo)),
+            TPR = c(0, cumsum(rev(yo))/sum(yo)))
+          plotfn <- function() {
+            ggplot(roc_df, aes(FPR, TPR)) +
+              geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#999") +
+              geom_line(color = "#6a1b9a", linewidth = 1.1) +
+              labs(title = "Regression logistique -- courbe ROC",
+                   subtitle = paste0("AUC = ", if (is.na(auc)) "n/d" else round(auc,3)),
+                   x = "Taux de faux positifs", y = "Taux de vrais positifs") +
+              mv_gg_theme()
+          }
+          exports <- list(Metriques = metrics, Odds_ratios = or_df)
+          extra <- mv_card(border_color = "#6c757d",
+                           mv_section_header("Rapports de cotes (odds ratios)", "#6c757d", "table"),
+                           mv_data_table(or_df, "#6c757d", digits = 4))
+          summ <- utils::capture.output(summary(fit))
+          note <- "Regression logistique binaire estimee."
+        } else {
+          if (!mv_has("nnet"))
+            return(list(ok = FALSE, error = "Package 'nnet' requis pour la logistique multinomiale."))
+          fit <- nnet::multinom(fml, data = sub, trace = FALSE)
+          ll0 <- nnet::multinom(stats::as.formula(paste0("`",yv,"` ~ 1")),
+                                data = sub, trace = FALSE)
+          mcf <- 1 - as.numeric(stats::logLik(fit))/as.numeric(stats::logLik(ll0))
+          pc <- stats::predict(fit)
+          acc <- mean(pc == sub[[yv]])
+          aic <- stats::AIC(fit)
+          st_m <- if (mcf >= .2 && mcf <= .4) "ok" else if (mcf > .4 || mcf >= .1) "warn" else "err"
+          st_a <- if (acc >= .7) "ok" else if (acc >= .5) "warn" else "err"
+          metrics <- rbind(
+            mv_row("Pseudo-R2 McFadden", round(mcf,3),
+                   "0,20-0,40 bon ajustement (echelle propre)",
+                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement a nuancer" else "Ajustement faible",
+                   st_m),
+            mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
+                   ">= 70 % bon ; 50-70 % modere",
+                   if (st_a=="ok") "Bonne prediction" else if (st_a=="warn") "Prediction moderee" else "Prediction faible",
+                   st_a),
+            mv_row("AIC", round(aic,1),
+                   "Plus bas = meilleur (comparaison de modeles)",
+                   "Critere de comparaison", "info"),
+            mv_row("Modalites de Y", paste(levels(sub[[yv]]), collapse=" / "),
+                   "Verifier l'equilibre des effectifs", "Reponse multinomiale", "info"))
+          cm <- as.data.frame(table(Observe = sub[[yv]], Predit = pc))
+          plotfn <- function() {
+            ggplot(cm, aes(Predit, Observe, fill = Freq)) +
+              geom_tile(color = "white", linewidth = .6) +
+              geom_text(aes(label = Freq), size = 4,
+                        color = ifelse(cm$Freq > max(cm$Freq)/2, "white", "#2c3e50")) +
+              scale_fill_gradient(low = "#f3e5f5", high = "#6a1b9a") +
+              labs(title = "Logistique multinomiale -- matrice de confusion",
+                   subtitle = paste0("Taux de bon classement = ", round(100*acc,1), " %"),
+                   x = "Classe predite", y = "Classe observee") +
+              mv_gg_theme()
+          }
+          exports <- list(Metriques = metrics)
+          extra <- NULL
+          summ <- utils::capture.output(summary(fit))
+          note <- "Regression logistique multinomiale estimee."
+        }
+        render <- tagList(
+          mv_card(border_color = "#6a1b9a",
+                  mv_section_header("Qualite d'ajustement & discrimination", "#6a1b9a", "shapes"),
+                  mv_info_note("Ajustement (pseudo-R2), discrimination (AUC) et calibration du modele logistique."),
+                  mv_metrics_table(metrics, "#6a1b9a"),
+                  mv_interp_bar(note, "#6a1b9a")),
+          extra)
+        list(ok = TRUE, render = render, metrics = metrics, note = note,
+             summary = c("=== Regression logistique ===", summ),
+             plotfn = plotfn, exports = exports)
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ====================== MOTEURS D'ANALYSE (MIXTES) ========================
+  
+  # ---- AFDM ----------------------------------------------------------------
+  observeEvent(input$mv_famd_run, {
+    mv_res[["famd"]] <- local({
+      tryCatch({
+        d <- mv_data(); vars <- input$mv_famd_vars
+        if (is.null(vars) || length(vars) < 3)
+          return(list(ok = FALSE, error = "Selectionnez au moins 3 variables."))
+        sub <- d[, vars, drop = FALSE]
+        for (v in vars) if (!is.numeric(sub[[v]])) sub[[v]] <- droplevels(factor(sub[[v]]))
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        nq <- sum(sapply(sub, is.numeric)); nc <- ncol(sub) - nq
+        if (nq < 1 || nc < 1)
+          return(list(ok = FALSE, error = "L'AFDM exige au moins 1 variable quantitative ET 1 qualitative."))
+        ncp <- input$mv_famd_ncp %||% 5
+        famd <- FactoMineR::FAMD(sub, ncp = ncp, graph = FALSE)
+        eig <- famd$eig
+        dim12 <- sum(eig[1:min(2,nrow(eig)),2])
+        kaiser <- sum(eig[,1] > 1)
+        cum_ncp <- eig[min(ncp,nrow(eig)),3]
+        st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
+        st_cum <- if (cum_ncp >= 70) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
+                 ">= 70 % bonne restitution ; 50-70 % acceptable",
+                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 st_dim),
+          mv_row("Axes a valeur propre > 1", kaiser,
+                 "Critere de Kaiser : axes informatifs",
+                 paste0(kaiser, " axe(s) informatif(s)"), "info"),
+          mv_row("Composition du tableau", paste0(nq, " quanti / ", nc, " quali"),
+                 "Les deux types doivent etre presents",
+                 "Tableau mixte equilibre par l'AFDM", "info"),
+          mv_row("Inertie cumulee (ncp axes)", paste0(round(cum_ncp,1)," %"),
+                 ">= 70-80 % conseille",
+                 if (st_cum=="ok") "Bonne restitution cumulee" else "Restitution cumulee limitee",
+                 st_cum))
+        ic <- as.data.frame(famd$ind$coord[, 1:min(2,ncol(famd$ind$coord)), drop = FALSE])
+        if (ncol(ic) < 2) ic$D2 <- 0
+        names(ic)[1:2] <- c("Dim1","Dim2")
+        eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
+                             Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
+        render <- tagList(
+          mv_card(border_color = "#00695c",
+                  mv_section_header("Structure factorielle (donnees mixtes)", "#00695c", "layer-group"),
+                  mv_info_note("L'AFDM equilibre l'influence des variables quantitatives et qualitatives."),
+                  mv_metrics_table(metrics, "#00695c"),
+                  mv_interp_bar(paste0(nq, " quanti + ", nc, " quali. Inertie axes 1-2 = ",
+                                       round(dim12,1), " %."), mv_col(st_dim))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Valeurs propres par axe", "#6c757d", "chart-simple"),
+                  mv_data_table(eig_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("AFDM : ", nq, " quanti + ", nc, " quali."),
+             summary = c("=== Analyse Factorielle de Donnees Mixtes ===",
+                         "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
+             plotfn = function() {
+               ggplot(ic, aes(Dim1, Dim2)) +
+                 geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_point(size = 2.4, alpha = .7, color = "#00695c") +
+                 labs(title = "AFDM -- projection des individus",
+                      subtitle = paste0("Inertie axes 1-2 = ", round(dim12,1), " %"),
+                      x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
+                      y = paste0("Dim 2 (", round(eig[min(2,nrow(eig)),2],1), " %)")) +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics, Valeurs_propres = eig_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- AFM -----------------------------------------------------------------
+  observeEvent(input$mv_mfa_run, {
+    mv_res[["mfa"]] <- local({
+      tryCatch({
+        d <- mv_data(); qv <- input$mv_mfa_quanti; cv <- input$mv_mfa_quali
+        if (is.null(qv) || length(qv) < 1 || is.null(cv) || length(cv) < 1)
+          return(list(ok = FALSE, error = "Definissez au moins 1 variable dans chaque bloc."))
+        sub <- d[, c(qv, cv), drop = FALSE]
+        for (v in cv) sub[[v]] <- droplevels(factor(sub[[v]]))
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        ncp <- input$mv_mfa_ncp %||% 5
+        mfa <- FactoMineR::MFA(sub, group = c(length(qv), length(cv)),
+                               type = c("s","n"), name.group = c("Quantitatif","Qualitatif"),
+                               ncp = ncp, graph = FALSE)
+        eig <- mfa$eig
+        dim12 <- sum(eig[1:min(2,nrow(eig)),2])
+        rv <- tryCatch(mfa$group$RV[1,2], error = function(e) NA)
+        st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
+        st_rv  <- if (is.na(rv)) "info" else if (rv >= .5) "ok" else if (rv >= .3) "warn" else "err"
+        metrics <- rbind(
+          mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
+                 ">= 70 % bonne restitution ; 50-70 % acceptable",
+                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 st_dim),
+          mv_row("Coefficient RV entre blocs", if (is.na(rv)) "n/d" else round(rv,3),
+                 ">= 0,50 forte concordance ; 0,30-0,50 moderee ; < 0,30 faible",
+                 if (st_rv=="ok") "Blocs tres concordants" else if (st_rv=="warn") "Concordance moderee"
+                 else if (st_rv=="err") "Blocs peu concordants" else "Non disponible",
+                 st_rv),
+          mv_row("Blocs definis", paste0(length(qv), " quanti / ", length(cv), " quali"),
+                 "Chaque bloc equilibre par sa 1re valeur propre",
+                 "Structure en groupes de variables", "info"))
+        ic <- as.data.frame(mfa$ind$coord[, 1:min(2,ncol(mfa$ind$coord)), drop = FALSE])
+        if (ncol(ic) < 2) ic$D2 <- 0
+        names(ic)[1:2] <- c("Dim1","Dim2")
+        eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
+                             Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
+        render <- tagList(
+          mv_card(border_color = "#00695c",
+                  mv_section_header("Integration des blocs de variables", "#00695c", "layer-group"),
+                  mv_info_note("L'AFM compare un bloc quantitatif et un bloc qualitatif sur un meme plan."),
+                  mv_metrics_table(metrics, "#00695c"),
+                  mv_interp_bar(paste0("Bloc quanti (", length(qv), ") + bloc quali (", length(cv),
+                                       "). Inertie axes 1-2 = ", round(dim12,1), " %."), mv_col(st_dim))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Valeurs propres par axe", "#6c757d", "chart-simple"),
+                  mv_data_table(eig_df, "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("AFM : bloc quanti (", length(qv), ") + bloc quali (", length(cv), ")."),
+             summary = c("=== Analyse Factorielle Multiple ===",
+                         "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
+             plotfn = function() {
+               ggplot(ic, aes(Dim1, Dim2)) +
+                 geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+                 geom_point(size = 2.4, alpha = .7, color = "#00695c") +
+                 labs(title = "AFM -- projection des individus",
+                      subtitle = paste0("Inertie axes 1-2 = ", round(dim12,1), " %"),
+                      x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
+                      y = paste0("Dim 2 (", round(eig[min(2,nrow(eig)),2],1), " %)")) +
+                 mv_gg_theme()
+             },
+             exports = list(Metriques = metrics, Valeurs_propres = eig_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  # ---- k-prototypes --------------------------------------------------------
+  observeEvent(input$mv_kproto_run, {
+    mv_res[["kproto"]] <- local({
+      tryCatch({
+        if (!mv_has("clustMixType"))
+          return(list(ok = FALSE, error = "Package 'clustMixType' indisponible."))
+        d <- mv_data(); vars <- input$mv_kproto_vars
+        if (is.null(vars) || length(vars) < 2)
+          return(list(ok = FALSE, error = "Selectionnez au moins 2 variables."))
+        k <- input$mv_kproto_k %||% 3
+        sub <- d[, vars, drop = FALSE]
+        for (v in vars) if (!is.numeric(sub[[v]])) sub[[v]] <- droplevels(factor(sub[[v]]))
+        sub <- sub[stats::complete.cases(sub), , drop = FALSE]
+        nq <- sum(sapply(sub, is.numeric)); nc <- ncol(sub) - nq
+        if (nq < 1 || nc < 1)
+          return(list(ok = FALSE, error = "k-prototypes exige au moins 1 variable quantitative ET 1 qualitative."))
+        for (v in names(sub)) if (is.numeric(sub[[v]])) sub[[v]] <- as.numeric(scale(sub[[v]]))
+        sub <- mv_subsample(sub, 8000)
+        kp <- clustMixType::kproto(sub, k = k, iter.max = input$mv_kproto_iter %||% 20,
+                                   verbose = FALSE)
+        sizes <- as.integer(table(kp$cluster))
+        tot_cost <- kp$tot.withinss
+        sil <- tryCatch({
+          v <- clustMixType::validation_kproto(method = "silhouette", object = kp, verbose = FALSE)
+          as.numeric(v$index)
+        }, error = function(e) NA)
+        st_sil <- if (is.na(sil)) "info" else if (sil >= .5) "ok" else if (sil >= .25) "warn" else "err"
+        st_bal <- if (min(sizes) >= .05*nrow(sub)) "ok" else "warn"
+        metrics <- rbind(
+          mv_row("Cout total intra (within SS)", round(tot_cost,1),
+                 "Plus faible = clusters plus compacts",
+                 "A minimiser entre solutions k", "info"),
+          mv_row("Silhouette mixte", if (is.na(sil)) "n/d" else round(sil,3),
+                 "> 0,50 forte ; 0,25-0,50 raisonnable ; < 0,25 faible",
+                 if (st_sil=="ok") "Structure forte" else if (st_sil=="warn") "Structure raisonnable"
+                 else if (st_sil=="err") "Structure faible" else "Non calculee",
+                 st_sil),
+          mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
+                 "Eviter clusters vides ou tres minoritaires",
+                 if (st_bal=="ok") "Repartition acceptable" else "Cluster tres minoritaire",
+                 st_bal),
+          mv_row("Composition du tableau", paste0(nq, " quanti / ", nc, " quali"),
+                 "Les deux types doivent etre presents",
+                 "Partitionnement mixte", "info"))
+        sz_df <- data.frame(Cluster = factor(seq_len(k)), Effectif = sizes)
+        render <- tagList(
+          mv_card(border_color = "#00695c",
+                  mv_section_header("Qualite de la partition mixte", "#00695c", "object-group"),
+                  mv_info_note("k-prototypes combine distance euclidienne (quanti) et appariement (quali)."),
+                  mv_metrics_table(metrics, "#00695c"),
+                  mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(sub), " individus."),
+                                if (is.na(sil)) "#2980b9" else mv_col(st_sil))),
+          mv_card(border_color = "#6c757d",
+                  mv_section_header("Prototypes des clusters", "#6c757d", "crosshairs"),
+                  mv_data_table(data.frame(Cluster = seq_len(k), kp$centers, check.names = FALSE),
+                                "#6c757d")))
+        list(ok = TRUE, render = render, metrics = metrics,
+             note = paste0("k-prototypes : ", k, " clusters sur ", nrow(sub), " individus."),
+             summary = c("=== Classification k-prototypes ===",
+                         paste0("Variables : ", paste(vars, collapse=", ")),
+                         "", "Prototypes :", paste(utils::capture.output(kp$centers), collapse="\n")),
+             plotfn = function() {
+               ggplot(sz_df, aes(Cluster, Effectif, fill = Cluster)) +
+                 geom_col(width = .65) +
+                 geom_text(aes(label = Effectif), vjust = -0.5, size = 3.6, fontface = "bold") +
+                 labs(title = "k-prototypes -- effectifs par cluster",
+                      subtitle = paste0(k, " clusters | ", nq, " quanti + ", nc, " quali"),
+                      x = "Cluster", y = "Nombre d'individus") +
+                 mv_gg_theme() + theme(legend.position = "none")
+             },
+             exports = list(Metriques = metrics, Effectifs = sz_df))
+      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+    })
+  })
+  
+  invisible(NULL)
+  
   # ---- Seuils d'efficacité ----
   
   # Valeurs réactives pour l'analyse des seuils
@@ -17697,5 +19859,7 @@ server <- function(input, output, session) {
       showNotification("Données exportées avec succès!", type = "message", duration = 3)
     }
   )
+  
+  
   
 }

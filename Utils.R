@@ -7,6 +7,9 @@
 Sys.setlocale("LC_ALL", "C")
 options(encoding = "UTF-8")
 
+# Limite de taille des fichiers televerses : 2 Go (defaut Shiny = 5 Mo)
+options(shiny.maxRequestSize = 2 * 1024^3)
+
 if (.Platform$OS.type == "windows") {
   Sys.setlocale("LC_CTYPE", "French_France.UTF-8")
 } else {
@@ -21,10 +24,45 @@ if (.Platform$OS.type == "windows") {
 ################################################################################
 
 install_and_load <- function(packages) {
-  installed_packages <- installed.packages()[, "Package"]
+  installed_packages <- rownames(installed.packages())
   to_install <- packages[!packages %in% installed_packages]
-  if (length(to_install) > 0) install.packages(to_install, repos = "https://cran.r-project.org")
-  for (pkg in packages) suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+
+  if (length(to_install) > 0) {
+    # Verifier la disponibilite d'une connexion avant de tenter l'installation
+    online <- tryCatch({
+      con <- url("https://cran.r-project.org", open = "rb")
+      on.exit(close(con), add = TRUE)
+      TRUE
+    }, error = function(e) FALSE, warning = function(e) FALSE)
+
+    if (online) {
+      tryCatch(
+        install.packages(to_install, repos = "https://cran.r-project.org"),
+        error = function(e) message("Echec d'installation : ", conditionMessage(e)))
+    } else {
+      message("\n", strrep("=", 70),
+              "\n  HStat -- mode hors-ligne detecte",
+              "\n  Packages manquants : ", paste(to_install, collapse = ", "),
+              "\n  Connectez-vous une fois a Internet pour les installer,",
+              "\n  ou installez-les manuellement, puis relancez l'application.",
+              "\n", strrep("=", 70), "\n")
+    }
+  }
+
+  # Chargement : on n'interrompt pas l'application pour un package optionnel manquant
+  missing_after <- character(0)
+  for (pkg in packages) {
+    ok <- suppressWarnings(suppressPackageStartupMessages(
+      requireNamespace(pkg, quietly = TRUE)))
+    if (ok) {
+      suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+    } else {
+      missing_after <- c(missing_after, pkg)
+    }
+  }
+  if (length(missing_after) > 0)
+    message("HStat : packages indisponibles (certaines fonctions seront limitees) : ",
+            paste(missing_after, collapse = ", "))
 }
 
 required_packages <- c(
@@ -38,7 +76,9 @@ required_packages <- c(
   "bestNormalize",
   "EMT",            # Test multinomial exact
   "vegan",          # PERMANOVA (adonis2) + betadisper
-  "heplots"         # Box's M test
+  "heplots",        # Box's M test
+  "data.table",     # Lecture rapide de CSV (fread)
+  "DBI", "duckdb"   # Moteur hors-memoire (out-of-core) pour gros fichiers
 )
 
 
@@ -705,16 +745,19 @@ box_m_test <- function(Y, group) {
                 conclusion = paste0("Groupes trop petits pour Box's M (min n=",
                                     min_per_group, " < p+1=", ncol(Y) + 1, ")")))
   
-  # Vérifier que chaque matrice de covariance de groupe est non-singulière
-  cov_dets <- vapply(split(seq_len(nrow(Y)), group), function(idx) {
+  # Vérifier que chaque matrice de covariance de groupe est de rang plein.
+  # On teste le RANG (via qr) et non le déterminant brut : le déterminant
+  # dépend de l'échelle des variables et peut être légitimement très petit.
+  p <- ncol(Y)
+  rank_ok <- vapply(split(seq_len(nrow(Y)), group), function(idx) {
     sub <- Y[idx, , drop = FALSE]
     cov_sub <- tryCatch(stats::cov(sub), error = function(e) NULL)
-    if (is.null(cov_sub) || any(is.na(cov_sub))) return(NA_real_)
-    d <- tryCatch(det(cov_sub), error = function(e) NA_real_)
-    if (is.na(d)) NA_real_ else d
-  }, numeric(1))
+    if (is.null(cov_sub) || any(!is.finite(cov_sub))) return(FALSE)
+    rg <- tryCatch(qr(cov_sub)$rank, error = function(e) NA_integer_)
+    !is.na(rg) && rg >= p
+  }, logical(1))
   
-  if (any(is.na(cov_dets)) || any(cov_dets <= .Machine$double.eps))
+  if (any(!rank_ok))
     return(list(chi2 = NA_real_, df = NA_real_, p.value = NA_real_,
                 conclusion = "Matrice de covariance singulière dans au moins un groupe (variables colinéaires ou n trop petit) -- Box's M non applicable"))
   
@@ -1251,10 +1294,105 @@ build_letters_per_variable <- function(df, response, factor_name,
   out
 }
 
+
+#' PostHoc par variable sur les cellules d'une interaction (facteurs croises)
+#'
+#' Quand une interaction est presente, compare les combinaisons de niveaux
+#' (ex. periode1.zoneA, periode1.zoneB, periode2.zoneA...) afin d'apprecier
+#' simultanement l'effet du facteur fixe et du facteur evalue.
+#'
+#' @param df        data.frame nettoye
+#' @param response  variables reponses
+#' @param factors   vecteur de >= 2 facteurs (croises)
+#' @param parametric TRUE = ANOVA/Tukey, FALSE = Kruskal/Dunn
+#' @param digits    decimales d'affichage
+#' @return data.frame long : Variable, Cellule, <facteurs>, N, Moyenne,
+#'         Ecart_type, Erreur_type, Groupes, Moyenne_pm_SD, Moyenne_pm_SE
+build_letters_interaction <- function(df, response, factors,
+                                      parametric = TRUE, digits = 3) {
+  if (length(factors) < 2) return(NULL)
+  df <- df[stats::complete.cases(df[, c(response, factors), drop = FALSE]), , drop = FALSE]
+  for (f in factors) {
+    if (!is.factor(df[[f]])) df[[f]] <- factor(as.character(df[[f]]))
+    df[[f]] <- droplevels(df[[f]])
+  }
+  
+  # Facteur croise : une cellule par combinaison de niveaux
+  cell <- interaction(df[factors], sep = " . ", drop = TRUE)
+  cell <- droplevels(cell)
+  levs <- levels(cell)
+  if (length(levs) < 2) return(NULL)
+  
+  # Table de correspondance cellule -> niveaux d'origine
+  cell_map <- unique(data.frame(
+    Cellule = as.character(cell),
+    df[factors],
+    stringsAsFactors = FALSE
+  ))
+  cell_map <- cell_map[match(levs, cell_map$Cellule), , drop = FALSE]
+  
+  fmt_val <- function(m, s) ifelse(is.na(m) | is.na(s), "NA",
+                                   paste0(formatC(m, digits = digits, format = "f"),
+                                          " \u00b1 ",
+                                          formatC(s, digits = digits, format = "f")))
+  
+  rows <- list()
+  for (v in response) {
+    y <- df[[v]]
+    n_per <- as.numeric(table(cell))[match(levs, levels(cell))]
+    means <- vapply(levs, function(lv) mean(y[cell == lv], na.rm = TRUE), numeric(1))
+    sds   <- vapply(levs, function(lv) stats::sd(y[cell == lv], na.rm = TRUE), numeric(1))
+    ses   <- sds / sqrt(pmax(n_per, 1))
+    
+    letters_v <- tryCatch({
+      if (parametric) {
+        fit  <- stats::aov(y ~ cell)
+        tuk  <- stats::TukeyHSD(fit)[[1]]
+        pv   <- tuk[, "p adj"]; nm <- rownames(tuk)
+        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
+        for (i in seq_along(nm)) {
+          pair <- strsplit(nm[i], "-", fixed = TRUE)[[1]]
+          if (length(pair) == 2 && all(pair %in% levs)) {
+            pmat[pair[1], pair[2]] <- pv[i]; pmat[pair[2], pair[1]] <- pv[i]
+          }
+        }
+        multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
+      } else {
+        dn <- FSA::dunnTest(y, cell, method = "bonferroni")$res
+        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
+        for (i in seq_len(nrow(dn))) {
+          pair <- trimws(strsplit(as.character(dn$Comparison[i]), "-", fixed = TRUE)[[1]])
+          if (length(pair) == 2 && all(pair %in% levs)) {
+            pmat[pair[1], pair[2]] <- dn$P.adj[i]; pmat[pair[2], pair[1]] <- dn$P.adj[i]
+          }
+        }
+        multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
+      }
+    }, error = function(e) stats::setNames(rep("a", length(levs)), levs))
+    
+    block <- data.frame(
+      Variable      = v,
+      Cellule       = levs,
+      stringsAsFactors = FALSE,
+      row.names = NULL
+    )
+    for (f in factors) block[[f]] <- cell_map[[f]]
+    block$N             <- n_per
+    block$Moyenne       <- means
+    block$Ecart_type    <- sds
+    block$Erreur_type   <- ses
+    block$Groupes       <- as.character(letters_v)
+    block$Moyenne_pm_SD <- paste0(fmt_val(means, sds), " ", as.character(letters_v))
+    block$Moyenne_pm_SE <- paste0(fmt_val(means, ses), " ", as.character(letters_v))
+    rows[[v]] <- block
+  }
+  if (length(rows) == 0) return(NULL)
+  out <- do.call(rbind, rows); rownames(out) <- NULL
+  out
+}
+
 ################################################################################
-#
-#  MANOVA - Assistant decisionnel et diagnostics avances
-#
+# MANOVA - Assistant decisionnel et diagnostics avances
 ################################################################################
 
 #' Distance de Mahalanobis et detection d'outliers multivaries
@@ -1594,7 +1732,7 @@ lm_pairwise_emmeans <- function(model, predictor, adjust = "tukey") {
 #' @param predictor nom du predicteur categoriel
 #' @param adjust   methode d'ajustement
 #' @return data.frame : Niveau, emmean, SE, ddl, Groupes
-lm_cld_letters <- function(model, predictor, adjust = "tukey") {
+lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
   if (!requireNamespace("emmeans", quietly = TRUE) ||
       !requireNamespace("multcomp", quietly = TRUE))
     return(NULL)
@@ -1611,7 +1749,6 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey") {
   if (is.null(cld)) return(NULL)
   
   df_out <- as.data.frame(cld)
-  # Renommer la colonne du predicteur en "Niveau"
   if (predictor %in% names(df_out))
     names(df_out)[names(df_out) == predictor] <- "Niveau"
   if (".group" %in% names(df_out))
@@ -1620,6 +1757,29 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey") {
     names(df_out)[names(df_out) == "group"] <- "Groupes"
   if ("Groupes" %in% names(df_out))
     df_out$Groupes <- trimws(df_out$Groupes)
+  
+  # Moyennes observees par niveau (depuis les donnees du modele) + SD / SE
+  mf <- tryCatch(model$model, error = function(e) NULL)
+  if (!is.null(mf) && predictor %in% names(mf)) {
+    resp_name <- names(mf)[1]
+    y <- mf[[resp_name]]
+    g <- factor(mf[[predictor]])
+    fmt <- function(m, s) ifelse(is.na(m) | is.na(s), "NA",
+                                 paste0(formatC(m, digits = digits, format = "f"),
+                                        " \u00b1 ",
+                                        formatC(s, digits = digits, format = "f")))
+    stats_g <- sapply(as.character(df_out$Niveau), function(lv) {
+      yy <- y[g == lv]
+      n  <- sum(!is.na(yy))
+      m  <- mean(yy, na.rm = TRUE)
+      sdv <- stats::sd(yy, na.rm = TRUE)
+      sev <- if (n > 0) sdv / sqrt(n) else NA_real_
+      c(m = m, sd = sdv, se = sev)
+    })
+    grp <- df_out$Groupes
+    df_out$`Moyenne_pm_SD` <- paste0(fmt(stats_g["m", ], stats_g["sd", ]), " ", grp)
+    df_out$`Moyenne_pm_SE` <- paste0(fmt(stats_g["m", ], stats_g["se", ]), " ", grp)
+  }
   df_out
 }
 
@@ -1647,4 +1807,405 @@ lm_anova_table <- function(model, type = 2) {
                                   ifelse(df_out[[pcol[1]]] < 0.05, "Oui", "Non"))
   }
   df_out
+}
+
+################################################################################
+# Helpers transverses : arrondi global et coloration des groupes posthoc
+################################################################################
+
+#' Arrondit toutes les colonnes numeriques d'un data.frame selon les reglages.
+#' Centralise la logique d'arrondi pour toutes les analyses (maintenable).
+#' @param df       data.frame a arrondir
+#' @param round_on TRUE si l'arrondi est active (input$testsRoundResults)
+#' @param decimals nombre de decimales (input$testsDecimals)
+#' @return data.frame avec colonnes numeriques arrondies (inchange si round_on FALSE)
+round_numeric_df <- function(df, round_on, decimals = 2) {
+  if (is.null(df) || !is.data.frame(df)) return(df)
+  
+  # Nombre de decimales : si l'arrondi est actif, valeur choisie ; sinon
+  # une precision d'affichage par defaut (3) garantissant la coherence
+  # entre colonnes numeriques et colonnes texte "Moyenne ± ...".
+  dec <- if (isTRUE(round_on)) {
+    if (is.null(decimals) || is.na(decimals)) 2L else as.integer(decimals)
+  } else {
+    3L
+  }
+  
+  # Noms possibles des colonnes texte (avant ou apres renommage d'affichage)
+  sd_names <- c("Moyenne_pm_SD", "Moyenne \u00b1 Ecart-type groupe")
+  se_names <- c("Moyenne_pm_SE", "Moyenne \u00b1 Erreur-type groupe")
+  has_col  <- function(nms) nms[nms %in% names(df)][1]
+  sd_col   <- has_col(sd_names)
+  se_col   <- has_col(se_names)
+  
+  # Reconstruction des colonnes texte a partir des colonnes numeriques sources,
+  # afin que "Moyenne ± Ecart-type" affiche EXACTEMENT la valeur de "Moyenne".
+  fmt_pair <- function(m, s, grp) {
+    out <- ifelse(is.na(m) | is.na(s), "NA",
+                  paste0(formatC(round(m, dec), digits = dec, format = "f"),
+                         " \u00b1 ",
+                         formatC(round(s, dec), digits = dec, format = "f")))
+    if (!is.null(grp)) out <- paste0(out, " ", grp)
+    out
+  }
+  grp_vec <- if ("Groupes" %in% names(df)) as.character(df$Groupes) else NULL
+  
+  if (!is.na(sd_col) && all(c("Moyenne", "Ecart_type") %in% names(df))) {
+    df[[sd_col]] <- fmt_pair(df$Moyenne, df$Ecart_type, grp_vec)
+  }
+  if (!is.na(se_col) && all(c("Moyenne", "Erreur_type") %in% names(df))) {
+    df[[se_col]] <- fmt_pair(df$Moyenne, df$Erreur_type, grp_vec)
+  }
+  
+  # Colonnes numeriques : arrondi seulement si l'utilisateur l'a demande.
+  if (isTRUE(round_on)) {
+    num <- vapply(df, is.numeric, logical(1))
+    if (any(num))
+      df[, num] <- lapply(df[, num, drop = FALSE], function(x) round(x, dec))
+    
+    # Colonnes texte "± " restantes (sans colonnes numeriques sources) :
+    # re-arrondir les nombres presents dans la chaine.
+    is_pm_col <- function(values) {
+      v <- values[!is.na(values)]
+      length(v) > 0 && all(grepl("\u00b1", v))
+    }
+    handled <- c(sd_col, se_col)
+    for (cn in names(df)) {
+      if (cn %in% handled) next
+      if (is.character(df[[cn]]) && is_pm_col(df[[cn]])) {
+        df[[cn]] <- vapply(df[[cn]], function(s) {
+          if (is.na(s)) return(NA_character_)
+          m <- gregexpr("[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?", s, perl = TRUE)
+          regmatches(s, m) <- list(vapply(regmatches(s, m)[[1]], function(num) {
+            val <- suppressWarnings(as.numeric(num))
+            if (is.na(val)) num
+            else formatC(round(val, dec), digits = dec, format = "f")
+          }, character(1)))
+          s
+        }, character(1), USE.NAMES = FALSE)
+      }
+    }
+  }
+  df
+}
+
+#' Palette de couleurs distinctes pour les lettres de groupes CLD.
+#' @param n nombre de couleurs souhaitees
+#' @return vecteur de couleurs hexadecimales
+group_color_palette <- function(n) {
+  base <- c("#E8F5E9", "#FFF3E0", "#E3F2FD", "#F3E5F5", "#FCE4EC",
+            "#E0F7FA", "#FFF9C4", "#EFEBE9", "#F1F8E9", "#E1F5FE",
+            "#FBE9E7", "#EDE7F6")
+  if (n <= length(base)) return(base[seq_len(n)])
+  grDevices::hcl.colors(n, palette = "Pastel 1")
+}
+
+#' Applique une couleur de fond distincte par lettre de groupe a une colonne
+#' d'un datatable DT. Chaque groupe unique recoit sa propre couleur.
+#' @param dt  objet datatable DT
+#' @param df  data.frame source (pour extraire les niveaux de groupe)
+#' @param col nom de la colonne contenant les lettres de groupes
+#' @return datatable DT avec coloration appliquee
+color_groups_dt <- function(dt, df, col = "Groupes") {
+  if (!col %in% names(df)) return(dt)
+  grps <- sort(unique(stats::na.omit(as.character(df[[col]]))))
+  if (length(grps) == 0) return(dt)
+  cols <- group_color_palette(length(grps))
+  DT::formatStyle(dt, col,
+                  backgroundColor = DT::styleEqual(grps, cols),
+                  fontWeight = "bold", textAlign = "center")
+}
+
+
+################################################################################
+#
+#  Moteur de donnees HStat -- chargement en memoire (fread) + hors-memoire (DuckDB)
+#
+################################################################################
+
+# -- Parametres globaux (modifiables) -----------------------------------------
+# Au-dela de ce seuil, les CSV/Parquet basculent en mode hors-memoire (DuckDB).
+HSTAT_BIGDATA_THRESHOLD <- 500 * 1024^2      # 500 Mo
+# Taille de l'echantillon de travail en mode hors-memoire.
+HSTAT_SAMPLE_SIZE       <- 100000L
+
+# -- Detection du type de fichier ---------------------------------------------
+hstat_file_kind <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  if (ext %in% c("csv", "txt", "tsv"))      return("csv")
+  if (ext %in% c("xlsx", "xls"))            return("excel")
+  if (ext == "parquet")                     return("parquet")
+  if (ext %in% c("duckdb", "ddb"))          return("duckdb")
+  if (ext == "sav")                         return("sav")
+  if (ext == "dta")                         return("dta")
+  if (ext == "rds")                         return("rds")
+  "inconnu"
+}
+
+# -- Taille du fichier (octets) -----------------------------------------------
+hstat_file_size <- function(path) {
+  s <- tryCatch(file.info(path)$size, error = function(e) NA_real_)
+  if (is.na(s)) 0 else s
+}
+hstat_format_size <- function(bytes) {
+  if (is.na(bytes) || bytes <= 0) return("0 o")
+  u <- c("o", "Ko", "Mo", "Go", "To")
+  i <- min(floor(log(bytes, 1024)), length(u) - 1)
+  paste0(round(bytes / 1024^i, 1), " ", u[i + 1])
+}
+
+# -- Chemin compatible SQL (slash avant, apostrophes echappees) ---------------
+hstat_sql_path <- function(path) {
+  gsub("'", "''", gsub("\\\\", "/", path))
+}
+
+# -- Disponibilite des moteurs ------------------------------------------------
+hstat_has_duckdb <- function()
+  requireNamespace("duckdb", quietly = TRUE) && requireNamespace("DBI", quietly = TRUE)
+hstat_has_datatable <- function()
+  requireNamespace("data.table", quietly = TRUE)
+
+# -- Lecture rapide d'un CSV en memoire (fread, repli read.csv) ---------------
+hstat_read_csv_mem <- function(path, header = TRUE, sep = ",") {
+  if (hstat_has_datatable()) {
+    df <- data.table::fread(path, header = header, sep = sep,
+                            data.table = FALSE, check.names = FALSE,
+                            showProgress = FALSE, encoding = "UTF-8")
+    return(as.data.frame(df))
+  }
+  read.csv(path, header = header, sep = sep, check.names = FALSE,
+           stringsAsFactors = FALSE, fileEncoding = "UTF-8")
+}
+
+# -- Ouverture d'une connexion DuckDB en memoire ------------------------------
+hstat_duckdb_connect <- function() {
+  if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis pour le mode hors-memoire.")
+  DBI::dbConnect(duckdb::duckdb())
+}
+
+# -- Enregistrement d'une source dans DuckDB sous forme de VUE ----------------
+# Aucune donnee n'est materialisee : DuckDB interroge le fichier sur disque.
+# Retourne le nom de la vue creee.
+hstat_duckdb_register <- function(con, path, kind, header = TRUE, sep = ",") {
+  p   <- hstat_sql_path(path)
+  tbl <- "hstat_source"
+  DBI::dbExecute(con, sprintf("DROP VIEW IF EXISTS %s", tbl))
+  if (kind == "csv") {
+    delim <- if (identical(sep, "\t")) "\\t" else sep
+    sql <- sprintf(
+      "CREATE VIEW %s AS SELECT * FROM read_csv_auto('%s', header=%s, delim='%s', sample_size=-1)",
+      tbl, p, if (isTRUE(header)) "true" else "false", delim)
+  } else if (kind == "parquet") {
+    sql <- sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet('%s')", tbl, p)
+  } else {
+    stop("Type non pris en charge par DuckDB : ", kind)
+  }
+  DBI::dbExecute(con, sql)
+  tbl
+}
+
+# -- Connexion a un fichier DuckDB natif --------------------------------------
+hstat_duckdb_open_file <- function(path) {
+  if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis.")
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = path, read_only = TRUE)
+  tbls <- DBI::dbListTables(con)
+  if (length(tbls) == 0) { DBI::dbDisconnect(con, shutdown = TRUE); stop("Aucune table dans ce fichier DuckDB.") }
+  list(con = con, table = tbls[1], tables = tbls)
+}
+
+# -- Metadonnees d'une table/vue DuckDB ---------------------------------------
+hstat_duckdb_nrow <- function(con, tbl) {
+  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT COUNT(*) AS n FROM %s", tbl))$n[1])
+}
+hstat_duckdb_colnames <- function(con, tbl) {
+  DBI::dbGetQuery(con, sprintf("SELECT * FROM %s LIMIT 0", tbl)) |> names()
+}
+hstat_duckdb_na_total <- function(con, tbl) {
+  cols <- hstat_duckdb_colnames(con, tbl)
+  if (length(cols) == 0) return(0)
+  expr <- paste(sprintf('SUM(CASE WHEN "%s" IS NULL THEN 1 ELSE 0 END)', cols),
+                collapse = " + ")
+  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT (%s) AS na FROM %s", expr, tbl))$na[1])
+}
+
+# -- Echantillon representatif (reservoir sampling DuckDB) --------------------
+hstat_duckdb_sample <- function(con, tbl, n = HSTAT_SAMPLE_SIZE) {
+  total <- hstat_duckdb_nrow(con, tbl)
+  if (total <= n) {
+    df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", tbl))
+  } else {
+    df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s USING SAMPLE %d ROWS",
+                                       tbl, as.integer(n)))
+  }
+  as.data.frame(df)
+}
+
+# -- Materialisation complete d'une source DuckDB (petits fichiers) -----------
+hstat_duckdb_collect <- function(con, tbl) {
+  as.data.frame(DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", tbl)))
+}
+
+# -- Fermeture propre d'une connexion DuckDB ----------------------------------
+hstat_duckdb_close <- function(con) {
+  if (!is.null(con)) tryCatch(DBI::dbDisconnect(con, shutdown = TRUE),
+                              error = function(e) NULL)
+}
+
+# -- Chargeur unifie ----------------------------------------------------------
+# Retourne une liste : data (data.frame de travail), mode ("memory"/"duckdb"),
+# con (connexion DuckDB ou NULL), table, full_nrow, full_ncol, full_na,
+# is_sampled, kind, size.
+hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
+                            sheet = 1,
+                            threshold = HSTAT_BIGDATA_THRESHOLD,
+                            sample_size = HSTAT_SAMPLE_SIZE) {
+  size <- hstat_file_size(path)
+
+  # --- Formats toujours charges en memoire ---------------------------------
+  if (kind == "excel") {
+    df <- as.data.frame(readxl::read_excel(path = path, sheet = sheet %||% 1))
+  } else if (kind == "sav") {
+    df <- as.data.frame(haven::read_sav(path))
+  } else if (kind == "dta") {
+    df <- as.data.frame(haven::read_dta(path))
+  } else if (kind == "rds") {
+    df <- as.data.frame(readRDS(path))
+
+  # --- CSV : memoire si petit, DuckDB si volumineux ------------------------
+  } else if (kind == "csv") {
+    if (size <= threshold || !hstat_has_duckdb()) {
+      df <- hstat_read_csv_mem(path, header = header, sep = sep)
+    } else {
+      con <- hstat_duckdb_connect()
+      tbl <- hstat_duckdb_register(con, path, "csv", header = header, sep = sep)
+      total <- hstat_duckdb_nrow(con, tbl)
+      smp   <- hstat_duckdb_sample(con, tbl, sample_size)
+      return(list(data = smp, mode = "duckdb", con = con, table = tbl,
+                  full_nrow = total, full_ncol = ncol(smp),
+                  full_na = NA_real_, is_sampled = total > nrow(smp),
+                  kind = kind, size = size))
+    }
+
+  # --- Parquet : DuckDB (materialise si petit, vue si volumineux) ----------
+  } else if (kind == "parquet") {
+    if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis pour lire le Parquet.")
+    con <- hstat_duckdb_connect()
+    tbl <- hstat_duckdb_register(con, path, "parquet")
+    total <- hstat_duckdb_nrow(con, tbl)
+    if (size <= threshold) {
+      df <- hstat_duckdb_collect(con, tbl)
+      hstat_duckdb_close(con)
+    } else {
+      smp <- hstat_duckdb_sample(con, tbl, sample_size)
+      return(list(data = smp, mode = "duckdb", con = con, table = tbl,
+                  full_nrow = total, full_ncol = ncol(smp),
+                  full_na = NA_real_, is_sampled = total > nrow(smp),
+                  kind = kind, size = size))
+    }
+
+  # --- DuckDB natif --------------------------------------------------------
+  } else if (kind == "duckdb") {
+    op <- hstat_duckdb_open_file(path)
+    total <- hstat_duckdb_nrow(op$con, op$table)
+    smp   <- hstat_duckdb_sample(op$con, op$table, sample_size)
+    return(list(data = smp, mode = "duckdb", con = op$con, table = op$table,
+                full_nrow = total, full_ncol = ncol(smp),
+                full_na = NA_real_, is_sampled = total > nrow(smp),
+                kind = kind, size = size))
+
+  } else {
+    stop("Format de fichier non pris en charge.")
+  }
+
+  # --- Sortie mode memoire -------------------------------------------------
+  list(data = df, mode = "memory", con = NULL, table = NULL,
+       full_nrow = nrow(df), full_ncol = ncol(df),
+       full_na = sum(is.na(df)), is_sampled = FALSE,
+       kind = kind, size = size)
+}
+
+
+################################################################################
+#
+#  Statistiques exactes sur le jeu COMPLET via DuckDB (mode hors-memoire)
+#
+################################################################################
+
+# -- Construit les expressions SQL d'agregation pour une colonne numerique ----
+# Retourne un vecteur nomme statistique -> expression SQL.
+.hstat_sql_stat_exprs <- function(col, stats_sel) {
+  q <- sprintf('"%s"', col)
+  all_ex <- c(
+    mean   = sprintf("AVG(%s)", q),
+    median = sprintf("MEDIAN(%s)", q),
+    sd     = sprintf("STDDEV_SAMP(%s)", q),
+    var    = sprintf("VAR_SAMP(%s)", q),
+    cv     = sprintf("(CASE WHEN AVG(%s)=0 THEN NULL ELSE 100.0*STDDEV_SAMP(%s)/ABS(AVG(%s)) END)",
+                     q, q, q),
+    min    = sprintf("MIN(%s)", q),
+    max    = sprintf("MAX(%s)", q),
+    q1     = sprintf("QUANTILE_CONT(%s, 0.25)", q),
+    q3     = sprintf("QUANTILE_CONT(%s, 0.75)", q)
+  )
+  all_ex[stats_sel[stats_sel %in% names(all_ex)]]
+}
+
+# -- Statistiques descriptives GLOBALES exactes sur le jeu complet ------------
+# Sortie identique a make_summ_global : Facteurs, Variable, <stats...>
+hstat_duckdb_describe_global <- function(con, tbl, num_vars, stats_sel) {
+  rows <- lapply(num_vars, function(v) {
+    ex <- .hstat_sql_stat_exprs(v, stats_sel)
+    if (length(ex) == 0) return(NULL)
+    sel <- paste(sprintf("%s AS %s", ex, names(ex)), collapse = ", ")
+    r <- DBI::dbGetQuery(con, sprintf("SELECT %s FROM %s", sel, tbl))
+    data.frame(Facteurs = "Global", Variable = v, r, check.names = FALSE)
+  })
+  do.call(rbind, Filter(Negate(is.null), rows))
+}
+
+# -- Statistiques descriptives GROUPEES exactes sur le jeu complet -----------
+# Sortie identique a make_summ_grouped : <group_vars...>, Variable, <stats...>
+hstat_duckdb_describe_grouped <- function(con, tbl, group_vars, num_vars, stats_sel) {
+  gcols <- paste(sprintf('"%s"', group_vars), collapse = ", ")
+  rows <- lapply(num_vars, function(v) {
+    ex <- .hstat_sql_stat_exprs(v, stats_sel)
+    if (length(ex) == 0) return(NULL)
+    sel <- paste(sprintf("%s AS %s", ex, names(ex)), collapse = ", ")
+    r <- DBI::dbGetQuery(con, sprintf(
+      "SELECT %s, %s FROM %s GROUP BY %s ORDER BY %s",
+      gcols, sel, tbl, gcols, gcols))
+    r$Variable <- v
+    r[, c(group_vars, "Variable", names(ex)), drop = FALSE]
+  })
+  do.call(rbind, Filter(Negate(is.null), rows))
+}
+
+# -- Table de contingence exacte sur le jeu complet --------------------------
+hstat_duckdb_crosstab <- function(con, tbl, row_var, col_var) {
+  r <- DBI::dbGetQuery(con, sprintf(
+    'SELECT "%s" AS rv, "%s" AS cv, COUNT(*) AS n FROM %s GROUP BY 1, 2',
+    row_var, col_var, tbl))
+  if (nrow(r) == 0) return(NULL)
+  stats::xtabs(n ~ rv + cv, data = r)
+}
+
+# -- Matrice de correlation exacte sur le jeu complet ------------------------
+hstat_duckdb_cor <- function(con, tbl, num_vars) {
+  k <- length(num_vars)
+  if (k < 2) return(NULL)
+  m <- diag(1, k); dimnames(m) <- list(num_vars, num_vars)
+  for (i in 1:(k-1)) for (j in (i+1):k) {
+    val <- tryCatch(DBI::dbGetQuery(con, sprintf(
+      'SELECT CORR("%s","%s") AS r FROM %s', num_vars[i], num_vars[j], tbl))$r[1],
+      error = function(e) NA_real_)
+    m[i, j] <- m[j, i] <- val
+  }
+  m
+}
+
+# -- Comptage exact de lignes apres filtre SQL (optionnel) -------------------
+hstat_duckdb_count <- function(con, tbl, where = NULL) {
+  sql <- sprintf("SELECT COUNT(*) AS n FROM %s", tbl)
+  if (!is.null(where) && nzchar(where)) sql <- paste0(sql, " WHERE ", where)
+  as.numeric(DBI::dbGetQuery(con, sql)$n[1])
 }

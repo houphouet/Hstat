@@ -1,3 +1,132 @@
+################################################################################
+#  Helpers UI -- Analyses multivariees etendues
+################################################################################
+
+# Bandeau "portee des donnees" : affiche sur chaque onglet d'analyse en mode
+# hors-memoire pour rappeler que l'analyse porte sur un echantillon, avec acces
+# rapide au reglage de l'echantillon. 'exact' = TRUE si l'onglet propose en plus
+# un calcul exact sur le jeu complet.
+.hstat_scope_banner <- function(exact = FALSE) {
+  conditionalPanel(
+    condition = "output.hstatBigData == true",
+    div(style = "background:#fff4e5; border:1px solid #ed6c02; border-left:5px solid #ed6c02;
+                 border-radius:8px; padding:10px 16px; margin-bottom:14px;",
+        tags$p(style = "margin:0; font-size:13px; color:#7a4a1a;",
+               icon("database"),
+               if (exact)
+                 HTML(" <b>Mode hors-mémoire.</b> Cette analyse s'exécute sur l'échantillon de travail ; l'option <b>« calculer sur le jeu complet »</b> ci-dessous fournit un résultat exact lorsque c'est applicable.")
+               else
+                 HTML(" <b>Mode hors-mémoire.</b> Cette analyse ajuste un modèle et s'exécute donc sur l'<b>échantillon de travail</b>. Pour gagner en fidélité, agrandissez l'échantillon dans l'onglet « Chargement » &rarr; « Échantillon de travail »."))
+    )
+  )
+}
+
+.mv_theme <- function(cat) {
+  switch(cat,
+         quanti = list(main = "#1565c0", bg = "#e8f2fc", border = "#90caf9",
+                       status = "info",    grad = "linear-gradient(135deg,#1565c0,#1976d2)"),
+         quali  = list(main = "#6a1b9a", bg = "#f3e5f5", border = "#ce93d8",
+                       status = "primary", grad = "linear-gradient(135deg,#6a1b9a,#8e24aa)"),
+         mixte  = list(main = "#00695c", bg = "#e0f2f1", border = "#80cbc4",
+                       status = "success", grad = "linear-gradient(135deg,#00695c,#00897b)"))
+}
+
+.mv_info_panel <- function(key, cat, principes, objectifs, taille, variables) {
+  th <- .mv_theme(cat)
+  bid <- paste0("mv-", key, "-info")
+  div(style = "margin-bottom:10px;",
+      div(
+        style = paste0("cursor:pointer; background:", th$grad,
+                       "; color:white; padding:8px 12px; border-radius:6px;",
+                       " font-weight:bold; font-size:13px; user-select:none;"),
+        onclick = sprintf("var c=document.getElementById('%s'); c.style.display=(c.style.display==='none'?'block':'none');", bid),
+        icon("info-circle"), " Principes, objectifs & conditions ", icon("chevron-down")
+      ),
+      div(id = bid,
+          style = paste0("display:none; background:", th$bg, "; border:1px solid ",
+                         th$border, "; border-radius:0 0 6px 6px; padding:12px; font-size:12px;"),
+          fluidRow(
+            column(6,
+                   tags$b(style = paste0("color:", th$main, ";"), icon("drafting-compass"), " Principes :"),
+                   tags$p(style = "margin:2px 0 6px 0; color:#333;", principes),
+                   tags$b(style = paste0("color:", th$main, ";"), icon("bullseye"), " Objectifs :"),
+                   tags$p(style = "margin:2px 0 0 0; color:#333;", objectifs)
+            ),
+            column(6,
+                   tags$b(style = paste0("color:", th$main, ";"), icon("ruler"), " Taille necessaire :"),
+                   tags$ul(style = "margin:2px 0 6px 12px; padding:0; color:#333;",
+                           lapply(taille, function(x) tags$li(HTML(x)))),
+                   tags$b(style = paste0("color:", th$main, ";"), icon("hashtag"), " Variables :"),
+                   tags$ul(style = "margin:2px 0 0 12px; padding:0; color:#333;",
+                           lapply(variables, function(x) tags$li(HTML(x))))
+            )
+          ),
+          uiOutput(paste0("mv_", key, "_conditions"))
+      )
+  )
+}
+
+.mv_category_header <- function(label, ic, color) {
+  fluidRow(column(12,
+                  div(style = paste0("margin:18px 0 6px 0; padding:10px 16px; border-radius:8px;",
+                                     " background:", color, "; color:white;"),
+                      h3(style = "margin:0; font-weight:bold;", icon(ic), " ", label))
+  ))
+}
+
+.mv_analysis_box <- function(key, title, cat, principes, objectifs, taille, variables,
+                             intro = NULL) {
+  th <- .mv_theme(cat)
+  box(
+    title = tagList(icon("project-diagram"), " ", title),
+    status = th$status, width = 12, solidHeader = TRUE, collapsible = TRUE,
+    collapsed = TRUE,
+    
+    if (!is.null(intro))
+      p(style = "color:#555; font-style:italic; margin-bottom:8px;", icon("lightbulb"), " ", intro),
+    
+    .mv_info_panel(key, cat, principes, objectifs, taille, variables),
+    
+    uiOutput(paste0("mv_", key, "_controls")),
+    
+    div(style = "text-align:center; margin:12px 0;",
+        actionButton(paste0("mv_", key, "_run"),
+                     tagList(icon("play-circle"), " Lancer l'analyse"),
+                     class = "btn-primary",
+                     style = paste0("font-weight:bold; padding:8px 22px; background:",
+                                    th$main, "; border-color:", th$main, ";"))
+    ),
+    
+    uiOutput(paste0("mv_", key, "_status")),
+    
+    tabBox(width = 12,
+           tabPanel(tagList(icon("table"), " Resultats & metriques"),
+                    withSpinner(uiOutput(paste0("mv_", key, "_metrics")), color = th$main)
+           ),
+           tabPanel(tagList(icon("chart-area"), " Graphique"),
+                    withSpinner(plotOutput(paste0("mv_", key, "_plot"), height = "560px"), color = th$main)
+           ),
+           tabPanel(tagList(icon("file-alt"), " Details techniques"),
+                    div(style = "max-height:520px; overflow-y:auto; font-family:'Courier New',monospace; font-size:12px; background:#fff; padding:14px; border-radius:5px;",
+                        verbatimTextOutput(paste0("mv_", key, "_summary")))
+           )
+    ),
+    
+    div(style = paste0("background:", th$grad, "; border-radius:10px; padding:14px; margin-top:8px;"),
+        h4(style = "color:white; font-weight:bold; margin-top:0; text-align:center;",
+           icon("file-export"), " Export des resultats"),
+        fluidRow(column(12, style = "text-align:center;",
+                        downloadButton(paste0("mv_", key, "_dl_xlsx"),
+                                       HTML(paste0(as.character(icon("file-excel")), " <strong>Excel</strong>")),
+                                       class = "btn-success", style = "margin:4px; padding:7px 16px;"),
+                        downloadButton(paste0("mv_", key, "_dl_csv"),
+                                       HTML(paste0(as.character(icon("file-csv")), " <strong>CSV</strong>")),
+                                       class = "btn-warning", style = "margin:4px; padding:7px 16px;")
+        ))
+    )
+  )
+}
+
 ui <- dashboardPage(
   skin = "blue",
   dashboardHeader(
@@ -17,43 +146,404 @@ ui <- dashboardPage(
     width = 300,
     sidebarMenu(
       id = "tabs",
+      tags$li(class = "header", "Données"),
       menuItem("Chargement", tabName = "load", icon = icon("upload")),
       menuItem("Exploration", tabName = "explore", icon = icon("binoculars")),
       menuItem("Nettoyage", tabName = "clean", icon = icon("broom")),
       menuItem("Filtrage", tabName = "filter", icon = icon("filter")),
+      tags$li(class = "header", "Analyses"),
       menuItem("Analyses descriptives", tabName = "descriptive", icon = icon("chart-bar")),
       menuItem("Tableaux croisés", tabName = "crosstab", icon = icon("table")),
       menuItem("Visualisation des données", tabName = "visualization", icon = icon("chart-line")),
-      menuItem("Réalisation des tests statistiques", tabName = "tests", icon = icon("calculator")),
-      menuItem("Comparaisons multiples PostHoc", tabName = "multiple", icon = icon("sort-amount-down")),
+      menuItem("Tests statistiques", tabName = "tests", icon = icon("calculator")),
+      menuItem("Comparaisons post-hoc", tabName = "multiple", icon = icon("sort-amount-down")),
       menuItem("Analyses multivariées", tabName = "multivariate", icon = icon("project-diagram")),
-      menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("chart-bar")),
-      hr(),
-      actionButton("helpBtn", "Aide", icon = icon("question-circle"), class = "btn-info"),
-      actionButton("resetBtn", "Réinitialiser", icon = icon("redo"), class = "btn-warning")
+      menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("gauge-high")),
+      tags$li(class = "header", "Actions"),
+      div(style = "padding:10px 14px;",
+          actionButton("helpBtn", "Aide", icon = icon("question-circle"),
+                       class = "btn-info btn-block"),
+          actionButton("resetBtn", "Réinitialiser", icon = icon("redo"),
+                       class = "btn-warning btn-block"))
     )
   ),
   dashboardBody(
     useShinyjs(),
     useShinyalert(force = TRUE),
     tags$head(
+      tags$script(HTML("
+        Shiny.addCustomMessageHandler('expandBox', function(boxId) {
+          var wrap = document.getElementById(boxId);
+          if (!wrap) return;
+          var box = wrap.classList.contains('box') ? wrap : wrap.querySelector('.box');
+          if (box && box.classList.contains('collapsed-box')) {
+            var btn = box.querySelector('[data-widget=\"collapse\"]');
+            if (btn) btn.click();
+          }
+        });
+        Shiny.addCustomMessageHandler('collapseBox', function(boxId) {
+          var attempt = function(tries) {
+            var wrap = document.getElementById(boxId);
+            if (!wrap) { if (tries > 0) setTimeout(function(){attempt(tries-1);}, 150); return; }
+            var box = wrap.classList.contains('box') ? wrap : wrap.querySelector('.box');
+            if (!box) { if (tries > 0) setTimeout(function(){attempt(tries-1);}, 150); return; }
+            if (!box.classList.contains('collapsed-box')) {
+              var btn = box.querySelector('[data-widget=\"collapse\"]');
+              if (btn) btn.click();
+            }
+          };
+          attempt(10);
+        });
+      ")),
+      # ---- Police professionnelle (Inter) -- version locale, sans dependance reseau ----
+      # Les fichiers .woff2 sont servis depuis le dossier www/fonts/ de l'application.
       tags$style(HTML("
-        .box-title { font-weight: bold; }
-        .btn { margin-right: 5px; }
-        .progress-bar { background-color: #3c8dbc; }
-        .nav-tabs-custom > .nav-tabs > li.active { border-top-color: #3c8dbc; }
-        .info-box { min-height: 80px; }
-        .info-box-icon { height: 80px; line-height: 80px; }
-        .info-box-content { padding: 10px; }
-        .small-box { border-radius: 5px; }
-        .main-header .logo { font-weight: bold; }
-        .interpretation-box { background-color: #f9f9f9; border-left: 4px solid #3c8dbc; padding: 10px; margin-top: 10px; }
+        @font-face {
+          font-family: 'Inter'; font-style: normal; font-weight: 400;
+          font-display: swap;
+          src: url('fonts/inter-latin-400-normal.woff2') format('woff2');
+        }
+        @font-face {
+          font-family: 'Inter'; font-style: normal; font-weight: 500;
+          font-display: swap;
+          src: url('fonts/inter-latin-500-normal.woff2') format('woff2');
+        }
+        @font-face {
+          font-family: 'Inter'; font-style: normal; font-weight: 600;
+          font-display: swap;
+          src: url('fonts/inter-latin-600-normal.woff2') format('woff2');
+        }
+        @font-face {
+          font-family: 'Inter'; font-style: normal; font-weight: 700;
+          font-display: swap;
+          src: url('fonts/inter-latin-700-normal.woff2') format('woff2');
+        }
+      ")),
+      
+      # ---- Systeme de design HStat ----
+      tags$style(HTML("
+        /* ============================================================
+           HStat -- Systeme de design (variables, typographie, composants)
+           ============================================================ */
+        :root {
+          /* Couleurs de marque */
+          --c-primary:        #1565c0;
+          --c-primary-dark:   #0d47a1;
+          --c-primary-light:  #e7f1fb;
+          --c-primary-hover:  #1976d2;
+          /* Couleurs semantiques */
+          --c-success:        #2e7d32;
+          --c-warning:        #ed6c02;
+          --c-danger:         #c62828;
+          --c-info:           #0277bd;
+          /* Neutres */
+          --c-ink:            #1f2937;
+          --c-ink-soft:       #4b5563;
+          --c-muted:          #6b7280;
+          --c-line:           #e5e7eb;
+          --c-line-soft:      #eef1f4;
+          --c-surface:        #ffffff;
+          --c-bg:             #f4f6f8;
+          --c-bg-alt:         #eef2f6;
+          /* Typographie -- echelle modulaire */
+          --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                     Roboto, 'Helvetica Neue', Arial, sans-serif;
+          --font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono',
+                       Menlo, Consolas, 'Courier New', monospace;
+          --fs-xs:   12px;
+          --fs-sm:   13px;
+          --fs-base: 14px;
+          --fs-md:   15px;
+          --fs-lg:   17px;
+          --fs-xl:   21px;
+          --fs-2xl:  27px;
+          --lh-tight: 1.3;
+          --lh-base:  1.55;
+          /* Rayons & ombres */
+          --radius-sm: 6px;
+          --radius:    10px;
+          --radius-lg: 14px;
+          --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+          --shadow:    0 2px 8px rgba(16,24,40,.08);
+          --shadow-lg: 0 10px 28px rgba(16,24,40,.14);
+          /* Espacements */
+          --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+          --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+        }
 
-        /* Suppression des indicateurs visuels de focus */
-        *:focus { outline: none !important; box-shadow: none !important; }
-        .form-control:focus { border-color: #ccc !important; box-shadow: none !important; }
-        .btn:focus, .btn:active:focus { outline: none !important; box-shadow: none !important; }
-        .selectize-input.focus { box-shadow: none !important; border-color: #ccc !important; }
+        /* ---------- Base typographique ---------- */
+        body, .content-wrapper, .wrapper, .main-sidebar, .left-side,
+        .main-header .logo, .main-header .navbar {
+          font-family: var(--font-ui) !important;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+        body {
+          font-size: var(--fs-base);
+          line-height: var(--lh-base);
+          color: var(--c-ink);
+          letter-spacing: .005em;
+        }
+        .content-wrapper { background-color: var(--c-bg) !important; }
+        h1,h2,h3,h4,h5,h6 { color: var(--c-ink); line-height: var(--lh-tight); }
+        h1 { font-size: var(--fs-2xl); font-weight: 700; }
+        h2 { font-size: var(--fs-xl);  font-weight: 700; }
+        h3 { font-size: var(--fs-lg);  font-weight: 600; }
+        h4 { font-size: var(--fs-md);  font-weight: 600; }
+        h5 { font-size: var(--fs-base);font-weight: 600; }
+        p  { font-size: var(--fs-base); }
+        pre, code, .shiny-text-output.shiny-bound-output,
+        verbatimTextOutput, samp {
+          font-family: var(--font-mono) !important;
+          font-size: var(--fs-sm);
+        }
+        a { color: var(--c-primary); }
+        a:hover, a:focus { color: var(--c-primary-dark); }
+
+        /* ---------- Accessibilite : focus visible ---------- */
+        /* (remplace l'ancienne suppression du focus -- conforme WCAG) */
+        a:focus-visible, button:focus-visible, .btn:focus-visible,
+        input:focus-visible, select:focus-visible, textarea:focus-visible,
+        .selectize-input.focus, [tabindex]:focus-visible {
+          outline: 2px solid var(--c-primary) !important;
+          outline-offset: 2px !important;
+          box-shadow: 0 0 0 3px var(--c-primary-light) !important;
+        }
+        .form-control:focus {
+          border-color: var(--c-primary) !important;
+          box-shadow: 0 0 0 3px var(--c-primary-light) !important;
+        }
+
+        /* ---------- En-tete (header) ---------- */
+        .main-header .logo {
+          font-weight: 700;
+          font-size: var(--fs-lg);
+          letter-spacing: .02em;
+          background: var(--c-primary-dark) !important;
+        }
+        .main-header .logo:hover { background: var(--c-primary-dark) !important; }
+        .main-header .navbar { background: var(--c-primary) !important; }
+        .skin-blue .main-header .navbar .sidebar-toggle:hover {
+          background: var(--c-primary-dark) !important;
+        }
+
+        /* ---------- Barre laterale (sidebar) ---------- */
+        .main-sidebar, .left-side { background: #1e2a38 !important; }
+        .skin-blue .sidebar-menu > li > a {
+          font-size: var(--fs-base);
+          font-weight: 500;
+          padding: 11px 14px;
+          border-left: 3px solid transparent;
+          transition: background .15s ease, border-color .15s ease;
+        }
+        .skin-blue .sidebar-menu > li:hover > a,
+        .skin-blue .sidebar-menu > li.active > a {
+          background: #16202b !important;
+          border-left-color: var(--c-primary-hover) !important;
+          color: #ffffff !important;
+        }
+        .skin-blue .sidebar-menu > li > a > .fa,
+        .skin-blue .sidebar-menu > li > a > .glyphicon,
+        .skin-blue .sidebar-menu > li > a > .svg-inline--fa {
+          width: 22px; text-align: center;
+        }
+        /* En-tetes de section dans la sidebar */
+        .sidebar-menu li.header {
+          padding: 14px 14px 6px 14px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          color: #7f8fa3 !important;
+          background: transparent !important;
+        }
+        .sidebar-menu .treeview-menu > li > a { font-size: var(--fs-sm); }
+
+        /* ---------- Cartes / boites (box) ---------- */
+        .box {
+          border: 1px solid var(--c-line);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow-sm);
+          border-top-width: 1px;
+        }
+        .box.box-solid > .box-header,
+        .box > .box-header {
+          border-radius: var(--radius) var(--radius) 0 0;
+        }
+        .box-header {
+          padding: 13px 16px;
+          border-bottom: 1px solid var(--c-line-soft);
+        }
+        .box-header .box-title {
+          font-size: var(--fs-md);
+          font-weight: 600;
+          letter-spacing: .01em;
+        }
+        .box-body { padding: 16px; }
+        .box.box-primary { border-top-color: var(--c-primary); }
+        .box.box-info    { border-top-color: var(--c-info); }
+        .box.box-success { border-top-color: var(--c-success); }
+        .box.box-warning { border-top-color: var(--c-warning); }
+        .box.box-danger  { border-top-color: var(--c-danger); }
+        .box.box-solid.box-primary > .box-header { background: var(--c-primary); }
+        .box.box-solid.box-info    > .box-header { background: var(--c-info); }
+        .box.box-solid.box-success > .box-header { background: var(--c-success); }
+        .box.box-solid.box-warning > .box-header { background: var(--c-warning); }
+        .box.box-solid.box-primary { border-color: var(--c-primary); }
+        .box.box-solid.box-info    { border-color: var(--c-info); }
+
+        /* ---------- Boutons ---------- */
+        .btn {
+          border-radius: var(--radius-sm);
+          font-weight: 600;
+          font-size: var(--fs-sm);
+          padding: 7px 16px;
+          letter-spacing: .01em;
+          transition: filter .15s ease, box-shadow .15s ease, transform .05s ease;
+        }
+        .btn:hover { filter: brightness(1.06); }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary {
+          background: var(--c-primary); border-color: var(--c-primary);
+        }
+        .btn-primary:hover, .btn-primary:focus {
+          background: var(--c-primary-dark); border-color: var(--c-primary-dark);
+        }
+        .btn-success { background: var(--c-success); border-color: var(--c-success); }
+        .btn-info    { background: var(--c-info);    border-color: var(--c-info); }
+        .btn-warning { background: var(--c-warning); border-color: var(--c-warning); }
+        .btn-danger  { background: var(--c-danger);  border-color: var(--c-danger); }
+        .btn-default {
+          background: var(--c-surface); border-color: var(--c-line);
+          color: var(--c-ink-soft);
+        }
+        .btn-block { margin-top: 6px; }
+
+        /* ---------- Champs de formulaire ---------- */
+        .form-control, .selectize-input {
+          border-radius: var(--radius-sm);
+          border-color: var(--c-line);
+          font-size: var(--fs-base);
+          color: var(--c-ink);
+          box-shadow: none;
+        }
+        .form-control { min-height: 36px; }
+        label, .control-label {
+          font-weight: 600;
+          font-size: var(--fs-sm);
+          color: var(--c-ink-soft);
+          margin-bottom: 5px;
+        }
+        .selectize-input { padding: 6px 10px; }
+        .selectize-dropdown { font-size: var(--fs-base); }
+        .irs-bar, .irs-handle > i:first-child { background: var(--c-primary); }
+        .checkbox label, .radio label { font-weight: 500; color: var(--c-ink); }
+
+        /* ---------- Onglets (tabBox / tabsetPanel) ---------- */
+        .nav-tabs-custom { border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+        .nav-tabs-custom > .nav-tabs { border-bottom: 1px solid var(--c-line); }
+        .nav-tabs > li > a {
+          font-size: var(--fs-sm);
+          font-weight: 600;
+          color: var(--c-muted);
+          border: none;
+        }
+        .nav-tabs > li.active > a,
+        .nav-tabs > li.active > a:hover,
+        .nav-tabs > li.active > a:focus {
+          color: var(--c-primary) !important;
+          border: none;
+        }
+        .nav-tabs-custom > .nav-tabs > li.active {
+          border-top: 3px solid var(--c-primary);
+        }
+        .nav-tabs-custom > .nav-tabs > li.active > a { font-weight: 700; }
+
+        /* ---------- Tableaux DataTables ---------- */
+        table.dataTable { font-size: var(--fs-sm); }
+        table.dataTable thead th {
+          background: var(--c-bg-alt);
+          color: var(--c-ink);
+          font-weight: 700;
+          font-size: var(--fs-xs);
+          letter-spacing: .03em;
+          text-transform: uppercase;
+          border-bottom: 2px solid var(--c-line) !important;
+        }
+        table.dataTable tbody tr:hover { background: var(--c-primary-light) !important; }
+        table.dataTable tbody td { color: var(--c-ink-soft); }
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+          background: var(--c-primary) !important;
+          border-color: var(--c-primary) !important;
+          color: #fff !important; border-radius: var(--radius-sm);
+        }
+        .dataTables_filter input, .dataTables_length select {
+          border-radius: var(--radius-sm); border: 1px solid var(--c-line);
+        }
+
+        /* ---------- Value boxes / small boxes ---------- */
+        .small-box {
+          border-radius: var(--radius);
+          box-shadow: var(--shadow-sm);
+        }
+        .small-box h3 { font-weight: 700; font-size: 30px; }
+        .small-box p  { font-size: var(--fs-base); }
+        .info-box {
+          border-radius: var(--radius);
+          box-shadow: var(--shadow-sm);
+          min-height: 84px;
+        }
+        .info-box-icon { height: 84px; line-height: 84px; border-radius: var(--radius) 0 0 var(--radius); }
+        .info-box-number { font-weight: 700; }
+
+        /* ---------- Modales & notifications ---------- */
+        .modal-content {
+          border-radius: var(--radius-lg);
+          border: none;
+          box-shadow: var(--shadow-lg);
+          overflow: hidden;
+        }
+        .modal-header { background: var(--c-primary); color: #fff; border: none; padding: 16px 20px; }
+        .modal-header .modal-title { font-weight: 700; }
+        .modal-header .close { color: #fff; opacity: .85; }
+        .modal-body { padding: 20px; }
+        .modal-footer { border-top: 1px solid var(--c-line-soft); }
+        #shiny-notification-panel { width: 360px; }
+        .shiny-notification {
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          font-size: var(--fs-sm);
+          border-left: 4px solid var(--c-info);
+        }
+        .shiny-notification-error   { border-left-color: var(--c-danger); }
+        .shiny-notification-warning { border-left-color: var(--c-warning); }
+        .shiny-notification-message { border-left-color: var(--c-success); }
+
+        /* ---------- Barres de progression ---------- */
+        .progress { border-radius: 20px; height: 14px; background: var(--c-line-soft); }
+        .progress-bar { background: var(--c-primary); }
+        .shiny-progress .progress-bar { background: var(--c-primary); }
+
+        /* ---------- Divers ---------- */
+        .box-title { font-weight: 600; }
+        .btn { margin-right: 5px; }
+        .interpretation-box {
+          background: var(--c-primary-light);
+          border-left: 4px solid var(--c-primary);
+          border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+          padding: 12px 14px; margin-top: 10px;
+          font-size: var(--fs-sm);
+        }
+        hr { border-top: 1px solid var(--c-line); }
+        .callout { border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-thumb {
+          background: #c4ccd6; border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: #aab4c0; }
+        ::-webkit-scrollbar-track { background: var(--c-bg-alt); }
+        .shiny-output-error { color: var(--c-danger); font-size: var(--fs-sm); }
+        .shiny-output-error-validation { color: var(--c-warning); }
       ")),
       tags$script(HTML("
         $(document).ready(function() {
@@ -157,11 +647,31 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "Charger données", status = "primary", width = 12, solidHeader = TRUE,
                     fileInput("file", "Choisir un fichier",
-                              accept = c(".csv", ".xlsx", ".xls", ".txt", ".sav", ".dta", ".rds")),
+                              accept = c(".csv", ".xlsx", ".xls", ".txt", ".tsv",
+                                         ".sav", ".dta", ".rds", ".parquet", ".duckdb")),
+                    tags$small(style = "color:#6b7280; display:block; margin:-8px 0 10px 0;",
+                               icon("circle-info"),
+                               " Formats : CSV, TXT, Excel, SPSS, Stata, RDS, Parquet, DuckDB. ",
+                               "Les fichiers volumineux (CSV/Parquet) basculent automatiquement en mode hors-mémoire."),
                     uiOutput("sheetUI"),
                     radioButtons("sep", "Séparateur (CSV/TXT)",
                                  choices = c(Virgule = ",", `Point-virgule` = ";", Tab = "\t"), selected = ","),
                     checkboxInput("header", "Avec en-têtes", TRUE),
+                    tags$details(
+                      style = "margin:8px 0; padding:8px 12px; background:#f4f6f8; border-radius:8px;",
+                      tags$summary(style = "cursor:pointer; font-weight:600; color:#4b5563; font-size:13px;",
+                                   icon("sliders"), " Options avancées (gros fichiers)"),
+                      div(style = "padding-top:10px;",
+                          fluidRow(
+                            column(6, numericInput("bigDataThreshold",
+                                                   "Seuil hors-mémoire (Mo)", value = 500, min = 50, max = 100000, step = 50)),
+                            column(6, numericInput("sampleSize",
+                                                   "Taille de l'échantillon (lignes)", value = 100000, min = 1000, max = 5000000, step = 10000))
+                          ),
+                          tags$small(style = "color:#6b7280;",
+                                     "Au-delà du seuil, le fichier n'est pas chargé en RAM : DuckDB l'interroge sur disque ",
+                                     "et les analyses portent sur un échantillon représentatif de la taille indiquée."))
+                    ),
                     actionButton("loadData", "Charger", class = "btn-primary", icon = icon("upload")),
                     hr(),
                     h4("Exemple de données"),
@@ -181,6 +691,32 @@ ui <- dashboardPage(
                     )
                 )
               ),
+              fluidRow(column(12, uiOutput("dataModeBanner"))),
+              # Controle global de l'echantillon (mode hors-memoire uniquement)
+              conditionalPanel(
+                condition = "output.hstatBigData == true",
+                fluidRow(column(12,
+                                box(title = tagList(icon("vials"), " Échantillon de travail"),
+                                    status = "warning", width = 12, solidHeader = TRUE,
+                                    p(style = "color:#5a6a7a; font-size:13px;",
+                                      "Les analyses qui ajustent un modèle (ANOVA, régression, ACP, classifications, multivariées…) ",
+                                      "ne peuvent pas s'exécuter sur la totalité d'un très gros fichier. Elles travaillent sur cet échantillon. ",
+                                      "Vous pouvez l'agrandir autant que la mémoire de votre machine le permet, puis le retirer."),
+                                    fluidRow(
+                                      column(5, numericInput("sampleSizeLive",
+                                                             tagList(icon("arrows-up-down"), " Taille de l'échantillon (lignes)"),
+                                                             value = 100000, min = 1000, max = 20000000, step = 50000)),
+                                      column(7, div(style = "margin-top:25px;",
+                                                    actionButton("redrawSample",
+                                                                 tagList(icon("rotate"), " Re-tirer l'échantillon"),
+                                                                 class = "btn-warning", style = "font-weight:bold;"),
+                                                    tags$span(style = "margin-left:12px; font-size:12px; color:#6b7280;",
+                                                              "Un nouveau tirage aléatoire remplace l'échantillon courant ; relancez ensuite vos analyses.")))
+                                    ),
+                                    uiOutput("sampleInfoLine")
+                                )
+                ))
+              ),
               fluidRow(
                 valueBoxOutput("nrowBox", width = 3),
                 valueBoxOutput("ncolBox", width = 3),
@@ -196,6 +732,7 @@ ui <- dashboardPage(
       # ---- Exploration ----
       
       tabItem(tabName = "explore",
+              .hstat_scope_banner(exact = FALSE),
               # En-tête de section
               fluidRow(
                 box(
@@ -1211,7 +1748,20 @@ ui <- dashboardPage(
                     actionButton("calcDesc", 
                                  HTML("<i class='fa fa-calculator'></i> Calculer les statistiques"), 
                                  class = "btn-success btn-block btn-lg", 
-                                 style = "font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;")
+                                 style = "font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;"),
+                    # Bouton de calcul sur le jeu COMPLET -- visible uniquement
+                    # quand l'application est en mode hors-memoire (DuckDB)
+                    conditionalPanel(
+                      condition = "output.hstatBigData == true",
+                      div(style = "margin-top:10px; padding:10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:8px;",
+                          tags$p(style = "margin:0 0 8px 0; font-size:12px; color:#7a4a1a;",
+                                 icon("database"),
+                                 HTML(" Les statistiques ci-dessus portent sur l'<b>echantillon</b>. Le bouton ci-dessous calcule les valeurs <b>exactes sur le jeu complet</b> (via DuckDB).")),
+                          actionButton("calcDescFull",
+                                       HTML("<i class='fa fa-server'></i> Calculer sur le jeu complet"),
+                                       class = "btn-warning btn-block",
+                                       style = "font-weight:bold;"))
+                    )
                 ),
                 box(title = tags$span(icon("table"), " Résultats des Analyses Descriptives"), 
                     status = "success", width = 8, solidHeader = TRUE,
@@ -1648,6 +2198,17 @@ ui <- dashboardPage(
                   
                   hr(style = "border-top:2px solid #8e44ad; margin:18px 0;"),
                   
+                  # Option : calcul sur le jeu complet (mode hors-memoire)
+                  conditionalPanel(
+                    condition = "output.hstatBigData == true",
+                    div(style = "padding:10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:8px; margin-bottom:12px;",
+                        checkboxInput("crosstabFullData",
+                                      HTML("<b><i class='fa fa-server'></i> Calculer sur le jeu complet</b>"),
+                                      value = FALSE),
+                        tags$small(style = "color:#7a4a1a;",
+                                   "Le tableau croise sera calcule sur toutes les lignes (DuckDB), pas sur l'echantillon. Les filtres ci-dessus sont alors ignores."))
+                  ),
+                  
                   # Bouton de génération ·
                   actionButton(
                     "generateCrosstab", "Générer l'analyse complète",
@@ -2021,6 +2582,7 @@ ui <- dashboardPage(
       ),
       # ---- Visualisation des données ----
       tabItem(tabName = "visualization",
+              .hstat_scope_banner(exact = FALSE),
               # En-tête avec instructions
               fluidRow(
                 box(
@@ -3122,8 +3684,8 @@ ui <- dashboardPage(
               
               # SCRIPTS JAVASCRIPT ET CSS 
               tags$head(
-                # Script SortableJS pour le drag-and-drop
-                tags$script(src = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"),
+                # Script SortableJS pour le drag-and-drop (servi en local depuis www/)
+                tags$script(src = "Sortable.min.js"),
                 
                 # Script d'initialisation Sortable
                 tags$script(HTML("
@@ -3213,6 +3775,7 @@ ui <- dashboardPage(
       ),
       # ---- Tests statistiques ----
       tabItem(tabName = "tests",
+              .hstat_scope_banner(exact = FALSE),
               fluidRow(
                 box(title = "Paramètres des tests", status = "danger", width = 12, solidHeader = TRUE,
                     fluidRow(
@@ -3356,151 +3919,151 @@ ui <- dashboardPage(
               conditionalPanel(
                 condition = "output.showManovaWorkflow",
                 fluidRow(
-                  box(
-                    title = tagList(icon("layer-group"),
-                                    " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
-                    status = "success", width = 12, solidHeader = TRUE,
-                    collapsible = TRUE, collapsed = FALSE,
-                    
-                    uiOutput("manovaWorkflowSteps"),
-                    
-                    tabsetPanel(id = "manovaAssistantTabs", type = "tabs",
-                                
-                                tabPanel(
-                                  title = tagList(icon("magic"), " 1. Diagnostic & recommandation"),
-                                  value = "manova_recommendation", br(),
-                                  
-                                  conditionalPanel(
-                                    condition = "output.hasManovaRecommendation",
-                                    uiOutput("manovaRecommendationCard"),
-                                    uiOutput("manovaOutliersCard"),
-                                    br()
-                                  ),
-                                  conditionalPanel(
-                                    condition = "!output.hasManovaRecommendation",
-                                    div(style = "padding:30px; text-align:center; color:#888;",
-                                        icon("magic", style = "font-size:48px; opacity:0.3;"),
-                                        h4("Aucune recommandation calculee"),
-                                        p("Cliquez sur ", strong("'Diagnostiquer mes donnees'"),
-                                          " ci-dessous pour obtenir une recommandation automatique."))
-                                  )
-                                ),
-                                
-                                tabPanel(
-                                  title = tagList(icon("clipboard-check"), " 2. Details techniques"),
-                                  value = "manova_prereq", br(),
-                                  
-                                  div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
-                                      icon("info-circle", style = "color:#e65100;"),
-                                      strong(" Pour les utilisateurs avances : "),
-                                      "consultez les valeurs brutes des tests de prerequis. ",
-                                      "L'assistant a deja synthetise ces resultats dans l'onglet 'Diagnostic & recommandation'."
-                                  ),
-                                  
-                                  conditionalPanel(
-                                    condition = "output.hasManovaParam",
-                                    h5(icon("table"), " 4 statistiques MANOVA",
-                                       style = "color:#00a65a; margin-top:0;"),
-                                    withSpinner(DTOutput("manovaParamTable"), color = "#00a65a"),
-                                    br()
-                                  ),
-                                  
-                                  conditionalPanel(
-                                    condition = "output.hasManovaPermanova",
-                                    h5(icon("random"), " Résultats PERMANOVA (par permutations)",
-                                       style = "color:#f39c12; margin-top:0;"),
-                                    div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                        icon("info-circle"),
-                                        " pseudo-F, R² (part de variance expliquée), p-value par permutations. Interactions incluses si l'option est cochée."),
-                                    withSpinner(DTOutput("manovaPermanovaTable"), color = "#f39c12"),
-                                    br()
-                                  ),
-                                  
-                                  h5(icon("chart-area"), " Normalite multivariee (Mardia)",
-                                     style = "color:#1565C0; margin-top:0;"),
-                                  withSpinner(DTOutput("manovaMardiaTable"), color = "#1565C0"),
-                                  uiOutput("manovaMardiaInterpretation"),
-                                  br(),
-                                  
-                                  h5(icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
-                                     style = "color:#1565C0;"),
-                                  withSpinner(DTOutput("manovaBoxMTable"), color = "#1565C0"),
-                                  uiOutput("manovaBoxMInterpretation"),
-                                  br(),
-                                  
-                                  h5(icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
-                                     style = "color:#f39c12;"),
-                                  div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                      icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
-                                  withSpinner(DTOutput("manovaPermDispTable"), color = "#f39c12"),
-                                  uiOutput("manovaPermDispInterpretation")
-                                ),
-                                
-                                tabPanel(
-                                  title = tagList(icon("brain"), " 3. Interpretation guidee"),
-                                  value = "manova_interpretation", br(),
-                                  
-                                  uiOutput("manovaInterpretationGuidance"),
-                                  
-                                  conditionalPanel(
-                                    condition = "output.hasManovaInteraction",
-                                    br(),
-                                    div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
-                                        h4(icon("project-diagram"),
-                                           " Decomposition de l\'interaction (effets simples)",
-                                           style = "color:#e65100; margin-top:0;"),
-                                        p(style = "color:#555; font-size:13px;",
-                                          "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
-                                          "Choisissez un facteur a ", em("fixer"), " et un facteur a ", em("tester"),
-                                          ", puis cliquez ", strong("Calculer"), "."),
-                                        uiOutput("manovaSimpleEffectsSelectors"),
+                  div(id = "boxWrap_manovaAssist",
+                      box(
+                        title = tagList(icon("layer-group"),
+                                        " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
+                        status = "success", width = 12, solidHeader = TRUE,
+                        collapsible = TRUE, collapsed = TRUE,
+                        
+                        tabsetPanel(id = "manovaAssistantTabs", type = "tabs",
+                                    
+                                    tabPanel(
+                                      title = tagList(icon("magic"), " 1. Diagnostic & recommandation"),
+                                      value = "manova_recommendation", br(),
+                                      
+                                      conditionalPanel(
+                                        condition = "output.hasManovaRecommendation",
+                                        uiOutput("manovaRecommendationCard"),
+                                        uiOutput("manovaOutliersCard"),
+                                        br()
+                                      ),
+                                      conditionalPanel(
+                                        condition = "!output.hasManovaRecommendation",
+                                        div(style = "padding:30px; text-align:center; color:#888;",
+                                            icon("magic", style = "font-size:48px; opacity:0.3;"),
+                                            h4("Aucune recommandation calculee"),
+                                            p("Cliquez sur ", strong("'Diagnostiquer mes donnees'"),
+                                              " ci-dessous pour obtenir une recommandation automatique."))
+                                      )
+                                    ),
+                                    
+                                    tabPanel(
+                                      title = tagList(icon("clipboard-check"), " 2. Details techniques"),
+                                      value = "manova_prereq", br(),
+                                      
+                                      div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+                                          icon("info-circle", style = "color:#e65100;"),
+                                          strong(" Pour les utilisateurs avances : "),
+                                          "consultez les valeurs brutes des tests de prerequis. ",
+                                          "L'assistant a deja synthetise ces resultats dans l'onglet 'Diagnostic & recommandation'."
+                                      ),
+                                      
+                                      conditionalPanel(
+                                        condition = "output.hasManovaParam",
+                                        h5(icon("table"), " 4 statistiques MANOVA",
+                                           style = "color:#00a65a; margin-top:0;"),
+                                        withSpinner(DTOutput("manovaParamTable"), color = "#00a65a"),
+                                        br()
+                                      ),
+                                      
+                                      conditionalPanel(
+                                        condition = "output.hasManovaPermanova",
+                                        h5(icon("random"), " Résultats PERMANOVA (par permutations)",
+                                           style = "color:#f39c12; margin-top:0;"),
+                                        div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                            icon("info-circle"),
+                                            " pseudo-F, R² (part de variance expliquée), p-value par permutations. Interactions incluses si l'option est cochée."),
+                                        withSpinner(DTOutput("manovaPermanovaTable"), color = "#f39c12"),
+                                        br()
+                                      ),
+                                      
+                                      h5(icon("chart-area"), " Normalite multivariee (Mardia)",
+                                         style = "color:#1565C0; margin-top:0;"),
+                                      withSpinner(DTOutput("manovaMardiaTable"), color = "#1565C0"),
+                                      uiOutput("manovaMardiaInterpretation"),
+                                      br(),
+                                      
+                                      h5(icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
+                                         style = "color:#1565C0;"),
+                                      withSpinner(DTOutput("manovaBoxMTable"), color = "#1565C0"),
+                                      uiOutput("manovaBoxMInterpretation"),
+                                      br(),
+                                      
+                                      h5(icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
+                                         style = "color:#f39c12;"),
+                                      div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                          icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
+                                      withSpinner(DTOutput("manovaPermDispTable"), color = "#f39c12"),
+                                      uiOutput("manovaPermDispInterpretation")
+                                    ),
+                                    
+                                    tabPanel(
+                                      title = tagList(icon("brain"), " 3. Décomposition des effets"),
+                                      value = "manova_interpretation", br(),
+                                      
+                                      uiOutput("manovaInterpretationGuidance"),
+                                      
+                                      conditionalPanel(
+                                        condition = "output.hasManovaInteraction",
                                         br(),
-                                        conditionalPanel(
-                                          condition = "output.hasManovaSimpleEffects",
-                                          withSpinner(DTOutput("manovaSimpleEffectsTable"), color = "#fb8c00"),
-                                          div(style = "font-size:11px; color:#888; margin-top:8px;",
-                                              icon("info-circle"),
-                                              " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
+                                        div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
+                                            h4(icon("project-diagram"),
+                                               " Decomposition de l\'interaction (effets simples)",
+                                               style = "color:#e65100; margin-top:0;"),
+                                            p(style = "color:#555; font-size:13px;",
+                                              "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
+                                              "Choisissez un facteur a ", em("fixer"), " et un facteur a ", em("tester"),
+                                              ", puis cliquez ", strong("Calculer"), "."),
+                                            uiOutput("manovaSimpleEffectsSelectors"),
+                                            br(),
+                                            conditionalPanel(
+                                              condition = "output.hasManovaSimpleEffects",
+                                              withSpinner(DTOutput("manovaSimpleEffectsTable"), color = "#fb8c00"),
+                                              div(style = "font-size:11px; color:#888; margin-top:8px;",
+                                                  icon("info-circle"),
+                                                  " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
+                                            )
                                         )
+                                      )
                                     )
-                                  )
-                                )
-                    ),
-                    
-                    br(),
-                    
-                    fluidRow(
-                      column(4,
-                             div(style = "background:#e3f2fd; padding:12px 14px; border-radius:8px;",
-                                 h6(icon("magic"), " Diagnostic automatique",
-                                    style = "margin-top:0; color:#1565C0; font-weight:bold;"),
-                                 p(style = "font-size:11px; color:#555; margin-bottom:8px;",
-                                   "Verifie les prerequis et recommande le test optimal."),
-                                 actionButton("runManovaDiagnostic",
-                                              tagList(icon("magic"), " Diagnostiquer mes donnees"),
-                                              class = "btn-primary btn-block",
-                                              style = "font-weight:bold;")
-                             )
-                      ),
-                      column(4,
-                             conditionalPanel(
-                               condition = "output.hasManovaParam",
-                               downloadButton("downloadManovaParam",
-                                              tagList(icon("file-excel"), " Telecharger MANOVA (.xlsx)"),
-                                              class = "btn-success btn-block",
-                                              style = "margin-top:42px;")
-                             )
-                      ),
-                      column(4,
-                             conditionalPanel(
-                               condition = "output.hasManovaPermanova",
-                               downloadButton("downloadManovaPermanova",
-                                              tagList(icon("file-excel"), " Telecharger PERMANOVA (.xlsx)"),
-                                              class = "btn-success btn-block",
-                                              style = "margin-top:42px;")
-                             )
+                        ),
+                        
+                        br(),
+                        
+                        fluidRow(
+                          column(4,
+                                 div(style = "background:#e3f2fd; padding:12px 14px; border-radius:8px;",
+                                     h6(icon("magic"), " Diagnostic automatique",
+                                        style = "margin-top:0; color:#1565C0; font-weight:bold;"),
+                                     p(style = "font-size:11px; color:#555; margin-bottom:8px;",
+                                       "Verifie les prerequis et recommande le test optimal."),
+                                     actionButton("runManovaDiagnostic",
+                                                  tagList(icon("magic"), " Diagnostiquer mes donnees"),
+                                                  class = "btn-primary btn-block",
+                                                  style = "font-weight:bold;")
+                                 )
+                          ),
+                          column(4,
+                                 conditionalPanel(
+                                   condition = "output.hasManovaParam",
+                                   downloadButton("downloadManovaParam",
+                                                  tagList(icon("file-excel"), " Telecharger MANOVA (.xlsx)"),
+                                                  class = "btn-success btn-block",
+                                                  style = "margin-top:42px;")
+                                 )
+                          ),
+                          column(4,
+                                 conditionalPanel(
+                                   condition = "output.hasManovaPermanova",
+                                   downloadButton("downloadManovaPermanova",
+                                                  tagList(icon("file-excel"), " Telecharger PERMANOVA (.xlsx)"),
+                                                  class = "btn-success btn-block",
+                                                  style = "margin-top:42px;")
+                                 )
+                          )
+                        )
                       )
-                    )
                   )
                 )
               ),
@@ -3509,24 +4072,26 @@ ui <- dashboardPage(
               conditionalPanel(
                 condition = "!output.showManovaWorkflow",
                 fluidRow(
-                  box(
-                    title = tagList(icon("magic"), " Analyse multivariee assistee"),
-                    status = "info", width = 12, solidHeader = TRUE,
-                    collapsible = TRUE, collapsed = FALSE,
-                    div(style = "padding:20px; text-align:center;",
-                        icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
-                        h4("Workflow pour debutants et experts",
-                           style = "color:#1565C0;"),
-                        p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
-                          "Selectionnez au moins ", strong("2 variables reponses numeriques"),
-                          " et ", strong("1 facteur"), " dans \'Parametres des tests\'. ",
-                          "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
-                        br(),
-                        actionButton("runManovaDiagnostic",
-                                     tagList(icon("magic"), " Diagnostiquer mes donnees"),
-                                     class = "btn-primary btn-lg",
-                                     style = "padding:10px 30px; font-weight:bold;")
-                    )
+                  div(id = "boxWrap_manovaPlaceholder",
+                      box(
+                        title = tagList(icon("magic"), " Analyse multivariee assistee"),
+                        status = "info", width = 12, solidHeader = TRUE,
+                        collapsible = TRUE, collapsed = TRUE,
+                        div(style = "padding:20px; text-align:center;",
+                            icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
+                            h4("Workflow pour debutants et experts",
+                               style = "color:#1565C0;"),
+                            p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
+                              "Selectionnez au moins ", strong("2 variables reponses numeriques"),
+                              " et ", strong("1 facteur"), " dans \'Parametres des tests\'. ",
+                              "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
+                            br(),
+                            actionButton("runManovaDiagnostic",
+                                         tagList(icon("magic"), " Diagnostiquer mes donnees"),
+                                         class = "btn-primary btn-lg",
+                                         style = "padding:10px 30px; font-weight:bold;")
+                        )
+                      )
                   )
                 )
               ),
@@ -3633,35 +4198,35 @@ ui <- dashboardPage(
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
                                        tags$td(style="padding:3px 6px;","Très asym., rendements"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
                                        tags$td(style="padding:3px 6px;","Idem + zéros"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
                                        tags$td(style="padding:3px 6px;","Comptage, Poisson"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
                                        tags$td(style="padding:3px 6px;","Toutes valeurs"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","✓")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", icon("check"))),
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
                                        tags$td(style="padding:3px 6px;","λ optimal (MV)"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
                                        tags$td(style="padding:3px 6px;","Optimale généralisée"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;","✓")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", icon("check"))),
                                tags$tr(style="background:#fff8e1;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","asin(√x)"),
                                        tags$td(style="padding:3px 6px;","Proportions [0,1]"),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗")),
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
                                tags$tr(style="background:#fffff0;",
                                        tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
                                        tags$td(style="padding:3px 6px;","Taux ]0,1["),
-                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;","✗"))
+                                       tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times")))
                              )
                            ),
                            br(),
@@ -3744,6 +4309,7 @@ ui <- dashboardPage(
       # ---- Comparaisons multiples PostHoc ----
       
       tabItem(tabName = "multiple",
+              .hstat_scope_banner(exact = FALSE),
               fluidRow(
                 
                 # PANEL GAUCHE - Configuration 
@@ -3761,14 +4327,28 @@ ui <- dashboardPage(
                         uiOutput("postHocTransformInfo")
                     ),
                     
+                    # Section Affichage des resultats (arrondi)
+                    
+                    div(style = "background-color: #fef9e7; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+                        h4(style = "color: #2c3e50; margin-top: 0;", icon("hashtag"), " Affichage des résultats"),
+                        checkboxInput("multiRoundResults", "Arrondir les résultats numériques", value = FALSE),
+                        conditionalPanel(
+                          condition = "input.multiRoundResults == true",
+                          numericInput("multiDecimals", "Nombre de décimales :",
+                                       value = 2, min = 0, max = 8, step = 1)
+                        ),
+                        helpText(style = "font-size: 11px; color: #7f8c8d;",
+                                 "Si décoché, les valeurs s'affichent sans arrondi.")
+                    ),
+                    
                     # Section Type de test 
                     
                     div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
                         h4(style = "color: #2c3e50; margin-top: 0;", icon("vial"), " Tests statistiques"),
                         radioButtons("testType", "Type de comparaisons",
                                      choiceNames = list(
-                                       HTML("<b>Paramétrique</b> (ANOVA) <small style='color:#7f8c8d;'>- Données normales</small>"), 
-                                       HTML("<b>Non paramétrique</b> (Kruskal) <small style='color:#7f8c8d;'>- Sans normalité</small>")
+                                       HTML("<b>Paramétrique</b> <small style='color:#7f8c8d;'>- Données normales</small>"), 
+                                       HTML("<b>Non paramétrique</b> <small style='color:#7f8c8d;'>- Sans normalité</small>")
                                      ),
                                      choiceValues = list("param", "nonparam"),
                                      selected = "param"
@@ -4309,70 +4889,97 @@ ui <- dashboardPage(
               # MANOVA / PERMANOVA POSTHOC -- Comparaisons multivariees par paires + lettres
               
               fluidRow(
-                box(
-                  title = tagList(icon("layer-group"),
-                                  " PostHoc MANOVA/PERMANOVA -- Comparaisons multivariées par paires et lettres de groupes"),
-                  status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
-                  
-                  conditionalPanel(
-                    condition = "output.hasMultivariatePosthoc",
-                    
-                    fluidRow(
-                      column(4,
-                             div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
-                                 h5(tagList(icon("filter"), " Sélection du facteur"),
-                                    style = "font-weight:bold; margin-top:0; color:#2e7d32;"),
-                                 uiOutput("multivariatePosthocFactorSelect"),
-                                 br(),
-                                 uiOutput("multivariatePosthocInfo"),
-                                 br(),
-                                 downloadButton("downloadMultivariatePosthoc",
-                                                tagList(icon("file-excel"), " Télécharger Excel (lettres + paires)"),
-                                                class = "btn-success btn-block",
-                                                style = "height: 50px; font-weight: bold;")
-                             )
+                div(id = "boxWrap_manovaPosthoc",
+                    box(
+                      title = tagList(icon("layer-group"),
+                                      " PostHoc MANOVA/PERMANOVA -- Comparaisons multivariées par paires et lettres de groupes"),
+                      status = "success", width = 12, solidHeader = TRUE,
+                      collapsible = TRUE, collapsed = TRUE,
+                      
+                      conditionalPanel(
+                        condition = "output.hasMultivariatePosthoc",
+                        
+                        fluidRow(
+                          column(4,
+                                 div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                                     h5(tagList(icon("filter"), " Sélection du facteur"),
+                                        style = "font-weight:bold; margin-top:0; color:#2e7d32;"),
+                                     uiOutput("multivariatePosthocFactorSelect"),
+                                     br(),
+                                     uiOutput("multivariatePosthocInfo"),
+                                     br(),
+                                     downloadButton("downloadMultivariatePosthoc",
+                                                    tagList(icon("file-excel"), " Télécharger Excel (lettres + paires)"),
+                                                    class = "btn-success btn-block",
+                                                    style = "height: 50px; font-weight: bold;")
+                                 )
+                          ),
+                          column(8,
+                                 tabsetPanel(type = "tabs",
+                                             tabPanel(
+                                               title = tagList(icon("layer-group"), " Groupes distincts (lettres)"),
+                                               br(),
+                                               div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                   icon("info-circle"),
+                                                   " Les niveaux partageant une même lettre ne diffèrent pas significativement sur l'ensemble des réponses (test multivarié, alpha = 0.05)."
+                                               ),
+                                               withSpinner(DTOutput("multivariatePosthocLettersTable"), color = "#2e7d32")
+                                             ),
+                                             tabPanel(
+                                               title = tagList(icon("code-branch"), " Paires (PERMANOVA Bonferroni)"),
+                                               br(),
+                                               div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                   icon("info-circle"),
+                                                   " Comparaisons par paires sur l'ensemble des variables réponses. ",
+                                                   "Pour chaque paire : F (pseudo), R², p-value brute, p-value ajustée (Bonferroni)."
+                                               ),
+                                               withSpinner(DTOutput("multivariatePosthocPairsTable"), color = "#f39c12")
+                                             ),
+                                             tabPanel(
+                                               title = tagList(icon("project-diagram"), " Interaction (cellules croisées)"),
+                                               br(),
+                                               conditionalPanel(
+                                                 condition = "output.hasManovaInteractionPostHoc",
+                                                 uiOutput("manovaInteractionPostHocInfo"),
+                                                 h5(icon("layer-group"), " Lettres par cellule d'interaction",
+                                                    style = "color:#2e7d32; margin-top:0;"),
+                                                 withSpinner(DTOutput("manovaInteractionLettersTable"), color = "#2e7d32"),
+                                                 br(),
+                                                 h5(icon("code-branch"), " Comparaisons par paires des cellules",
+                                                    style = "color:#f39c12;"),
+                                                 withSpinner(DTOutput("manovaInteractionPairsTable"), color = "#f39c12")
+                                               ),
+                                               conditionalPanel(
+                                                 condition = "!output.hasManovaInteractionPostHoc",
+                                                 div(style = "text-align:center; padding:30px; color:#95a5a6;",
+                                                     icon("project-diagram", style = "font-size:3em; opacity:0.3;"),
+                                                     h5("Aucun PostHoc d'interaction"),
+                                                     p(style = "font-size:12px;",
+                                                       "Cochez ", strong("'Activer l'analyse des interactions'"),
+                                                       " et sélectionnez au moins 2 facteurs avant de lancer l'analyse."))
+                                               )
+                                             )
+                                 )
+                          )
+                        )
                       ),
-                      column(8,
-                             tabsetPanel(type = "tabs",
-                                         tabPanel(
-                                           title = tagList(icon("layer-group"), " Groupes distincts (lettres)"),
-                                           br(),
-                                           div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                               icon("info-circle"),
-                                               " Les niveaux partageant une même lettre ne diffèrent pas significativement sur l'ensemble des réponses (test multivarié, alpha = 0.05)."
-                                           ),
-                                           withSpinner(DTOutput("multivariatePosthocLettersTable"), color = "#2e7d32")
-                                         ),
-                                         tabPanel(
-                                           title = tagList(icon("code-branch"), " Paires (PERMANOVA Bonferroni)"),
-                                           br(),
-                                           div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                               icon("info-circle"),
-                                               " Comparaisons par paires sur l'ensemble des variables réponses. ",
-                                               "Pour chaque paire : F (pseudo), R², p-value brute, p-value ajustée (Bonferroni)."
-                                           ),
-                                           withSpinner(DTOutput("multivariatePosthocPairsTable"), color = "#f39c12")
-                                         )
-                             )
+                      
+                      conditionalPanel(
+                        condition = "!output.hasMultivariatePosthoc",
+                        div(style = "text-align: center; padding: 40px; color: #95a5a6;",
+                            icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
+                            h4("Aucun PostHoc multivarié calculé"),
+                            p("Pour activer cette section :"),
+                            tags$ul(style = "text-align: left; display: inline-block; color: #555;",
+                                    tags$li("Sélectionnez ", strong(">= 2 variables réponses"),
+                                            " dans le panneau de configuration"),
+                                    tags$li("Sélectionnez au moins ", strong("1 facteur")),
+                                    tags$li("Cliquez sur ", strong("LANCER L'ANALYSE")),
+                                    tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
+                            )
+                        )
                       )
                     )
-                  ),
-                  
-                  conditionalPanel(
-                    condition = "!output.hasMultivariatePosthoc",
-                    div(style = "text-align: center; padding: 40px; color: #95a5a6;",
-                        icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
-                        h4("Aucun PostHoc multivarié calculé"),
-                        p("Pour activer cette section :"),
-                        tags$ul(style = "text-align: left; display: inline-block; color: #555;",
-                                tags$li("Sélectionnez ", strong(">= 2 variables réponses"),
-                                        " dans le panneau de configuration"),
-                                tags$li("Sélectionnez au moins ", strong("1 facteur")),
-                                tags$li("Cliquez sur ", strong("LANCER L'ANALYSE")),
-                                tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
-                        )
-                    )
-                  )
                 )
               ),
               
@@ -4490,6 +5097,7 @@ ui <- dashboardPage(
       # ---- Analyses multivariees ----
       
       tabItem(tabName = "multivariate",
+              .hstat_scope_banner(exact = FALSE),
               # ACP
               fluidRow(
                 box(title = "Analyse en Composantes Principales (ACP)", status = "info", width = 6, solidHeader = TRUE,
@@ -5267,6 +5875,184 @@ ui <- dashboardPage(
                           )
                         )
                     )
+                )
+              ),
+              
+              # ---- Analyses multivariees etendues ----
+              div(
+                style = "margin-top:18px;",
+                
+                # -- Selecteur de categorie : une seule categorie visible a la fois --
+                div(style = "background:linear-gradient(135deg,#2c3e50,#3a6186); border-radius:10px; padding:16px 20px; margin-bottom:18px;",
+                    h4(style = "color:white; margin:0 0 10px 0; font-weight:bold;",
+                       icon("layer-group"), " Analyses multivariees complementaires"),
+                    p(style = "color:#dce6f0; font-size:12px; margin:0 0 12px 0;",
+                      "Choisissez une categorie d'analyse. Seules les analyses de la categorie selectionnee sont affichees."),
+                    radioGroupButtons(
+                      inputId = "mv_category",
+                      label = NULL,
+                      choices = c(
+                        "Quantitatives" = "quanti",
+                        "Qualitatives / categorielles" = "quali",
+                        "Mixtes (quanti + quali)" = "mixte"
+                      ),
+                      selected = "quanti",
+                      justified = TRUE,
+                      size = "normal",
+                      status = "primary",
+                      checkIcon = list(yes = icon("check"))
+                    )
+                ),
+                
+                # =================== CATEGORIE QUANTITATIVES ===================
+                conditionalPanel(
+                  condition = "input.mv_category == 'quanti'",
+                  .mv_category_header("Analyses multivariees QUANTITATIVES",
+                                      "ruler-combined", "#1565c0"),
+                  fluidRow(.mv_analysis_box(
+                    "kmeans", "Classification k-means (partitionnement)", "quanti",
+                    principes  = "Partitionne n individus en k groupes en minimisant iterativement l'inertie intra-classe (somme des carres aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
+                    objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogenes sur variables quantitatives.",
+                    taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
+                                   "Ideal : n &ge; 30&times;k pour des centroides stables"),
+                    variables  = c("Minimum : p &ge; 2 variables numeriques", "Recommande : p &ge; 3",
+                                   "Standardisation conseillee si echelles heterogenes"),
+                    intro = "Partitionnement non hierarchique : le nombre de clusters est fixe a priori."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "efa", "Analyse Factorielle Exploratoire (AFE)", "quanti",
+                    principes  = "Modele a facteurs communs separant variance commune et variance specifique. Extraction (ML, axes principaux) puis rotation (varimax/oblimin) pour simplifier la structure.",
+                    objectifs  = "Decouvrir les facteurs latents sous-jacents a un ensemble de variables, valider la structure d'un questionnaire, reduire la dimension.",
+                    taille     = c("Minimum : n &ge; 5&times;p", "Recommande : n &ge; 100",
+                                   "Ideal : n &ge; 200 et &ge; 10 individus / variable"),
+                    variables  = c("Minimum : p &ge; 3 variables numeriques", "KMO &ge; 0,60 requis",
+                                   "Test de Bartlett significatif (p &lt; 0,05)"),
+                    intro = "Cherche une structure latente sans hypothese imposee (exploratoire)."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "cfa", "Analyse Factorielle Confirmatoire (AFC-c)", "quanti",
+                    principes  = "Modele d'equations structurelles : la structure facteurs <-> items est imposee a priori, puis estimee et evaluee par des indices d'ajustement.",
+                    objectifs  = "Tester un modele de mesure theorique, confirmer la validite convergente et discriminante d'un instrument.",
+                    taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 200",
+                                   "Ideal : &ge; 10 individus par parametre estime"),
+                    variables  = c("Modele specifie en syntaxe lavaan", "&ge; 3 indicateurs par facteur conseille",
+                                   "Variables numeriques (estimateurs robustes sinon)"),
+                    intro = "Confirme un modele de mesure pre-specifie. Renseignez la syntaxe du modele."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "pls", "Regression PLS / PLS-DA", "quanti",
+                    principes  = "Construit des composantes latentes maximisant la covariance entre les predicteurs X et la reponse Y. Adaptee aux cas p &gt;&gt; n et forte multicolinearite.",
+                    objectifs  = "Predire une reponse (quantitative = PLS, categorielle = PLS-DA) en grande dimension, identifier les variables influentes (VIP).",
+                    taille     = c("Fonctionne meme si n &lt; p", "Recommande : n &ge; 20",
+                                   "Validation croisee conseillee"),
+                    variables  = c("1 variable reponse Y", "p &ge; 2 predicteurs numeriques X",
+                                   "Predicteurs correles : aucun probleme"),
+                    intro = "Regression sur composantes latentes, robuste a la colinearite."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "regmult", "Regression lineaire multiple", "quanti",
+                    principes  = "Estime par moindres carres ordinaires une reponse quantitative comme combinaison lineaire de plusieurs predicteurs.",
+                    objectifs  = "Expliquer et predire une variable continue, quantifier l'effet de chaque predicteur, controler des facteurs de confusion.",
+                    taille     = c("Minimum : n &ge; 10&times;p", "Recommande : n &ge; 15&times;p",
+                                   "Ideal : n &ge; 20&times;p"),
+                    variables  = c("1 reponse Y numerique", "p &ge; 1 predicteur (numerique ou facteur)",
+                                   "Residus : normalite, homoscedasticite, independance"),
+                    intro = "Modele explicatif/predictif de reference pour une reponse continue."
+                  ))
+                ),
+                
+                # =================== CATEGORIE QUALITATIVES ===================
+                conditionalPanel(
+                  condition = "input.mv_category == 'quali'",
+                  .mv_category_header("Analyses multivariees QUALITATIVES / CATEGORIELLES",
+                                      "shapes", "#6a1b9a"),
+                  fluidRow(.mv_analysis_box(
+                    "afc", "Analyse Factorielle des Correspondances (AFC)", "quali",
+                    principes  = "Decompose l'inertie du khi-deux d'une table de contingence ; compare les profils-lignes et profils-colonnes via la distance du khi-deux.",
+                    objectifs  = "Analyser et visualiser l'association entre DEUX variables qualitatives, reperer les modalites attractives ou repulsives.",
+                    taille     = c("Effectifs theoriques &ge; 5 par case conseille",
+                                   "Recommande : n &ge; 50", "Eviter cases vides"),
+                    variables  = c("Exactement 2 variables qualitatives", "Variable-ligne + variable-colonne",
+                                   "Modalites a effectif suffisant"),
+                    intro = "Association entre deux variables categorielles (table croisee)."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "mca", "Analyse des Correspondances Multiples (ACM)", "quali",
+                    principes  = "Generalise l'AFC a plus de deux variables qualitatives via le tableau disjonctif complet (ou tableau de Burt).",
+                    objectifs  = "Explorer la structure d'associations entre plusieurs variables qualitatives, positionner individus et modalites.",
+                    taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
+                                   "Regrouper les modalites rares (&lt; 5 %)"),
+                    variables  = c("Minimum : p &ge; 2 variables qualitatives", "Recommande : p &ge; 3",
+                                   "Variables nominales"),
+                    intro = "Structure d'associations entre plusieurs variables categorielles."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "kmodes", "Classification k-modes (partitionnement)", "quali",
+                    principes  = "Equivalent du k-means pour donnees qualitatives : dissimilarite d'appariement simple (Hamming), les centres sont des modes.",
+                    objectifs  = "Segmenter une population decrite par des variables categorielles, construire une typologie qualitative.",
+                    taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
+                                   "Ideal : n &ge; 30&times;k"),
+                    variables  = c("Minimum : p &ge; 2 variables qualitatives", "Recommande : p &ge; 3",
+                                   "Modalites a effectif suffisant"),
+                    intro = "Partitionnement non hierarchique pour variables categorielles."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "lca", "Analyse en Classes Latentes (LCA)", "quali",
+                    principes  = "Modele de melange probabiliste : sous hypothese d'independance locale conditionnelle, estime des classes latentes par maximum de vraisemblance (EM).",
+                    objectifs  = "Identifier des sous-populations non observees a partir de variables categorielles, clustering base sur un modele.",
+                    taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 300",
+                                   "Plus de classes => plus d'effectif"),
+                    variables  = c("Minimum : p &ge; 3 variables qualitatives", "Variables categorielles",
+                                   "Independance locale conditionnelle"),
+                    intro = "Clustering probabiliste : classes latentes derriere des reponses categorielles."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "logit", "Regression logistique / multinomiale", "quali",
+                    principes  = "Modele lineaire generalise a lien logit estime par maximum de vraisemblance ; produit des rapports de cotes (odds ratios).",
+                    objectifs  = "Predire une reponse categorielle (binaire ou multinomiale), quantifier l'effet des predicteurs.",
+                    taille     = c("Regle : &ge; 10 evenements par predicteur",
+                                   "Recommande : n &ge; 100", "Eviter la separation parfaite"),
+                    variables  = c("1 reponse Y categorielle", "p &ge; 1 predicteur (numerique ou facteur)",
+                                   "Independance des observations"),
+                    intro = "Modele explicatif/predictif pour une reponse categorielle."
+                  ))
+                ),
+                
+                # =================== CATEGORIE MIXTES ===================
+                conditionalPanel(
+                  condition = "input.mv_category == 'mixte'",
+                  .mv_category_header("Analyses multivariees MIXTES (quanti + quali)",
+                                      "layer-group", "#00695c"),
+                  fluidRow(.mv_analysis_box(
+                    "famd", "Analyse Factorielle de Donnees Mixtes (AFDM)", "mixte",
+                    principes  = "Combine ACP (variables quantitatives standardisees) et ACM (variables qualitatives), avec une ponderation equilibrant les deux types.",
+                    objectifs  = "Reduire la dimension d'un tableau melant variables quantitatives et qualitatives, visualiser individus et modalites.",
+                    taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
+                                   "Ideal : n &ge; 5&times;p"),
+                    variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
+                                   "p &ge; 3 au total conseille"),
+                    intro = "Reduction de dimension pour un tableau de variables mixtes."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "mfa", "Analyse Factorielle Multiple (AFM)", "mixte",
+                    principes  = "Analyse des donnees structurees en groupes de variables ; chaque groupe est equilibre par sa premiere valeur propre afin qu'aucun ne domine.",
+                    objectifs  = "Comparer et integrer plusieurs groupes de variables (bloc quantitatif et bloc qualitatif), etudier leur coherence.",
+                    taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
+                                   "Ideal : n &ge; 5&times;p"),
+                    variables  = c("Bloc quantitatif : &ge; 1 variable", "Bloc qualitatif : &ge; 1 variable",
+                                   "Definir explicitement les deux blocs"),
+                    intro = "Integration de blocs de variables (bloc quanti + bloc quali)."
+                  )),
+                  fluidRow(.mv_analysis_box(
+                    "kproto", "Classification k-prototypes (partitionnement mixte)", "mixte",
+                    principes  = "Combine k-means (distance euclidienne sur le quantitatif) et k-modes (appariement sur le qualitatif), ponderes par un parametre gamma.",
+                    objectifs  = "Segmenter une population decrite par des variables a la fois quantitatives et qualitatives.",
+                    taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
+                                   "Ideal : n &ge; 30&times;k"),
+                    variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
+                                   "Standardisation du quantitatif appliquee"),
+                    intro = "Partitionnement non hierarchique pour donnees mixtes."
+                  ))
                 )
               )
       ),
