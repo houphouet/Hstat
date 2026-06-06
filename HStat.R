@@ -6,6 +6,14 @@
 
 # Source des modules
 source("Utils.R",  local = FALSE, encoding = "UTF-8")
+source("mod_threshold.R", local = FALSE, encoding = "UTF-8")
+source("mod_crosstab.R", local = FALSE, encoding = "UTF-8")
+source("mod_explore.R", local = FALSE, encoding = "UTF-8")
+source("mod_clean.R", local = FALSE, encoding = "UTF-8")
+source("mod_filter.R", local = FALSE, encoding = "UTF-8")
+source("mod_descriptive.R", local = FALSE, encoding = "UTF-8")
+source("mod_viz.R", local = FALSE, encoding = "UTF-8")
+source("mod_tests.R", local = FALSE, encoding = "UTF-8")
 source("UX.R",     local = FALSE, encoding = "UTF-8")
 source("Server.R", local = FALSE, encoding = "UTF-8")
 

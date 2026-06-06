@@ -75,6 +75,11 @@ required_packages <- c(
   "stats",  "emmeans", "performance","purrr", "PMCMRplus","multcompView", "rcompanion",
   "bestNormalize",
   "EMT",            # Test multinomial exact
+  "lme4",           # Modeles lineaires (generalises) mixtes -- glmer/lmer
+  "lmerTest",       # p-values et ddl (Satterthwaite) pour les LMM gaussiens
+  "afex",           # ANOVA a mesures repetees (aov_ez / aov_car)
+  "ARTool",         # ANOVA sur rangs alignes (art) -- non parametrique factoriel
+  "glmmTMB",        # Modeles mixtes flexibles (zero-inflation, familles etendues)
   "vegan",          # PERMANOVA (adonis2) + betadisper
   "heplots",        # Box's M test
   "data.table",     # Lecture rapide de CSV (fread)
@@ -2208,4 +2213,58 @@ hstat_duckdb_count <- function(con, tbl, where = NULL) {
   sql <- sprintf("SELECT COUNT(*) AS n FROM %s", tbl)
   if (!is.null(where) && nzchar(where)) sql <- paste0(sql, " WHERE ", where)
   as.numeric(DBI::dbGetQuery(con, sql)$n[1])
+}
+
+
+################################################################################
+#
+#  Reproductibilite -- graine aleatoire controlable
+#
+################################################################################
+
+# Graine par defaut de l'application (modifiable par l'utilisateur dans l'UI).
+HSTAT_DEFAULT_SEED <- 123L
+
+# Applique une graine de maniere sure juste avant une operation aleatoire.
+# 'seed' provient generalement de input$globalSeed ; si NULL/NA, on retombe
+# sur la graine par defaut afin de garantir un comportement reproductible.
+hstat_set_seed <- function(seed = NULL) {
+  s <- suppressWarnings(as.integer(seed))
+  if (length(s) == 0 || is.na(s)) s <- HSTAT_DEFAULT_SEED
+  set.seed(s)
+  invisible(s)
+}
+
+
+################################################################################
+#
+#  Cache memoire pour les agregations DuckDB (evite de relancer une requete
+#  SQL identique sur un tres gros fichier). Cache simple cle -> valeur, vide
+#  a chaque nouveau chargement de donnees via hstat_cache_clear().
+#
+################################################################################
+
+.hstat_cache <- new.env(parent = emptyenv())
+
+# Vide le cache (a appeler au chargement d'un nouveau fichier).
+hstat_cache_clear <- function() {
+  rm(list = ls(.hstat_cache, all.names = TRUE), envir = .hstat_cache)
+  invisible(NULL)
+}
+
+# Memoise le resultat de 'fn()' sous une cle. Si la cle existe deja, renvoie
+# la valeur en cache sans relancer le calcul.
+hstat_cache_get <- function(key, fn) {
+  if (exists(key, envir = .hstat_cache, inherits = FALSE))
+    return(get(key, envir = .hstat_cache, inherits = FALSE))
+  val <- fn()
+  assign(key, val, envir = .hstat_cache)
+  val
+}
+
+# Construit une cle de cache stable a partir d'elements (table + parametres).
+hstat_cache_key <- function(...) {
+  parts <- vapply(list(...), function(x) paste(as.character(x), collapse = "|"),
+                  character(1))
+  paste(parts, collapse = "::")
 }
