@@ -15,7 +15,6 @@ local({
 
 source("Utils.R",  local = FALSE, encoding = "UTF-8")
 source("mod_threshold.R", local = FALSE, encoding = "UTF-8")
-source("mod_crosstab.R", local = FALSE, encoding = "UTF-8")
 source("mod_explore.R", local = FALSE, encoding = "UTF-8")
 source("mod_clean.R", local = FALSE, encoding = "UTF-8")
 source("mod_filter.R", local = FALSE, encoding = "UTF-8")
