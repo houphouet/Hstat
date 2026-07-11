@@ -578,7 +578,7 @@ mod_clean_ui <- function(id) {
                                     placeholder = "ex. 0, 3, 15, 100"),
                           tags$small(style = "color:#7f8c8d;", icon("info-circle"),
                             " n bornes = n-1 classes. Les valeurs hors bornes deviendront NA.")),
-                        radioButtons(ns("cutStyle"), tagList(icon("brackets-curly"), " Convention des bornes (étiquettes automatiques)"),
+                        radioButtons(ns("cutStyle"), tagList(icon("grip-lines-vertical"), " Convention des bornes (étiquettes automatiques)"),
                           choiceNames = list(
                             HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(dernière fermée des deux côtés)</small>"),
                             HTML("<b>Toutes ouvertes à droite</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z[</code>"),
