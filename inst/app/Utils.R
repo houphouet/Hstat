@@ -2098,9 +2098,19 @@ hstat_sql_path <- function(path) {
 # de facteur ORDONNE. Methodes : largeur egale, effectifs egaux (quantiles),
 # bornes personnalisees. Etiquettes automatiques ("[0 ; 3[") ou fournies.
 # Retourne list(ok, factor, breaks, counts, msg, n_na_created).
+# interval_style : convention de bornes des classes
+#  "std_last_closed"  -> [a;b[ , [b;c[ , ... , [y;z]   (dernière fermée des 2 côtés)
+#  "all_left_closed"  -> [a;b[ , [b;c[ , ... , [y;z[   (toutes fermées-gauche/ouvertes-droite)
+#  "mixed_open"       -> [a;b[ , ]b;c[ , ... , ]y;z]   (1re fermée-gauche, milieu ouvert 2 côtés, dernière ouverte-gauche/fermée-droite)
+#  "all_right_closed" -> [a;b] , ]b;c] , ... , ]y;z]   (1re fermée 2 côtés, autres ouvertes-gauche/fermées-droite ; ancienne convention)
+#  "all_closed"       -> [a;b] , [b;c] , ... , [y;z]   (toutes fermées des 2 côtés)
 hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
                                 n_classes = 4, breaks_manual = NULL,
-                                labels_custom = NULL, right = FALSE, dig = 3) {
+                                labels_custom = NULL,
+                                interval_style = c("std_last_closed", "all_left_closed",
+                                                   "mixed_open", "all_right_closed", "all_closed"),
+                                right = FALSE, dig = 3) {
+  interval_style <- match.arg(interval_style)
   method <- match.arg(method)
   xnum <- if (is.numeric(x)) as.numeric(x) else hstat_as_numeric_fr(x)
   if (is.null(xnum))
@@ -2132,28 +2142,62 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
       return(list(ok = FALSE, msg = "Fournissez au moins deux bornes numériques distinctes."))
   }
 
-  labels <- NULL
+  nB <- length(breaks)            # nombre de bornes ; classes = nB - 1
+  fmt <- function(v) formatC(signif(v, max(dig, 3)), format = "g", big.mark = " ")
+  lo <- breaks[-nB]; hi <- breaks[-1]
+
+  # Etiquettes automatiques selon la convention choisie ("[a ; b[" etc.)
+  auto_labels <- switch(interval_style,
+    "std_last_closed" = {
+      lab <- sprintf("[%s ; %s[", fmt(lo), fmt(hi))
+      lab[length(lab)] <- sprintf("[%s ; %s]", fmt(lo[length(lo)]), fmt(hi[length(hi)]))
+      lab
+    },
+    "all_left_closed" = sprintf("[%s ; %s[", fmt(lo), fmt(hi)),
+    "mixed_open" = {
+      lab <- sprintf("]%s ; %s[", fmt(lo), fmt(hi))       # milieu : ouvert des 2 cotes
+      lab[1] <- sprintf("[%s ; %s[", fmt(lo[1]), fmt(hi[1]))               # 1re : fermee gauche
+      lab[length(lab)] <- sprintf("]%s ; %s]", fmt(lo[length(lo)]), fmt(hi[length(hi)])) # derniere : fermee droite
+      lab
+    },
+    "all_right_closed" = {
+      lab <- sprintf("]%s ; %s]", fmt(lo), fmt(hi))       # toutes fermees a droite
+      lab[1] <- sprintf("[%s ; %s]", fmt(lo[1]), fmt(hi[1]))               # 1re : fermee des 2 cotes
+      lab
+    },
+    "all_closed" = sprintf("[%s ; %s]", fmt(lo), fmt(hi))) # toutes fermees des 2 cotes
+
+  labels <- auto_labels
   if (!is.null(labels_custom) && length(labels_custom) > 0) {
     labels_custom <- trimws(as.character(labels_custom))
     labels_custom <- labels_custom[nzchar(labels_custom)]
-    if (length(labels_custom) != length(breaks) - 1)
+    if (length(labels_custom) != nB - 1)
       return(list(ok = FALSE, msg = sprintf(
         "Nombre d'étiquettes (%d) différent du nombre de classes (%d).",
-        length(labels_custom), length(breaks) - 1)))
+        length(labels_custom), nB - 1)))
     labels <- labels_custom
-  } else {
-    # Etiquettes lisibles : [a ; b[ ou ]a ; b] selon `right`
-    fmt <- function(v) formatC(signif(v, max(dig, 3)), format = "g", big.mark = " ")
-    lo <- breaks[-length(breaks)]; hi <- breaks[-1]
-    labels <- if (right) sprintf("]%s ; %s]", fmt(lo), fmt(hi))
-              else sprintf("[%s ; %s[", fmt(lo), fmt(hi))
-    # la classe extreme incluse (include.lowest) : crochet ferme
-    if (right) labels[1] <- sub("^\\]", "[", labels[1])
-    else labels[length(labels)] <- sub("\\[$", "]", labels[length(labels)])
   }
 
-  f <- cut(xnum, breaks = breaks, labels = labels, right = right,
-           include.lowest = TRUE, ordered_result = TRUE)
+  # Binning coherent avec la convention. Toutes les conventions demandees sont
+  # fermees a GAUCHE (right = FALSE). Pour capturer la valeur maximale :
+  #  - std_last_closed : include.lowest = TRUE ferme la derniere classe a droite.
+  #  - all_left_closed / mixed_open : la derniere classe reste ouverte a droite,
+  #    on etend donc la borne haute d'un epsilon pour ne perdre aucune valeur
+  #    (la valeur max reste affichee dans "[... ; max[" resp. "]... ; max]").
+  cut_breaks <- breaks
+  # all_right_closed : bornes fermees a droite (right = TRUE), 1re classe fermee
+  # a gauche via include.lowest.
+  use_right <- (interval_style == "all_right_closed")
+  # include.lowest ferme la borne extreme du cote "ouvert" :
+  #  - std_last_closed / all_closed : ferme la derniere classe a droite
+  #  - all_right_closed : ferme la premiere classe a gauche
+  incl_low <- interval_style %in% c("std_last_closed", "all_closed", "all_right_closed")
+  if (interval_style %in% c("all_left_closed", "mixed_open")) {
+    span <- diff(range(breaks)); eps <- if (span > 0) span * 1e-9 else 1e-9
+    cut_breaks[nB] <- breaks[nB] + eps
+  }
+  f <- cut(xnum, breaks = cut_breaks, labels = labels, right = use_right,
+           include.lowest = incl_low, ordered_result = TRUE)
   n_na_created <- sum(is.na(f) & !is.na(xnum))
   counts <- as.data.frame(table(Classe = f, useNA = "no"))
   names(counts) <- c("Classe", "Effectif")

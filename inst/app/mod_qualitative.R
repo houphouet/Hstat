@@ -404,6 +404,93 @@ hstat_q_epitools_block <- function(tab2, kind = c("OR", "RR"), conf = 0.95) {
 #          "multinomial" (test exact : EMT si disponible, sinon Monte-Carlo
 #          par ordre de probabilité avec dmultinom, sans dépendance).
 # ---------------------------------------------------------------------------
+# Version STRATIFIÉE du test d'adéquation : teste la distribution de Y (variable
+# analysée) séparément dans chaque modalité du facteur X, plus le test global.
+hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
+                                   expected_props = NULL,
+                                   method = "chisq", B = 10000,
+                                   posthoc_adjust = "bonferroni") {
+  y <- as.character(y); x <- as.character(x)
+  keep <- !is.na(y) & nzchar(trimws(y)) & !is.na(x) & nzchar(trimws(x))
+  y <- y[keep]; x <- x[keep]
+  if (length(y) < 5) return(list(ok = FALSE, notes = "Trop peu d'observations complètes."))
+  groups <- sort(unique(x))
+  if (length(groups) < 2)
+    return(hstat_q_gof_analysis(y, yname, expected_props, method, B, posthoc_adjust))
+
+  # Test global (toutes modalités de Y confondues)
+  glob <- hstat_q_gof_analysis(y, yname, expected_props, method, B, posthoc_adjust)
+
+  # Un test par groupe de X
+  per_group <- lapply(groups, function(g) {
+    r <- hstat_q_gof_analysis(y[x == g], sprintf("%s | %s = %s", yname, xname, g),
+                              expected_props, method, B, posthoc_adjust)
+    list(group = g, res = r)
+  })
+
+  # Tableau de synthèse : p-value du test par groupe
+  synth <- do.call(rbind, lapply(per_group, function(pg) {
+    r <- pg$res
+    if (!isTRUE(r$ok)) return(data.frame(
+      Groupe = pg$group, n = NA, Khi2 = NA, ddl = NA, p_value = NA,
+      Conclusion = r$notes %||% "non calculé", stringsAsFactors = FALSE))
+    m <- r$metrics
+    getv <- function(lbl) m$Valeur[m$Metrique == lbl][1]
+    pval <- suppressWarnings(as.numeric(gsub("[^0-9.eE-]", "", getv("p-value (Khi-deux)"))))
+    data.frame(
+      Groupe = pg$group,
+      n = as.integer(getv("Effectif valide (n)")),
+      Khi2 = as.numeric(getv("Khi-deux")),
+      ddl = as.integer(getv("Degrés de liberté")),
+      p_value = round(pval, 5),
+      Conclusion = if (!is.na(pval) && pval < 0.05)
+        "Distribution significativement différente de H0" else "Compatible avec H0",
+      stringsAsFactors = FALSE)
+  }))
+
+  # Table de contingence X x Y (utile pour lecture croisée)
+  ct <- table(factor(x, levels = groups), y)
+  ct_df <- as.data.frame.matrix(ct)
+  ct_df <- cbind(Groupe = rownames(ct_df), ct_df); rownames(ct_df) <- NULL
+  names(ct_df)[1] <- xname
+
+  tables <- list("Synthèse par groupe (X)" = synth,
+                 "Table croisée X x Y" = ct_df,
+                 "Test global (toutes modalités)" = glob$tables[["Observé vs attendu"]])
+
+  # Interprétation stratifiée
+  n_sig <- sum(synth$p_value < 0.05, na.rm = TRUE)
+  interp <- c(
+    sprintf("Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».",
+            yname, length(groups), xname),
+    sprintf("%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.",
+            n_sig, length(groups)),
+    glob$interpretation[[1]])
+
+  # Graphique : distribution de Y par groupe de X (barres groupées, ggplot défaut)
+  plot_strat <- function() {
+    if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+    dd <- as.data.frame(ct); names(dd) <- c(".X", ".Y", "Effectif")
+    ggplot2::ggplot(dd, ggplot2::aes(.X, Effectif, fill = .Y)) +
+      ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.85), width = 0.8) +
+      ggplot2::labs(title = sprintf("Distribution de %s selon %s", yname, xname),
+                    x = xname, y = "Effectif", fill = yname) +
+      ggplot2::theme_minimal(base_size = 12)
+  }
+
+  console <- c(sprintf("=== Test d'adéquation stratifié : %s selon %s ===", yname, xname), "",
+               "Synthèse par groupe :",
+               utils::capture.output(print(synth, row.names = FALSE)), "",
+               "--- Test global ---", glob$console)
+
+  list(ok = TRUE,
+       metrics = glob$metrics,   # métriques du test global (interprétées)
+       tables = c(tables, glob$tables[setdiff(names(glob$tables), "Observé vs attendu")]),
+       plotfns = c(list("Distribution de Y selon X" = plot_strat), glob$plotfns),
+       interpretation = interp, console = console,
+       notes = sprintf("Analyse stratifiée : %d groupes de %s.", length(groups), xname))
+}
+
 hstat_q_gof_analysis <- function(x, var_name = "Variable",
                                  expected_props = NULL,
                                  method = c("chisq", "multinomial"),
@@ -801,6 +888,23 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
       ggplot2::theme_minimal(base_size = 12) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30, hjust = 1))
   }
+  # Graphique des PROPORTIONS : profils ligne en barres groupées (% par modalité de X)
+  plot_prop <- function() {
+    if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+    pr <- prop.table(tab, 1) * 100     # profils ligne (chaque ligne = 100 %)
+    dd <- as.data.frame(pr); names(dd) <- c(".Xvar", ".Yvar", "Pourcentage")
+    ggplot2::ggplot(dd, ggplot2::aes(x = .data[[".Xvar"]], y = Pourcentage, fill = .data[[".Yvar"]])) +
+      ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.85), width = 0.8) +
+      ggplot2::geom_text(ggplot2::aes(label = sprintf("%.0f%%", Pourcentage)),
+                         position = ggplot2::position_dodge(width = 0.85),
+                         vjust = -0.3, size = 3) +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+      ggplot2::labs(title = paste0("Proportions de ", yname, " selon ", xname),
+                    subtitle = "Profils ligne : chaque modalité de X totalise 100 %",
+                    x = xname, y = "Pourcentage (%)", fill = yname) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30, hjust = 1))
+  }
   plot_heat <- function() {
     if (!requireNamespace("ggplot2", quietly = TRUE) || is.null(chi)) return(NULL)
     rs <- chi$stdres
@@ -841,6 +945,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
 
   list(ok = TRUE, metrics = metrics, tables = tables,
        plotfns = list("Barres groupées (effectifs)" = plot_grouped,
+                      "Proportions (% par groupe)" = plot_prop,
                       "Barres empilées (profils)" = plot_mosaic,
                       "Carte des résidus" = plot_heat),
        interpretation = interp,
@@ -1152,14 +1257,38 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       Valeur = c(length(rx), round(unname(sp$estimate), 3), format.pval(sp$p.value, 3),
                  round(unname(kd$estimate), 3), format.pval(kd$p.value, 3)),
       stringsAsFactors = FALSE)
-    rho <- unname(sp$estimate)
+    rho <- unname(sp$estimate); pval_sp <- sp$p.value; tau <- unname(kd$estimate)
     force <- if (abs(rho) < 0.2) "très faible" else if (abs(rho) < 0.4) "faible" else
       if (abs(rho) < 0.6) "modérée" else if (abs(rho) < 0.8) "forte" else "très forte"
     sens <- if (rho > 0) "positive (croissante)" else "négative (décroissante)"
-    interp <- c(
-      sprintf("Corrélation ordinale %s et %s entre %s et %s (rho = %.3f, p = %s).",
-              force, sens, xname, gname, rho, format.pval(sp$p.value, 3)),
-      "Le tau de Kendall confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.")
+    signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
+    # Interprétation de la p-value (seuils usuels)
+    pval_interp <- if (is.na(pval_sp)) "p-value non calculable."
+      else if (pval_sp < 0.001) sprintf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.01)  sprintf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.05)  sprintf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.10)  sprintf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
+      else sprintf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
+    r2 <- round(100 * rho^2, 1)
+    interp <- if (signif_sp) c(
+      # --- Cas SIGNIFICATIF ---
+      sprintf("Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+              xname, gname, rho, force, sens),
+      pval_interp,
+      sprintf("On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.",
+              xname, gname, if (rho > 0) "augmenter" else "diminuer"),
+      sprintf("Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.", r2),
+      sprintf("Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.",
+              tau, format.pval(kd$p.value, 3)))
+    else c(
+      # --- Cas NON SIGNIFICATIF ---
+      sprintf("Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+              xname, gname, rho, force, sens),
+      pval_interp,
+      sprintf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.",
+              xname, gname, rho),
+      "Absence de significativité ne signifie pas absence de lien : un échantillon plus grand ou une relation non monotone pourraient changer la conclusion.",
+      sprintf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
     console <- c(utils::capture.output(print(sp)), "",
                  utils::capture.output(print(kd)))
     plot_fn <- function() {
@@ -1203,17 +1332,60 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     stat_val <- unname(kw$statistic); pval <- kw$p.value
     console <- utils::capture.output(print(kw))
   }
+
+  # --- Test de la MÉDIANE (Mood) : les groupes ont-ils la même médiane ? ---
+  med_global <- stats::median(rx)
+  above <- rx > med_global
+  med_tab <- table(factor(ifelse(above, "> médiane", "<= médiane"),
+                          levels = c("> médiane", "<= médiane")), g)
+  mood <- tryCatch(suppressWarnings(stats::chisq.test(med_tab)), error = function(e) NULL)
+  mood_p <- if (is.null(mood)) NA_real_ else mood$p.value
+  console <- c(console, "", "Test de la médiane (Mood) :",
+               if (!is.null(mood)) utils::capture.output(print(mood)) else "non calculable")
   metrics <- data.frame(
-    Metrique = c("Test utilise", "Statistique", "p-value", "Nombre de groupes", "Effectif total"),
-    Valeur = c(test_name, round(stat_val, 3), format.pval(pval, 3), ng, length(rx)),
+    Metrique = c("Test utilisé (rangs)", "Statistique", "p-value",
+                 "Test de la médiane (Mood)", "p-value (médiane)",
+                 "Médiane globale (rang)", "Nombre de groupes", "Effectif total"),
+    Valeur = c(test_name, round(stat_val, 3), format.pval(pval, 3),
+               "Khi-deux d'homogénéité des médianes",
+               if (is.na(mood_p)) "non calculé" else format.pval(mood_p, 3),
+               round(med_global, 2), ng, length(rx)),
+    Interpretation = c(
+      "Compare les rangs (positions) entre groupes -- adapté aux données ordinales.",
+      "Plus la statistique est grande, plus les groupes diffèrent.",
+      if (!is.na(pval) && pval < 0.05)
+        "p < 0,05 : au moins un groupe diffère significativement (rangs)."
+      else "p >= 0,05 : pas de différence significative des rangs.",
+      "Compare la proportion d'observations au-dessus de la médiane globale.",
+      if (!is.na(mood_p) && mood_p < 0.05)
+        "p < 0,05 : les médianes des groupes diffèrent significativement."
+      else "p >= 0,05 : médianes compatibles entre groupes.",
+      "Valeur de référence pour le test de la médiane.",
+      sprintf("%d groupes comparés.", ng),
+      sprintf("%d observations valides.", length(rx))),
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
+  pval_txt <- if (is.na(pval)) "non calculable"
+    else if (pval < 0.001) sprintf("p = %s < 0,001 : différence très hautement significative.", format.pval(pval, 3))
+    else if (pval < 0.01)  sprintf("p = %s < 0,01 : différence hautement significative.", format.pval(pval, 3))
+    else if (pval < 0.05)  sprintf("p = %s < 0,05 : différence significative.", format.pval(pval, 3))
+    else sprintf("p = %s >= 0,05 : différence non significative.", format.pval(pval, 3))
+  # Groupe aux rangs les plus élevés / faibles
+  hi_g <- summary_df$Groupe[which.max(summary_df$Rang_moyen)]
+  lo_g <- summary_df$Groupe[which.min(summary_df$Rang_moyen)]
   interp <- c(
-    sprintf("Différence %s de %s entre les %d groupes de %s (%s, p = %s).",
-            sig, xname, ng, gname, test_name, format.pval(pval, 3)),
-    "Les tests non paramétriques sur les rangs sont adaptes aux données ordinales (pas d'hypothèse de normalité).",
+    sprintf("Différence %s de « %s » entre les %d groupes de « %s » (%s).",
+            sig, xname, ng, gname, test_name),
+    pval_txt,
+    if (!is.na(pval) && pval < 0.05)
+      sprintf("Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.", hi_g, lo_g)
+    else "Les rangs médians et moyens sont proches d'un groupe à l'autre.",
+    sprintf("Test de la médiane (Mood) : %s",
+            if (is.na(mood_p)) "non calculé."
+            else if (mood_p < 0.05) "les médianes diffèrent aussi significativement." else "les médianes ne diffèrent pas significativement."),
+    "Analyses fondées sur les rangs et les médianes : adaptées aux données ordinales (aucune hypothèse de normalité).",
     if (ng > 2 && !is.na(pval) && pval < 0.05)
-      "Un test post-hoc (Dunn) serait utile pour identifier quelles paires de groupes diffèrent." else NULL)
+      "Un test post-hoc (Dunn) permettrait d'identifier quelles paires de groupes diffèrent." else NULL)
 
   plot_box <- function() {
     if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
@@ -1225,11 +1397,11 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
   }
 
   list(ok = TRUE, metrics = metrics,
-       tables = list("Synthèse par groupe" = summary_df),
-       plotfns = list("Boîtes a moustaches" = plot_box),
+       tables = list("Médianes et rangs par groupe" = summary_df),
+       plotfns = list("Boîtes a moustaches (rangs)" = plot_box),
        interpretation = interp,
        console = console,
-       notes = sprintf("Comparaison de %d groupes.", ng))
+       notes = sprintf("Comparaison de %d groupes (rangs et médianes).", ng))
 }
 
 # ===========================================================================
@@ -2042,6 +2214,13 @@ mod_qualitative_ui <- function(id) {
             shiny::conditionalPanel(sprintf("input['%s'] == 'bi'", ns("nom_mode")),
               shiny::uiOutput(ns("nom_var2_ui"))),
             shiny::conditionalPanel(sprintf("input['%s'] == 'gof'", ns("nom_mode")),
+              shiny::div(style = "background:#eef7ee;border-left:3px solid #27ae60;padding:6px 10px;margin-bottom:8px;font-size:12px;",
+                shiny::icon("info-circle"),
+                " La variable ci-dessus est la variable analysée. Vous pouvez, en option, choisir un facteur X pour tester sa distribution séparément dans chaque groupe."),
+              shiny::checkboxInput(ns("gof_use_x"),
+                shiny::tagList(shiny::strong("Analyser selon un facteur X (analyse stratifiée)")), value = FALSE),
+              shiny::conditionalPanel(sprintf("input['%s'] == true", ns("gof_use_x")),
+                shiny::uiOutput(ns("gof_x_ui"))),
               shiny::radioButtons(ns("gof_method"), "Méthode",
                 choiceNames = list(
                   shiny::HTML("<b>Chi² d'ajustement</b> <small style='color:#7f8c8d;'>(chisq.test)</small>"),
@@ -2271,7 +2450,16 @@ mod_qualitative_server <- function(id, values) {
     col_names <- shiny::reactive(names(get_data()))
 
     # Selecteurs dynamiques de colonnes
-    output$nom_var1_ui <- shiny::renderUI(shiny::selectInput(ns("nom_var1"), "Variable", choices = col_names()))
+    output$nom_var1_ui <- shiny::renderUI({
+      lab <- if (identical(input$nom_mode, "gof")) "Variable analysée (Y)"
+             else if (identical(input$nom_mode, "bi")) "Variable 1"
+             else "Variable"
+      shiny::selectInput(ns("nom_var1"), lab, choices = col_names())
+    })
+    output$gof_x_ui <- shiny::renderUI({
+      ch <- setdiff(col_names(), input$nom_var1 %||% "")
+      shiny::selectInput(ns("gof_x"), "Facteur étudié (X, groupes)", choices = ch)
+    })
     output$nom_var2_ui <- shiny::renderUI(shiny::selectInput(ns("nom_var2"), "Variable 2 (croisement)", choices = col_names()))
     output$gof_levels_hint <- shiny::renderUI({
       d <- get_data(); v <- input$nom_var1
@@ -2444,10 +2632,19 @@ mod_qualitative_server <- function(id, values) {
               shiny::validate(shiny::need(length(props) > 0 && !anyNA(props),
                 "Proportions attendues illisibles : nombres séparés par des virgules ou espaces (ex. 0.5, 0.3, 0.2)."))
             }
-            hstat_q_gof_analysis(d[[input$nom_var1]], input$nom_var1,
-                                 expected_props = props,
-                                 method = input$gof_method %||% "chisq",
-                                 posthoc_adjust = input$gof_posthoc_adjust %||% "bonferroni")
+            if (isTRUE(input$gof_use_x) && !is.null(input$gof_x) &&
+                input$gof_x %in% names(d) && !identical(input$gof_x, input$nom_var1)) {
+              hstat_q_gof_stratified(d[[input$nom_var1]], d[[input$gof_x]],
+                                     yname = input$nom_var1, xname = input$gof_x,
+                                     expected_props = props,
+                                     method = input$gof_method %||% "chisq",
+                                     posthoc_adjust = input$gof_posthoc_adjust %||% "bonferroni")
+            } else {
+              hstat_q_gof_analysis(d[[input$nom_var1]], input$nom_var1,
+                                   expected_props = props,
+                                   method = input$gof_method %||% "chisq",
+                                   posthoc_adjust = input$gof_posthoc_adjust %||% "bonferroni")
+            }
           } else if (mode == "uni") {
             shiny::validate(shiny::need(input$nom_var1 %in% names(d), "Choisissez une variable."))
             hstat_q_nominal_univariate(d[[input$nom_var1]], input$nom_var1)

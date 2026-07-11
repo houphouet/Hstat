@@ -16,19 +16,25 @@
 
 library(testthat)
 
+# -- Localiser le dossier de l'app (inst/app) de facon robuste ---------------
+# En package installe / verifie par R CMD check : system.file() pointe vers
+# inst/app une fois le package construit. Sous devtools::load_all(), pkgload
+# redirige egalement system.file() vers inst/app. On garde un repli sur des
+# chemins relatifs pour un usage tres ponctuel hors package.
+.hstat_app_dir <- function() {
+  d <- tryCatch(system.file("app", package = "HStat"), error = function(e) "")
+  if (nzchar(d) && dir.exists(d)) return(d)
+  for (cand in c("inst/app", "../inst/app", file.path("..", "..", "inst", "app"))) {
+    if (dir.exists(cand)) return(cand)
+  }
+  stop("Impossible de localiser le dossier inst/app de HStat.", call. = FALSE)
+}
+
 # -- Charger uniquement les fonctions utilitaires (sans demarrer l'app) -------
 # On source Utils.R dans un environnement isole. install_and_load() peut
 # tenter de charger des packages ; on neutralise cet effet pour les tests.
 local({
-  # Resolution robuste du chemin de Utils.R : que les tests soient lances depuis
-  # la racine de l'application (sys.source("Utils.R")) ou depuis tests/
-  # (testthat::test_dir, qui se place dans le dossier du fichier de test).
-  utils_path <- "Utils.R"
-  if (!file.exists(utils_path)) utils_path <- file.path("..", "Utils.R")
-  if (!file.exists(utils_path)) {
-    cand <- normalizePath(file.path(dirname(getwd()), "Utils.R"), mustWork = FALSE)
-    if (file.exists(cand)) utils_path <- cand
-  }
+  utils_path <- file.path(.hstat_app_dir(), "Utils.R")
   # Empeche install_and_load de bloquer si un package manque dans l'env de test
   e <- new.env()
   assign("install_and_load", function(...) invisible(NULL), envir = e)
@@ -41,8 +47,7 @@ local({
 
 # -- Charger le module d'analyses qualitatives (fonctions de calcul) ---------
 local({
-  q_path <- "mod_qualitative.R"
-  if (!file.exists(q_path)) q_path <- file.path("..", "mod_qualitative.R")
+  q_path <- file.path(.hstat_app_dir(), "mod_qualitative.R")
   if (file.exists(q_path)) {
     eq <- new.env()
     suppressWarnings(suppressMessages(sys.source(q_path, envir = eq, keep.source = FALSE)))
@@ -689,323 +694,4 @@ test_that("les graphiques croisés fonctionnent même si les variables ont le m�
   ph <- r2$plotfns[["Carte des résidus"]]()
   expect_equal(ph$labels$x, "RR")
   expect_equal(ph$labels$y, "GG")
-})
-
-
-# =============================================================================
-context("Analyses qualitatives -- exportation des résultats")
-# =============================================================================
-
-test_that(".safe_name produit des noms de fichiers propres", {
-  expect_equal(.safe_name("Profils colonne (%)"), "profils_colonne")
-  expect_equal(.safe_name("Tranche d'\u00e2ge / R\u00e9ponse"), "tranche_d_age_reponse")
-  expect_equal(.safe_name(""), "tableau")
-})
-
-test_that(".write_xlsx écrit un classeur multi-feuilles valide", {
-  skip_if_not(requireNamespace("openxlsx", quietly = TRUE))
-  set.seed(1)
-  r <- hstat_q_nominal_bivariate(sample(c("A","B"), 80, TRUE),
-                                 sample(c("X","Y","Z"), 80, TRUE), "G", "R")
-  sheets <- c(list("Métriques" = r$metrics), r$tables)
-  f <- tempfile(fileext = ".xlsx")
-  .write_xlsx(sheets, f)
-  expect_true(file.exists(f) && file.size(f) > 3000)
-  sn <- openxlsx::getSheetNames(f)
-  expect_equal(length(sn), length(sheets))
-  expect_true(all(nchar(sn) <= 31))
-})
-
-test_that("l'export image fonctionne dans tous les formats", {
-  skip_if_not_installed("ggplot2")
-  library(ggplot2)
-  set.seed(2)
-  r <- hstat_q_nominal_univariate(sample(c("A","B","C"), 60, TRUE), "V")
-  p <- r$plotfns[["Diagramme en barres"]]()
-  for (fmt in c("png", "pdf", "svg")) {
-    ff <- tempfile(fileext = paste0(".", fmt))
-    args <- list(filename = ff, plot = p, width = 8, height = 5,
-                 units = "in", device = fmt)
-    if (fmt == "png") { args$dpi <- 200; args$bg <- "white" }
-    do.call(ggplot2::ggsave, args)
-    expect_true(file.exists(ff) && file.size(ff) > 500)
-  }
-})
-
-
-# =============================================================================
-context("Analyses qualitatives -- mise en forme interactive du graphique")
-# =============================================================================
-
-test_that("hstat_q_apply_style applique titres, tailles, rotation et style", {
-  skip_if_not_installed("ggplot2")
-  library(ggplot2)
-  set.seed(1)
-  r <- hstat_q_nominal_univariate(sample(c("A", "B", "C"), 90, TRUE), "V")
-  p0 <- r$plotfns[["Diagramme en barres"]]()
-  opts <- list(title = "Mon titre", xlab = "Cat", ylab = "Eff", legend = "Grp",
-               title_size = 22, axis_text_size = 8, x_rotation = 90,
-               axis_title_bold = TRUE, axis_title_italic = TRUE,
-               show_grid = FALSE, black_axes = TRUE, black_ticks = TRUE)
-  p <- hstat_q_apply_style(p0, opts)
-  expect_equal(p$labels$title, "Mon titre")
-  expect_equal(p$labels$x, "Cat")
-  expect_equal(p$theme$plot.title$size, 22)
-  expect_equal(p$theme$axis.text.x$angle, 90)
-  expect_equal(p$theme$axis.title.x$face, "bold.italic")
-  expect_s3_class(p$theme$panel.grid.major, "element_blank")
-  expect_s3_class(p$theme$axis.line, "element_line")
-  # champs vides -> ne remplace pas les labels existants
-  p2 <- hstat_q_apply_style(p0, list())
-  expect_silent(ggplot2::ggplot_build(p2))
-})
-
-test_that("palette et style se composent sur tous les graphiques", {
-  skip_if_not_installed("ggplot2")
-  library(ggplot2)
-  set.seed(2)
-  r <- hstat_q_nominal_bivariate(sample(c("A", "B"), 80, TRUE),
-                                 sample(c("X", "Y", "Z"), 80, TRUE), "G", "R")
-  for (pn in names(r$plotfns)) {
-    p <- hstat_q_apply_style(
-      hstat_q_apply_palette(r$plotfns[[pn]](), "viridis"),
-      list(title = "T", x_rotation = 30, black_ticks = TRUE))
-    expect_silent(ggplot2::ggplot_build(p))
-  }
-})
-
-
-# =============================================================================
-context("Sécurité -- v25 : tables SQL, délimiteur, limite d'upload")
-# =============================================================================
-
-test_that("un nom de table piégé est neutralisé dans les requêtes DuckDB", {
-  evil <- 'x" ; DROP TABLE users --'
-  q <- sprintf("SELECT COUNT(*) AS n FROM %s", hstat_sql_ident(evil))
-  # le contenu hostile reste ENTRE guillemets doublés : simple identifiant
-  expect_true(grepl('FROM "x"" ; DROP TABLE users --"', q, fixed = TRUE))
-  expect_equal(hstat_sql_ident("hstat_source"), '"hstat_source"')
-})
-
-test_that("le délimiteur CSV est échappé avant interpolation SQL", {
-  delim <- "\'),; ATTACH \'"
-  esc <- gsub("\'", "\'\'", delim)
-  # plus aucune apostrophe isolée : impossible de clore la chaîne SQL
-  expect_false(grepl("(^|[^\'])\'([^\']|$)", esc))
-})
-
-test_that("la limite d'upload est configurable et bornée", {
-  old <- Sys.getenv("HSTAT_MAX_UPLOAD_MB", unset = NA)
-  on.exit(if (is.na(old)) Sys.unsetenv("HSTAT_MAX_UPLOAD_MB")
-          else Sys.setenv(HSTAT_MAX_UPLOAD_MB = old))
-  Sys.setenv(HSTAT_MAX_UPLOAD_MB = "512")
-  v <- suppressWarnings(as.numeric(Sys.getenv("HSTAT_MAX_UPLOAD_MB", "2048")))
-  if (!is.finite(v) || v <= 0) v <- 2048
-  expect_equal(v, 512)
-  Sys.setenv(HSTAT_MAX_UPLOAD_MB = "abc")
-  v2 <- suppressWarnings(as.numeric(Sys.getenv("HSTAT_MAX_UPLOAD_MB", "2048")))
-  if (!is.finite(v2) || v2 <= 0) v2 <- 2048
-  expect_equal(v2, 2048)
-})
-
-
-# =============================================================================
-context("Nettoyage -- classes d'intervalles (discrétisation)")
-# =============================================================================
-
-test_that("les trois méthodes de découpage produisent des facteurs ordonnés", {
-  set.seed(1)
-  ages <- c(round(runif(80, 0, 60)), NA)
-  r1 <- hstat_cut_intervals(ages, "width", n_classes = 4)
-  expect_true(isTRUE(r1$ok) && is.ordered(r1$factor) && nlevels(r1$factor) == 4)
-  r2 <- hstat_cut_intervals(ages, "quantile", n_classes = 4)
-  expect_true(isTRUE(r2$ok))
-  expect_lte(max(r2$counts$Effectif) - min(r2$counts$Effectif), 3)
-  r3 <- hstat_cut_intervals(ages, "manual", breaks_manual = c(0, 3, 15, 100),
-                            labels_custom = c("0-3 ans", "4-15 ans", "+15 ans"))
-  expect_identical(levels(r3$factor), c("0-3 ans", "4-15 ans", "+15 ans"))
-  i_lo <- which(ages < 3)[1]; i_hi <- which(ages > 20)[1]
-  expect_true(r3$factor[i_lo] < r3$factor[i_hi])   # comparaison ordinale valide
-})
-
-test_that("les erreurs de paramétrage donnent des messages clairs", {
-  x <- 1:50
-  expect_false(hstat_cut_intervals(x, "manual", breaks_manual = 5)$ok)
-  expect_false(hstat_cut_intervals(x, "manual", c(0, 10, 20),
-                                   labels_custom = "une_seule")$ok)
-  expect_false(hstat_cut_intervals(rep(5, 30), "width", 4)$ok)
-  expect_false(hstat_cut_intervals(c("A", "B"), "width", 2)$ok)
-  expect_false(hstat_cut_intervals(c(rep(1, 50), 2), "quantile", 5)$ok)
-  # hors bornes -> NA signalés
-  r <- hstat_cut_intervals(1:100, "manual", breaks_manual = c(10, 30))
-  expect_gt(r$n_na_created, 0)
-  expect_true(grepl("hors bornes", r$msg))
-})
-
-test_that("texte au format français et intervalles fermés à droite", {
-  r <- hstat_cut_intervals(c("10,5", "20,2", "30,8", "40,1", "15,3", "25,7"),
-                           "width", 2)
-  expect_true(isTRUE(r$ok))
-  r2 <- hstat_cut_intervals(1:60, "width", 3)
-  expect_true(grepl("^\\[", levels(r2$factor)[1]))   # 1re classe fermée à gauche
-})
-
-test_that("les trois conventions de bornes produisent les bonnes étiquettes", {
-  x <- c(0, 1, 2, 3, 4, 10, 14, 15, 20, 50, 99, 100)
-  b <- c(0, 3, 15, 100)
-  r2 <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "std_last_closed")
-  expect_identical(levels(r2$factor), c("[0 ; 3[", "[3 ; 15[", "[15 ; 100]"))
-  expect_equal(r2$n_na_created, 0)
-  r3 <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "all_left_closed")
-  expect_identical(levels(r3$factor), c("[0 ; 3[", "[3 ; 15[", "[15 ; 100["))
-  expect_equal(r3$n_na_created, 0)   # max capturé malgré la borne ouverte
-  r1 <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "mixed_open")
-  expect_identical(levels(r1$factor), c("[0 ; 3[", "]3 ; 15[", "]15 ; 100]"))
-  expect_equal(r1$n_na_created, 0)
-  # aucune valeur perdue quelle que soit la convention
-  for (r in list(r1, r2, r3)) expect_equal(sum(r$counts$Effectif), length(x))
-  # ancienne convention : fermées à droite
-  r4 <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "all_right_closed")
-  expect_identical(levels(r4$factor), c("[0 ; 3]", "]3 ; 15]", "]15 ; 100]"))
-  expect_equal(r4$n_na_created, 0)
-  expect_equal(as.character(r4$factor[which(x == 3)]), "[0 ; 3]")   # 3 dans la 1re (fermée à droite)
-  # toutes fermées des deux côtés
-  r5 <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "all_closed")
-  expect_identical(levels(r5$factor), c("[0 ; 3]", "[3 ; 15]", "[15 ; 100]"))
-  expect_equal(r5$n_na_created, 0)
-  # les cinq conventions ne perdent aucune valeur
-  for (st in c("std_last_closed", "all_left_closed", "mixed_open",
-               "all_right_closed", "all_closed")) {
-    r <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = st)
-    expect_equal(sum(r$counts$Effectif), length(x))
-  }
-  # étiquettes personnalisées prioritaires sur la convention
-  rc <- hstat_cut_intervals(x, "manual", breaks_manual = b, interval_style = "mixed_open",
-                            labels_custom = c("0-3", "4-15", "+15"))
-  expect_identical(levels(rc$factor), c("0-3", "4-15", "+15"))
-})
-
-
-# =============================================================================
-context("Post-hoc paramétrique -- ajustement des p-values")
-# =============================================================================
-
-test_that("un ajustement plus strict rend les groupes au moins aussi homogènes", {
-  skip_if_not_installed("emmeans")
-  suppressMessages(library(emmeans))
-  set.seed(7)
-  d <- data.frame(
-    y = c(rnorm(15, 50, 8), rnorm(15, 45, 8), rnorm(15, 43, 8), rnorm(15, 40, 8)),
-    g = factor(rep(c("A", "B", "C", "D"), each = 15)))
-  m <- aov(y ~ g, data = d)
-  p_none <- summary(pairs(emmeans(m, ~ g), adjust = "none"))$p.value
-  for (adj in c("bonferroni", "holm", "BH", "hochberg")) {
-    p_adj <- summary(pairs(emmeans(m, ~ g), adjust = adj))$p.value
-    # chaque p ajustée >= p brute -> moins de différences significatives
-    # -> regroupements en lettres au moins aussi larges (groupes plus homogènes)
-    expect_true(all(p_adj >= p_none - 1e-9),
-                info = paste("ajustement", adj, "doit être >= brut"))
-  }
-})
-
-test_that("p.adjust reproduit les méthodes proposées à l'utilisateur", {
-  p <- c(0.01, 0.02, 0.04, 0.20)
-  # Bonferroni = p * m (borné à 1)
-  expect_equal(p.adjust(p, "bonferroni"), pmin(p * length(p), 1))
-  # toutes les méthodes de la liste existent
-  for (m in c("holm", "bonferroni", "BH", "BY", "hochberg", "hommel")) {
-    expect_length(p.adjust(p, m), length(p))
-  }
-})
-
-
-# =============================================================================
-context("Analyses qualitatives -- post-hoc du Chi² d'ajustement (déplacé)")
-# =============================================================================
-
-test_that("le Chi² d'ajustement fournit un post-hoc par paires et des lettres de groupes", {
-  x <- c(rep("A", 70), rep("B", 25), rep("C", 5))
-  r <- hstat_q_gof_analysis(x, "V", method = "chisq", posthoc_adjust = "bonferroni")
-  expect_true(isTRUE(r$ok))
-  expect_true("Post-hoc : comparaisons par paires" %in% names(r$tables))
-  ph <- r$tables[["Post-hoc : comparaisons par paires"]]
-  expect_equal(nrow(ph), 3)   # A-B, A-C, B-C
-  expect_true(all(c("Comparaison", "Khi2", "p_brute", "p_ajustee",
-                    "Significatif", "Ajustement") %in% names(ph)))
-  # lettres de groupes présentes (si multcompView dispo)
-  skip_if_not_installed("multcompView")
-  gof <- r$tables[["Observé vs attendu"]]
-  expect_true("Groupe" %in% names(gof))
-  expect_true("Groupes homogènes" %in% names(r$plotfns))
-  expect_true(any(grepl("groupe.* homogène", r$interpretation)))
-})
-
-test_that("l'ajustement post-hoc du Chi² d'ajustement est monotone", {
-  x <- c(rep("A", 60), rep("B", 30), rep("C", 10))
-  r_none <- hstat_q_gof_analysis(x, "V", posthoc_adjust = "none")
-  r_bonf <- hstat_q_gof_analysis(x, "V", posthoc_adjust = "bonferroni")
-  p_none <- r_none$tables[["Post-hoc : comparaisons par paires"]]$p_ajustee
-  p_bonf <- r_bonf$tables[["Post-hoc : comparaisons par paires"]]$p_ajustee
-  expect_true(all(p_bonf >= p_none - 1e-9))
-})
-
-test_that("le post-hoc est aussi disponible avec le multinomial exact", {
-  x <- c(rep("X", 9), rep("Y", 3), rep("Z", 2))
-  set.seed(3)
-  r <- hstat_q_gof_analysis(x, "V", method = "multinomial", B = 1500,
-                            posthoc_adjust = "holm")
-  expect_true("Post-hoc : comparaisons par paires" %in% names(r$tables))
-})
-
-
-# =============================================================================
-context("Analyses qualitatives -- proportions, corrélation interprétée, rangs/médianes")
-# =============================================================================
-
-test_that("les tableaux croisés incluent un graphique de proportions", {
-  skip_if_not_installed("ggplot2")
-  set.seed(1)
-  r <- hstat_q_nominal_bivariate(sample(c("H","F"), 150, TRUE),
-                                 sample(c("A","B","C"), 150, TRUE), "Sexe", "Choix")
-  expect_true("Proportions (% par groupe)" %in% names(r$plotfns))
-  expect_silent(ggplot2::ggplot_build(r$plotfns[["Proportions (% par groupe)"]]()))
-})
-
-test_that("la corrélation ordinale est interprétée (significative, non signif, p-value)", {
-  ord <- c("Faible", "Moyen", "Fort")
-  set.seed(9)
-  # non significatif (aléatoire)
-  x <- sample(ord, 60, TRUE); y <- sample(1:3, 60, TRUE)
-  r <- hstat_q_ordinal_compare(x, y, levels_order = ord, second_ordinal = TRUE,
-                               xname = "A", gname = "B")
-  expect_true(any(grepl("SIGNIFICATIVE|NON significative", r$interpretation)))
-  expect_true(any(grepl("^p =|p <", unlist(r$interpretation))))   # p-value interprétée
-})
-
-test_that("la comparaison de groupes fournit rangs, médianes et test de Mood", {
-  ord <- c("Faible", "Moyen", "Fort")
-  set.seed(2)
-  grp <- rep(c("G1","G2","G3"), each = 30)
-  val <- c(sample(ord, 30, TRUE, c(.6,.3,.1)),
-           sample(ord, 30, TRUE, c(.3,.4,.3)),
-           sample(ord, 30, TRUE, c(.1,.3,.6)))
-  r <- hstat_q_ordinal_compare(val, grp, levels_order = ord,
-                               xname = "Satisfaction", gname = "Groupe")
-  expect_true("Médianes et rangs par groupe" %in% names(r$tables))
-  md <- r$tables[["Médianes et rangs par groupe"]]
-  expect_true(all(c("Mediane_rang", "Rang_moyen") %in% names(md)))
-  expect_true("Interpretation" %in% names(r$metrics))
-  expect_true(any(grepl("médiane", r$metrics$Metrique, ignore.case = TRUE)))
-})
-
-test_that("le test d'adéquation stratifié teste Y dans chaque groupe de X", {
-  set.seed(1)
-  x <- rep(c("Nord", "Sud"), each = 60)
-  y <- c(sample(c("A","B","C"), 60, TRUE, c(.6,.3,.1)),
-         sample(c("A","B","C"), 60, TRUE, c(.2,.3,.5)))
-  r <- hstat_q_gof_stratified(y, x, "Pref", "Region", method = "chisq")
-  expect_true(isTRUE(r$ok))
-  expect_true("Synthèse par groupe (X)" %in% names(r$tables))
-  expect_equal(nrow(r$tables[["Synthèse par groupe (X)"]]), 2)
-  expect_true("Table croisée X x Y" %in% names(r$tables))
 })

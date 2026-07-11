@@ -578,19 +578,25 @@ mod_clean_ui <- function(id) {
                                     placeholder = "ex. 0, 3, 15, 100"),
                           tags$small(style = "color:#7f8c8d;", icon("info-circle"),
                             " n bornes = n-1 classes. Les valeurs hors bornes deviendront NA.")),
+                        radioButtons(ns("cutStyle"), tagList(icon("brackets-curly"), " Convention des bornes (étiquettes automatiques)"),
+                          choiceNames = list(
+                            HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(dernière fermée des deux côtés)</small>"),
+                            HTML("<b>Toutes ouvertes à droite</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z[</code>"),
+                            HTML("<b>Milieu ouvert</b> — <code>[a ; b[</code>, <code>]b ; c[</code>, …, <code>]y ; z]</code>"),
+                            HTML("<b>Fermées à droite</b> — <code>[a ; b]</code>, <code>]b ; c]</code>, …, <code>]y ; z]</code> <small style='color:#7f8c8d;'>(la borne haute inclut la valeur)</small>"),
+                            HTML("<b>Toutes fermées</b> — <code>[a ; b]</code>, <code>[b ; c]</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(fermées des deux côtés)</small>")),
+                          choiceValues = list("std_last_closed", "all_left_closed", "mixed_open",
+                                              "all_right_closed", "all_closed"),
+                          selected = "std_last_closed"),
                         radioButtons(ns("cutLabels"), "Étiquettes des classes",
-                          choices = c("Automatiques ([a ; b[)" = "auto",
+                          choices = c("Automatiques (selon la convention)" = "auto",
                                       "Personnalisées" = "custom"),
-                          selected = "custom", inline = TRUE),
+                          selected = "auto", inline = TRUE),
                         conditionalPanel(
                           condition = sprintf("input['%s'] == 'custom'", ns("cutLabels")),
                           textInput(ns("cutLabelsTxt"), "Étiquettes (une par classe, séparées par virgules)",
                                     value = "0-3 ans, 4-15 ans, +15 ans",
                                     placeholder = "ex. 0-3 ans, 4-15 ans, +15 ans")),
-                        checkboxInput(ns("cutRight"),
-                          tagList("Intervalles fermés à droite ", tags$code("]a ; b]"),
-                            tags$small(style="color:#7f8c8d;", " -- recommandé pour des âges entiers : la borne 3 inclut les 3 ans")),
-                          value = TRUE),
                         uiOutput(ns("cutNewNameUI")),
                         actionButton(ns("applyCut"), tagList(icon("layer-group"), " Créer la variable de classes"),
                                      class = "btn-primary")
@@ -1697,12 +1703,13 @@ mod_clean_server <- function(id, values) {
     if (identical(input$cutLabels, "custom") && nzchar(trimws(input$cutLabelsTxt %||% ""))) {
       labs <- trimws(strsplit(input$cutLabelsTxt, ",")[[1]])
     }
+    labs_use <- if (identical(input$cutLabels, "custom")) labs else NULL
     hstat_cut_intervals(values$cleanData[[input$cutVar]],
                         method = input$cutMethod %||% "manual",
                         n_classes = input$cutNClasses %||% 4,
                         breaks_manual = brks,
-                        labels_custom = labs,
-                        right = isTRUE(input$cutRight))
+                        labels_custom = labs_use,
+                        interval_style = input$cutStyle %||% "std_last_closed")
   })
 
   output$cutPreviewMsg <- renderUI({
