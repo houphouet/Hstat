@@ -5,6 +5,89 @@
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
 
+# Nom de fichier sûr (accents retirés, non-alphanumériques -> underscore)
+.safe_name <- function(x) {
+  x <- as.character(x)[1]
+  x <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
+              "aaaeeeeiioouuuc", tolower(x))
+  x <- gsub("[^a-z0-9]+", "_", x)
+  x <- gsub("^_+|_+$", "", x)
+  if (!nzchar(x)) x <- "tableau"
+  substr(x, 1, 60)
+}
+
+# Écriture d'un classeur Excel (une feuille par élément nommé de `sheets`).
+# Utilise openxlsx si présent, sinon writexl ; repli CSV concaténé sinon.
+.write_xlsx <- function(sheets, file) {
+  # noms de feuilles uniques, <= 31 caractères, sans caractères interdits
+  nm <- vapply(names(sheets), function(s) gsub("[\\\\/\\[\\]:*?]", "_", substr(s, 1, 31)),
+               character(1))
+  nm <- make.unique(nm, sep = "_"); names(sheets) <- substr(nm, 1, 31)
+  if (requireNamespace("openxlsx", quietly = TRUE)) {
+    wb <- openxlsx::createWorkbook()
+    for (s in names(sheets)) {
+      openxlsx::addWorksheet(wb, s)
+      openxlsx::writeData(wb, s, sheets[[s]])
+      openxlsx::setColWidths(wb, s, cols = seq_len(ncol(sheets[[s]])), widths = "auto")
+    }
+    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  } else if (requireNamespace("writexl", quietly = TRUE)) {
+    writexl::write_xlsx(sheets, path = file)
+  } else {
+    con <- file(file, open = "w", encoding = "UTF-8"); on.exit(close(con))
+    for (s in names(sheets)) {
+      writeLines(paste0("# ", s), con)
+      utils::write.csv(sheets[[s]], con, row.names = FALSE)
+      writeLines("", con)
+    }
+  }
+}
+
+# Applique un style utilisateur (titres, tailles de police, gras/italique,
+# rotation, grille, axes/graduations en noir) à un ggplot déjà construit.
+# Base ggplot2 pure (pas de dépendance ggtext). Les champs titre/axes/légende
+# laissés vides conservent ceux du graphique. "opts" est une liste nommée.
+hstat_q_apply_style <- function(p, opts = list()) {
+  if (is.null(p) || !inherits(p, "ggplot")) return(p)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) return(p)
+  g <- function(k, d) { v <- opts[[k]]; if (is.null(v) || (is.character(v) && !nzchar(trimws(v)))) d else v }
+
+  # 1) Titres et étiquettes (uniquement si l'utilisateur les renseigne)
+  labs_args <- list()
+  if (nzchar(trimws(g("title", ""))))  labs_args$title  <- g("title", "")
+  if (nzchar(trimws(g("xlab", ""))))   labs_args$x      <- g("xlab", "")
+  if (nzchar(trimws(g("ylab", ""))))   labs_args$y      <- g("ylab", "")
+  if (nzchar(trimws(g("legend", ""))))  { labs_args$fill <- g("legend", ""); labs_args$colour <- g("legend", "") }
+  if (length(labs_args) > 0) p <- p + do.call(ggplot2::labs, labs_args)
+
+  face <- function(bold, italic)
+    if (bold && italic) "bold.italic" else if (bold) "bold" else if (italic) "italic" else "plain"
+  x_rot <- g("x_rotation", 45)
+  x_hjust <- if (x_rot > 0) 1 else 0.5
+  black_axes <- isTRUE(g("black_axes", FALSE))
+  black_ticks <- isTRUE(g("black_ticks", FALSE))
+  axis_text_color <- if (black_ticks) "black" else "grey30"
+  face_axtext <- face(isTRUE(g("axis_text_bold", FALSE)), isTRUE(g("axis_text_italic", FALSE)))
+  face_axtitle <- face(isTRUE(g("axis_title_bold", TRUE)), isTRUE(g("axis_title_italic", FALSE)))
+
+  p + ggplot2::theme(
+    plot.title = ggplot2::element_text(size = g("title_size", 16), hjust = 0.5, face = "bold"),
+    axis.line = if (black_axes) ggplot2::element_line(color = "black", linewidth = 0.75) else ggplot2::element_blank(),
+    axis.ticks = if (black_ticks) ggplot2::element_line(color = "black", linewidth = 0.5) else ggplot2::element_blank(),
+    axis.ticks.length = if (black_ticks) grid::unit(0.2, "cm") else grid::unit(0, "cm"),
+    axis.title.x = ggplot2::element_text(size = g("axis_label_size", 12), face = face_axtitle),
+    axis.title.y = ggplot2::element_text(size = g("axis_label_size", 12), face = face_axtitle),
+    axis.text.x = ggplot2::element_text(angle = x_rot, hjust = x_hjust,
+                                        size = g("axis_text_size", 10),
+                                        face = face_axtext, color = axis_text_color),
+    axis.text.y = ggplot2::element_text(size = g("axis_text_size", 10),
+                                        face = face_axtext, color = axis_text_color),
+    legend.text = ggplot2::element_text(size = g("legend_text_size", 10)),
+    legend.title = ggplot2::element_text(size = g("legend_text_size", 10), face = "bold"),
+    panel.grid.major = if (isTRUE(g("show_grid", TRUE))) ggplot2::element_line(color = "gray90", linewidth = 0.4) else ggplot2::element_blank(),
+    panel.grid.minor = ggplot2::element_blank())
+}
+
 # Applique une palette de couleurs choisie a un ggplot, quel que soit le
 # graphique (barres, camembert, nuage de mots, thèmes...). Detecte si l'echelle
 # de remplissage est continue (fill numerique -> degrade) ou discrete (fill
@@ -324,7 +407,7 @@ hstat_q_epitools_block <- function(tab2, kind = c("OR", "RR"), conf = 0.95) {
 hstat_q_gof_analysis <- function(x, var_name = "Variable",
                                  expected_props = NULL,
                                  method = c("chisq", "multinomial"),
-                                 B = 10000) {
+                                 B = 10000, posthoc_adjust = "bonferroni") {
   method <- match.arg(method)
   x <- as.character(x)
   x <- x[!is.na(x) & nzchar(trimws(x))]
@@ -427,6 +510,47 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     Contribution_chi2_pct = round(contrib, 1),
     stringsAsFactors = FALSE)
 
+  # ---- POST-HOC : comparaisons par paires de modalités + lettres de groupes ----
+  # Chaque paire (i, j) est comparée par un khi-deux 2x2 (effectif i vs j contre
+  # le total), les p-values sont ajustées, puis regroupées en lettres (CLD) :
+  # deux modalités partageant une lettre ne diffèrent pas significativement.
+  posthoc_df <- NULL; groups_letters <- NULL
+  if (k >= 2) {
+    N_total <- sum(obs)
+    comps <- character(0); chi2_v <- numeric(0); p_raw <- numeric(0)
+    for (i in 1:(k - 1)) for (j in (i + 1):k) {
+      m2 <- matrix(c(obs[i], obs[j], N_total - obs[i], N_total - obs[j]), nrow = 2)
+      tt <- tryCatch(suppressWarnings(stats::chisq.test(m2, correct = (k == 2))),
+                     error = function(e) NULL)
+      comps <- c(comps, paste0(names(tab)[i], " vs ", names(tab)[j]))
+      chi2_v <- c(chi2_v, if (is.null(tt)) NA_real_ else round(unname(tt$statistic), 4))
+      p_raw <- c(p_raw, if (is.null(tt)) NA_real_ else tt$p.value)
+    }
+    adj_m <- if (posthoc_adjust %in% c("holm","hochberg","hommel","bonferroni","BH","BY","fdr","none"))
+      posthoc_adjust else "bonferroni"
+    p_adj <- stats::p.adjust(p_raw, method = adj_m)
+    posthoc_df <- data.frame(
+      Comparaison = comps, Khi2 = chi2_v,
+      p_brute = round(p_raw, 6), p_ajustee = round(p_adj, 6),
+      Significatif = ifelse(!is.na(p_adj) & p_adj < 0.05, "OUI *", "non"),
+      Ajustement = adj_m, stringsAsFactors = FALSE)
+    # Lettres de groupes homogènes (multcompView si dispo)
+    if (requireNamespace("multcompView", quietly = TRUE)) {
+      pm <- matrix(1, k, k, dimnames = list(names(tab), names(tab))); z <- 1
+      for (i in 1:(k - 1)) for (j in (i + 1):k) {
+        pv <- p_adj[z]; if (is.na(pv)) pv <- 1
+        pm[i, j] <- pm[j, i] <- pv; z <- z + 1
+      }
+      diag(pm) <- 1
+      groups_letters <- tryCatch(
+        multcompView::multcompLetters(pm, threshold = 0.05)$Letters,
+        error = function(e) NULL)
+    }
+    if (!is.null(groups_letters)) {
+      gof_df$Groupe <- groups_letters[match(names(tab), names(groups_letters))]
+    }
+  }
+
   # ---- Interprétation globale ----
   worst <- names(tab)[which.max(abs(resid_p))]
   interp <- c(
@@ -484,10 +608,46 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
       sprintf("p-value = %s", format.pval(p_multi, digits = 4)),
       sprintf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
 
+  gof_tables <- list("Observé vs attendu" = gof_df)
+  if (!is.null(posthoc_df))
+    gof_tables[["Post-hoc : comparaisons par paires"]] <- posthoc_df
+
+  # Graphique observé/attendu enrichi des lettres de groupes homogènes
+  plot_groups <- function() {
+    if (!requireNamespace("ggplot2", quietly = TRUE) || is.null(groups_letters)) return(NULL)
+    dd <- data.frame(Modalite = names(tab), Observe = obs,
+                     Groupe = groups_letters[match(names(tab), names(groups_letters))])
+    ggplot2::ggplot(dd, ggplot2::aes(stats::reorder(Modalite, -Observe), Observe, fill = Modalite)) +
+      ggplot2::geom_col(show.legend = FALSE) +
+      ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%s)", Observe, Groupe)),
+                         vjust = -0.2, size = 3.6, fontface = "bold") +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
+      ggplot2::labs(title = paste0("Groupes homogènes -- ", var_name),
+                    subtitle = "Modalités partageant une lettre : non significativement différentes",
+                    x = NULL, y = "Effectif observé") +
+      ggplot2::theme_minimal(base_size = 12)
+  }
+  gof_plotfns <- list("Observé vs attendu" = plot_obs_att,
+                      "Contributions au Khi-deux" = plot_contrib)
+  if (!is.null(groups_letters)) gof_plotfns[["Groupes homogènes"]] <- plot_groups
+
+  # Note d'interprétation sur les groupes
+  if (!is.null(groups_letters)) {
+    n_grp <- length(unique(groups_letters))
+    interp <- c(interp,
+      sprintf("Post-hoc (%d comparaisons par paires, ajustement %s) : %d groupe(s) homogène(s) de modalités identifié(s). Les modalités partageant une lettre ne diffèrent pas significativement.",
+              nrow(posthoc_df), posthoc_df$Ajustement[1], n_grp))
+  }
+  if (!is.null(posthoc_df)) {
+    console <- c(console, "", "Post-hoc -- comparaisons par paires (khi-deux 2x2) :",
+                 utils::capture.output(print(posthoc_df, row.names = FALSE)),
+                 if (!is.null(groups_letters)) c("", "Lettres de groupes homogènes :",
+                   utils::capture.output(print(groups_letters))) else NULL)
+  }
+
   list(ok = TRUE, metrics = metrics,
-       tables = list("Observé vs attendu" = gof_df),
-       plotfns = list("Observé vs attendu" = plot_obs_att,
-                      "Contributions au Khi-deux" = plot_contrib),
+       tables = gof_tables,
+       plotfns = gof_plotfns,
        interpretation = interp, console = console,
        notes = sprintf("%d observations, %d modalités, proportions %s.", n, k, p0_lab))
 }
@@ -1856,10 +2016,7 @@ mod_qualitative_ui <- function(id) {
     shiny::fluidRow(
       shinydashboard::box(width = 12, status = "warning", solidHeader = FALSE, background = "navy",
         shiny::h3(shiny::icon("comments"), " Analyses de données qualitatives d'enquête",
-                  style = "margin:0;color:white;"),
-        shiny::p(style = "margin:6px 0 0 0;color:#dfe6e9;font-size:13px;",
-          "Analyses nominales, ordinales et textuelles (avec analyse thématique). ",
-          "Le type de chaque variable est détecté automatiquement."))
+                  style = "margin:0;color:white;"))
     ),
     shiny::fluidRow(
       shiny::column(4,
@@ -1899,7 +2056,15 @@ mod_qualitative_ui <- function(id) {
                 shiny::textInput(ns("gof_props_txt"),
                   "Proportions (une par modalité, ordre alphabétique, séparées par virgule)",
                   placeholder = "ex. 0.5, 0.3, 0.2"),
-                shiny::uiOutput(ns("gof_levels_hint")))),
+                shiny::uiOutput(ns("gof_levels_hint"))),
+              shiny::selectInput(ns("gof_posthoc_adjust"),
+                shiny::tagList(shiny::icon("code-branch"), " Post-hoc : ajustement des p-values (groupes homogènes)"),
+                choices = c("Bonferroni" = "bonferroni", "Holm" = "holm",
+                            "BH (FDR)" = "BH", "BY" = "BY", "Hochberg" = "hochberg",
+                            "Hommel" = "hommel", "Aucun" = "none"),
+                selected = "bonferroni"),
+              shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+                " Compare chaque paire de modalités (khi-deux 2x2) et regroupe en lettres : les modalités partageant une lettre ne diffèrent pas significativement.")),
             shiny::conditionalPanel(sprintf("input['%s'] == 'multi'", ns("nom_mode")),
               shiny::radioButtons(ns("multi_fmt"), "Format des choix multiples",
                 choices = c("Colonnes binaires (0/1)" = "binary",
@@ -2007,12 +2172,54 @@ mod_qualitative_ui <- function(id) {
                   shiny::column(3, colourpicker::colourInput(ns("plot_col_high"), "Couleur haute / 2e", value = "#1f618d")))),
               shiny::plotOutput(ns("main_plot"), height = "440px"),
               shiny::br(),
-              shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("dl_width"), "Largeur (po)", value = 9, min = 4, max = 20, step = 0.5)),
-                shiny::column(4, shiny::numericInput(ns("dl_height"), "Hauteur (po)", value = 6, min = 3, max = 16, step = 0.5)),
-                shiny::column(4, shiny::numericInput(ns("dl_dpi"), "Résolution (DPI)", value = 200, min = 72, max = 600, step = 50))),
-              shiny::downloadButton(ns("dl_plot"), "Télécharger le graphique (PNG)",
-                                    class = "btn-success btn-sm")),
+              # ---- Mise en forme interactive du graphique (rapatriée des Tableaux croisés) ----
+              shiny::tags$details(style = "background:#fbfbfd;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:10px;",
+                shiny::tags$summary(style = "cursor:pointer;font-weight:bold;color:#8e44ad;",
+                  shiny::icon("sliders-h"), " Personnaliser le graphique (mise à jour instantanée)"),
+                shiny::br(),
+                shiny::fluidRow(
+                  shiny::column(3,
+                    shiny::tags$strong(shiny::icon("heading"), " Titres"),
+                    shiny::textInput(ns("sty_title"), "Titre", placeholder = "Automatique si vide"),
+                    shiny::textInput(ns("sty_xlab"), "Axe X", placeholder = "Automatique si vide"),
+                    shiny::textInput(ns("sty_ylab"), "Axe Y", placeholder = "Automatique si vide"),
+                    shiny::textInput(ns("sty_legend"), "Légende", placeholder = "Automatique si vide")),
+                  shiny::column(3,
+                    shiny::tags$strong(shiny::icon("font"), " Tailles (pt)"),
+                    shiny::sliderInput(ns("sty_title_size"), "Titre", min = 8, max = 32, value = 16, step = 1),
+                    shiny::sliderInput(ns("sty_axis_label_size"), "Titres des axes", min = 6, max = 24, value = 12, step = 1),
+                    shiny::sliderInput(ns("sty_axis_text_size"), "Graduations", min = 5, max = 20, value = 10, step = 1),
+                    shiny::sliderInput(ns("sty_legend_text_size"), "Légende", min = 5, max = 20, value = 10, step = 1)),
+                  shiny::column(3,
+                    shiny::tags$strong(shiny::icon("bold"), " Style du texte"),
+                    shiny::tags$small(shiny::tags$b(" Titres des axes")),
+                    shiny::checkboxInput(ns("sty_axis_title_bold"), "Gras", value = TRUE),
+                    shiny::checkboxInput(ns("sty_axis_title_italic"), "Italique", value = FALSE),
+                    shiny::tags$small(shiny::tags$b(" Graduations")),
+                    shiny::checkboxInput(ns("sty_axis_text_bold"), "Gras", value = FALSE),
+                    shiny::checkboxInput(ns("sty_axis_text_italic"), "Italique", value = FALSE)),
+                  shiny::column(3,
+                    shiny::tags$strong(shiny::icon("adjust"), " Affichage"),
+                    shiny::sliderInput(ns("sty_x_rotation"), "Rotation axe X (°)", min = 0, max = 90, value = 45, step = 5),
+                    shiny::checkboxInput(ns("sty_show_grid"), "Grille de fond", value = TRUE),
+                    shiny::checkboxInput(ns("sty_black_axes"), "Axes en noir", value = FALSE),
+                    shiny::checkboxInput(ns("sty_black_ticks"), "Graduations en noir", value = FALSE)))),
+              # Paramètres d'exportation de l'image (rapatriés des Tableaux croisés)
+              shiny::div(style = "background:#fff8f0;border-left:4px solid #e67e22;padding:12px;border-radius:6px;",
+                shiny::tags$strong(shiny::icon("image"), " Paramètres d'exportation de l'image"),
+                shiny::fluidRow(
+                  shiny::column(3, shiny::selectInput(ns("dl_format"), "Format",
+                    choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
+                                "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg"),
+                    selected = "png")),
+                  shiny::column(3, shiny::numericInput(ns("dl_width"), "Largeur (po)", value = 9, min = 3, max = 30, step = 0.5)),
+                  shiny::column(3, shiny::numericInput(ns("dl_height"), "Hauteur (po)", value = 6, min = 2, max = 24, step = 0.5)),
+                  shiny::column(3, shiny::numericInput(ns("dl_dpi"), "Résolution (DPI)", value = 300, min = 72, max = 20000, step = 50))),
+                shiny::tags$small(class = "text-muted", shiny::icon("info-circle"),
+                  " PDF et SVG sont vectoriels (redimensionnables sans perte) ; le DPI ne s'y applique pas.")),
+              shiny::br(),
+              shiny::downloadButton(ns("dl_plot"), "Télécharger le graphique",
+                                    class = "btn-success")),
             shiny::tabPanel(shiny::tagList(shiny::icon("list-ol"), " Métriques"), shiny::br(),
               DT::DTOutput(ns("metrics_table")),
               shiny::br(),
@@ -2023,8 +2230,18 @@ mod_qualitative_ui <- function(id) {
               shiny::uiOutput(ns("tables_selector")),
               DT::DTOutput(ns("detail_table")),
               shiny::br(),
-              shiny::downloadButton(ns("dl_table"), "Télécharger ce tableau (CSV)",
-                                    class = "btn-success btn-sm")),
+              shiny::div(style = "background:#eaf4fb;border-left:4px solid #2e86c1;padding:12px;border-radius:6px;",
+                shiny::tags$strong(shiny::icon("file-export"), " Exportation des résultats"),
+                shiny::br(), shiny::br(),
+                shiny::fluidRow(
+                  shiny::column(6, shiny::tags$small(shiny::tags$b("Tableau affiché :"))),
+                  shiny::column(6, shiny::tags$small(shiny::tags$b("Tous les tableaux :")))),
+                shiny::fluidRow(
+                  shiny::column(3, shiny::downloadButton(ns("dl_table"), "CSV", class = "btn-info btn-sm btn-block", icon = shiny::icon("file-csv"))),
+                  shiny::column(3, shiny::downloadButton(ns("dl_table_xlsx"), "Excel", class = "btn-success btn-sm btn-block", icon = shiny::icon("file-excel"))),
+                  shiny::column(3, shiny::downloadButton(ns("dl_all_csv"), "CSV (ZIP)", class = "btn-info btn-sm btn-block", icon = shiny::icon("file-archive"))),
+                  shiny::column(3, shiny::downloadButton(ns("dl_all_xlsx"), "Excel", class = "btn-success btn-sm btn-block", icon = shiny::icon("file-excel"))))
+              )),
             shiny::tabPanel(shiny::tagList(shiny::icon("terminal"), " Tests (sortie R)"), shiny::br(),
               shiny::uiOutput(ns("console_note")),
               shiny::verbatimTextOutput(ns("console_out")),
@@ -2229,7 +2446,8 @@ mod_qualitative_server <- function(id, values) {
             }
             hstat_q_gof_analysis(d[[input$nom_var1]], input$nom_var1,
                                  expected_props = props,
-                                 method = input$gof_method %||% "chisq")
+                                 method = input$gof_method %||% "chisq",
+                                 posthoc_adjust = input$gof_posthoc_adjust %||% "bonferroni")
           } else if (mode == "uni") {
             shiny::validate(shiny::need(input$nom_var1 %in% names(d), "Choisissez une variable."))
             hstat_q_nominal_univariate(d[[input$nom_var1]], input$nom_var1)
@@ -2318,20 +2536,46 @@ mod_qualitative_server <- function(id, values) {
       wp <- input$which_plot %||% names(r$plotfns)[1]
       fn <- r$plotfns[[wp]]; if (is.null(fn)) fn <- r$plotfns[[1]]
       p <- fn()
-      hstat_q_apply_palette(p, input$plot_palette %||% "default",
-                            input$plot_col_low %||% "#aed6f1",
-                            input$plot_col_high %||% "#1f618d")
+      p <- hstat_q_apply_palette(p, input$plot_palette %||% "default",
+                                 input$plot_col_low %||% "#aed6f1",
+                                 input$plot_col_high %||% "#1f618d")
+      # Mise en forme interactive : lit tous les curseurs sty_* -> re-rendu live
+      hstat_q_apply_style(p, list(
+        title = input$sty_title, xlab = input$sty_xlab, ylab = input$sty_ylab,
+        legend = input$sty_legend,
+        title_size = input$sty_title_size %||% 16,
+        axis_label_size = input$sty_axis_label_size %||% 12,
+        axis_text_size = input$sty_axis_text_size %||% 10,
+        legend_text_size = input$sty_legend_text_size %||% 10,
+        axis_title_bold = input$sty_axis_title_bold %||% TRUE,
+        axis_title_italic = input$sty_axis_title_italic %||% FALSE,
+        axis_text_bold = input$sty_axis_text_bold %||% FALSE,
+        axis_text_italic = input$sty_axis_text_italic %||% FALSE,
+        x_rotation = input$sty_x_rotation %||% 45,
+        show_grid = input$sty_show_grid %||% TRUE,
+        black_axes = input$sty_black_axes %||% FALSE,
+        black_ticks = input$sty_black_ticks %||% FALSE))
     })
     output$main_plot <- shiny::renderPlot({
       p <- current_plot(); shiny::req(!is.null(p)); p
     })
     output$dl_plot <- shiny::downloadHandler(
-      filename = function() paste0("qualitatif_", Sys.Date(), ".png"),
+      filename = function() paste0("graphique_qualitatif_", Sys.Date(),
+                                   ".", input$dl_format %||% "png"),
       content = function(file) {
-        p <- current_plot()
-        ggplot2::ggsave(file, p, width = input$dl_width %||% 9,
-                        height = input$dl_height %||% 6,
-                        dpi = input$dl_dpi %||% 200, units = "in")
+        p <- current_plot(); shiny::req(!is.null(p))
+        fmt <- input$dl_format %||% "png"
+        args <- list(filename = file, plot = p,
+                     width = input$dl_width %||% 9,
+                     height = input$dl_height %||% 6,
+                     units = "in", device = fmt)
+        # DPI + fond blanc uniquement pour les formats matriciels
+        if (fmt %in% c("png", "jpeg", "tiff")) {
+          args$dpi <- input$dl_dpi %||% 300
+          args$bg <- "white"
+        }
+        if (fmt == "jpeg") args$device <- grDevices::jpeg
+        do.call(ggplot2::ggsave, args)
       })
 
     # ---- Metriques ----
@@ -2386,7 +2630,52 @@ mod_qualitative_server <- function(id, values) {
                     options = list(pageLength = 15, scrollX = TRUE))
     })
     output$dl_table <- shiny::downloadHandler(
-      filename = function() paste0("tableau_qualitatif_", Sys.Date(), ".csv"),
+      filename = function() paste0("tableau_", .safe_name(input$which_table %||% "resultat"),
+                                   "_", Sys.Date(), ".csv"),
       content = function(file) utils::write.csv(current_table(), file, row.names = FALSE, fileEncoding = "UTF-8"))
+
+    output$dl_table_xlsx <- shiny::downloadHandler(
+      filename = function() paste0("tableau_", .safe_name(input$which_table %||% "resultat"),
+                                   "_", Sys.Date(), ".xlsx"),
+      content = function(file) {
+        tb <- current_table(); shiny::req(!is.null(tb))
+        .write_xlsx(stats::setNames(list(tb), substr(input$which_table %||% "Tableau", 1, 31)), file)
+      })
+
+    output$dl_all_csv <- shiny::downloadHandler(
+      filename = function() paste0("tableaux_qualitatifs_", Sys.Date(), ".zip"),
+      content = function(file) {
+        r <- result(); shiny::req(isTRUE(r$ok), length(r$tables) > 0)
+        tmp <- tempfile("qexport"); dir.create(tmp)
+        paths <- character(0)
+        for (nm in names(r$tables)) {
+          f <- file.path(tmp, paste0(.safe_name(nm), ".csv"))
+          utils::write.csv(r$tables[[nm]], f, row.names = FALSE, fileEncoding = "UTF-8")
+          paths <- c(paths, f)
+        }
+        # métriques + interprétation jointes
+        if (!is.null(r$metrics)) {
+          fm <- file.path(tmp, "00_metriques_interpretees.csv")
+          utils::write.csv(r$metrics, fm, row.names = FALSE, fileEncoding = "UTF-8")
+          paths <- c(fm, paths)
+        }
+        # utils::zip exige un binaire zip externe, souvent absent sous Windows :
+        # on privilegie le package 'zip' (autonome), avec repli sur utils::zip.
+        if (requireNamespace("zip", quietly = TRUE)) {
+          zip::zipr(file, paths)
+        } else {
+          utils::zip(file, paths, flags = "-j9X")
+        }
+      })
+
+    output$dl_all_xlsx <- shiny::downloadHandler(
+      filename = function() paste0("resultats_qualitatifs_", Sys.Date(), ".xlsx"),
+      content = function(file) {
+        r <- result(); shiny::req(isTRUE(r$ok))
+        sheets <- list()
+        if (!is.null(r$metrics)) sheets[["Métriques"]] <- r$metrics
+        for (nm in names(r$tables)) sheets[[substr(nm, 1, 31)]] <- r$tables[[nm]]
+        .write_xlsx(sheets, file)
+      })
   })
 }

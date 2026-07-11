@@ -603,7 +603,17 @@ mod_posthoc_ui <- function(id) {
                                           "LM / GLM (emmeans + lettres CLD)" = "lm_emmeans"
                                         ),
                                         selected = "tukey"
-                            )
+                            ),
+                            selectInput(ns("multiParamAdjust"),
+                                        tagList(icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
+                                        choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
+                                                    "BH (FDR)" = "BH", "BY" = "BY",
+                                                    "Hochberg" = "hochberg", "Hommel" = "hommel",
+                                                    "Aucun" = "none"),
+                                        selected = "holm"),
+                            div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
+                                icon("info-circle"),
+                                HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes à contrôle intégré (Tukey, Duncan, SNK, Scheffé, Games-Howell) conservent le leur."))
                           ),
                           conditionalPanel(
                             ns = ns,
@@ -1277,110 +1287,6 @@ mod_posthoc_ui <- function(id) {
                 )
               
               
-                ,
-                fluidRow(
-                  box(
-                    title = tagList(icon("code-branch"), " PostHoc Chi² -- Comparaisons par paires et groupes"),
-                    status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
-                  
-                    fluidRow(
-                      # - Colonne gauche : info + personnalisation graphique -
-                      column(4,
-                             uiOutput(ns("chiSqPostHocInfo")),
-                             br(),
-                             div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
-                                 h5(tagList(icon("sliders-h"), " Personnalisation du graphique"),
-                                    style = "font-weight:bold; margin-top:0; color:#1565C0;"),
-                               
-                                 selectInput(ns("chiSqPHGraphType"), tagList(icon("chart-pie"), " Type"),
-                                             choices = c("Barplot vertical"  = "bar_v",
-                                                         "Camembert (Pie)"   = "pie",
-                                                         "Résidus standardisés" = "residus"),
-                                             selected = "bar_v"),
-                               
-                                 hr(style = "margin:8px 0;"),
-                               
-                                 h6(tagList(icon("heading"), " Titres et labels"),
-                                    style = "color:#555; font-weight:bold; margin-bottom:6px;"),
-                                 textInput(ns("chiSqPHTitle"),    tagList(icon("font"),  " Titre"),
-                                           placeholder = "Auto"),
-                                 textInput(ns("chiSqPHSubtitle"), tagList(icon("align-left"), " Sous-titre"),
-                                           placeholder = "Auto (p-valeur si coché)"),
-                                 textInput(ns("chiSqPHXLabel"),   tagList(icon("arrows-alt-h"), " Label axe X"),
-                                           placeholder = "(vide = aucun)"),
-                                 textInput(ns("chiSqPHYLabel"),   tagList(icon("arrows-alt-v"), " Label axe Y"),
-                                           placeholder = "Auto"),
-                                 textInput(ns("chiSqPHLegTitle"), tagList(icon("list"), " Titre légende"),
-                                           placeholder = "(vide = aucune légende)"),
-                               
-                                 hr(style = "margin:8px 0;"),
-                               
-                                 h6(tagList(icon("tags"), " Renommer les modalités"),
-                                    style = "color:#555; font-weight:bold; margin-bottom:4px;"),
-                                 div(style = "background:#fffde7; padding:6px 8px; border-radius:4px; font-size:10px; margin-bottom:6px; border-left:3px solid #f9a825;",
-                                     icon("info-circle"), " Vide = nom d'origine conservé."),
-                                 div(style = "max-height:180px; overflow-y:auto;",
-                                     uiOutput(ns("chiSqPHLevelLabels"))
-                                 ),
-                               
-                                 hr(style = "margin:8px 0;"),
-                               
-                                 h6(tagList(icon("eye"), " Affichage"),
-                                    style = "color:#555; font-weight:bold; margin-bottom:4px;"),
-                                 checkboxInput(ns("chiSqPHShowGroupes"),
-                                               tagList(icon("layer-group"), " Lettres de groupe"),  TRUE),
-                                 checkboxInput(ns("chiSqPHShowValeurs"),
-                                               tagList(icon("percent"),     " Valeurs (%) sur graph"), TRUE),
-                                 checkboxInput(ns("chiSqPHShowPval"),
-                                               tagList(icon("vial"),        " P-valeur en sous-titre"), TRUE),
-                               
-                                 hr(style = "margin:8px 0;"),
-                               
-                                 h6(tagList(icon("crosshairs"), " Résolution export"),
-                                    style = "color:#555; font-weight:bold; margin-bottom:4px;"),
-                                 div(style = "background:#e3f2fd; padding:6px 8px; border-radius:4px; font-size:10px; margin-bottom:6px; border-left:3px solid #1565C0;",
-                                     icon("info-circle"), " Pixels = pouces x DPI (calculé automatiquement)."),
-                                 fluidRow(
-                                   column(6,
-                                          numericInput(ns("chiSqPHWidthIn"), "Largeur (po)",
-                                                       value = 8, min = 2, max = 40, step = 0.5)),
-                                   column(6,
-                                          numericInput(ns("chiSqPHHeightIn"), "Hauteur (po)",
-                                                       value = 6, min = 2, max = 40, step = 0.5))
-                                 ),
-                                 numericInput(ns("chiSqPHDPI"),
-                                              tagList(icon("crosshairs"), " DPI (300 - 20 000)"),
-                                              value = 300, min = 300, max = 20000, step = 100),
-                                 uiOutput(ns("chiSqPHExportSizeInfo")),
-                                 br(),
-                                 downloadButton(ns("downloadChiSqPHPlot"),
-                                                tagList(icon("image"), " Télécharger PNG"),
-                                                class = "btn-warning btn-block"),
-                                 br(),
-                                 downloadButton(ns("downloadChiSqPHExcel"),
-                                                tagList(icon("file-excel"), " Télécharger Excel"),
-                                                class = "btn-success btn-block")
-                             )
-                      ),
-                    
-                      # - Colonne droite : tableaux + graphique -
-                      column(8,
-                             tabsetPanel(type = "tabs",
-                                         tabPanel(tagList(icon("layer-group"), " Groupes distincts"), br(),
-                                                  withSpinner(DTOutput(ns("chiSqPostHocGroupesTable")), color = "#1565C0")
-                                         ),
-                                         tabPanel(tagList(icon("code-branch"), " Paires Bonferroni"), br(),
-                                                  withSpinner(DTOutput(ns("chiSqPostHocPairesTable")),  color = "#1565C0")
-                                         ),
-                                         tabPanel(tagList(icon("chart-bar"), " Graphique"), br(),
-                                                  withSpinner(plotOutput(ns("chiSqPostHocGraph"), height = "420px"),
-                                                              color = "#1565C0")
-                                         )
-                             )
-                      )
-                    )
-                  )
-                )
       )
 }
 
@@ -6292,7 +6198,8 @@ mod_tests_server <- function(id, values) {
                          type = "warning", duration = 8)
         return()
       }
-      adjust  <- "tukey"
+      # Ajustement choisi par l'utilisateur (défaut Tukey si "none" laissé)
+      adjust  <- { a <- input$multiParamAdjust %||% "tukey"; if (identical(a, "none")) "none" else a }
       results <- list()
       for (var in names(values$modelList)) {
         model <- values$modelList[[var]]
@@ -6388,14 +6295,26 @@ mod_tests_server <- function(id, values) {
                 showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux, test ignoré."), type="warning", duration=4)
                 next
               }
-              mc <- tryCatch(mc_func(model, fvar, group = TRUE), error = function(e) NULL)
+              # Ajustement des p-values : LSD accepte p.adj ; les autres
+              # (Tukey, Duncan, SNK, Scheffé, REGW, Waller) gèrent leur propre
+              # contrôle de l'erreur -> l'argument est ignoré pour eux.
+              pm_adj <- input$multiParamAdjust %||% "holm"
+              mc <- tryCatch(
+                if (input$multiTest == "lsd") {
+                  padj <- if (identical(pm_adj, "none")) "none" else pm_adj
+                  mc_func(model, fvar, group = TRUE, p.adj = padj)
+                } else {
+                  mc_func(model, fvar, group = TRUE)
+                }, error = function(e) NULL)
               if (is.null(mc)) { next }
               groups <- mc$groups
               colnames(groups)[1:2] <- c("means", "groups")
               groups[[fvar]] <- rownames(groups)
             } else if (input$multiTest == "bonferroni") {
               emm <- emmeans::emmeans(model, as.formula(paste0("~ `", fvar, "`")))
-              mc <- pairs(emm, adjust = "bonferroni")
+              # emmeans accepte tukey/bonferroni/holm/BH/... ; "none" = brut
+              pm_adj <- input$multiParamAdjust %||% "bonferroni"
+              mc <- pairs(emm, adjust = if (identical(pm_adj, "none")) "none" else pm_adj)
               pmat <- as.matrix(summary(mc)$p.value)
               if (is.null(dim(pmat))) {
                 groups <- data.frame(groups = rep("a", length(levels(df[[fvar]]))))
@@ -7462,12 +7381,34 @@ mod_tests_server <- function(id, values) {
     n_factors <- length(unique(main_data$Facteur))
     n_comparisons <- nrow(main_data)
     
+    # Méthode et ajustement appliqués (transparence)
+    is_param <- identical(input$testType, "param")
+    meth_lab <- if (is_param) {
+      switch(input$multiTest %||% "tukey",
+             tukey = "Tukey HSD", lsd = "LSD (Fisher)", duncan = "Duncan",
+             snk = "SNK", scheffe = "Scheffé", regw = "REGW", waller = "Waller-Duncan",
+             bonferroni = "Bonferroni", dunnett = "Dunnett", games = "Games-Howell",
+             manova = "MANOVA", lm_emmeans = "LM/GLM (emmeans)", input$multiTest)
+    } else {
+      switch(input$multiTestNonParam %||% "dunn",
+             kruskal = "Kruskal-Wallis", dunn = "Dunn", conover = "Conover",
+             nemenyi = "Nemenyi", permanova = "PERMANOVA", input$multiTestNonParam)
+    }
+    adj_used <- if (is_param) input$multiParamAdjust %||% "holm" else input$multiNonParamAdjust %||% "holm"
+    adj_lab <- switch(adj_used, holm = "Holm", bonferroni = "Bonferroni", BH = "BH (FDR)",
+                      BY = "BY", hochberg = "Hochberg", hommel = "Hommel", none = "aucun", adj_used)
+    # L'ajustement ne s'applique qu'aux méthodes par paires
+    adj_applies <- (is_param && (input$multiTest %||% "") %in% c("lsd", "bonferroni", "lm_emmeans")) || !is_param
+
     div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
         h5(icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
         tags$ul(
           tags$li(strong(n_vars), " variable(s) analysée(s)"),
           tags$li(strong(n_factors), " facteur(s) testé(s)"),
-          tags$li(strong(n_comparisons), " comparaison(s)")
+          tags$li(strong(n_comparisons), " comparaison(s)"),
+          tags$li("Méthode : ", strong(meth_lab)),
+          tags$li("Ajustement des p-values : ",
+                  strong(if (adj_applies) adj_lab else "intégré à la méthode"))
         )
     )
   })

@@ -546,6 +546,71 @@ mod_clean_ui <- function(id) {
                 )
               ),
 
+              # Étape 6: Classes d'intervalles (discrétisation)
+              fluidRow(
+                box(
+                  title = tagList(
+                    tags$span(class = "badge bg-purple",
+                              style = "font-size: 14px; margin-right: 10px;", "6"),
+                    icon("layer-group"),
+                    "Classes d'intervalles (discrétisation)"
+                  ),
+                  status = "primary", width = 12, solidHeader = TRUE,
+                  collapsible = TRUE, collapsed = TRUE,
+                  fluidRow(
+                    column(6,
+                      div(style = "background-color:#f4ecf7;padding:15px;border-radius:5px;",
+                        uiOutput(ns("cutVarSelect")),
+                        radioButtons(ns("cutMethod"), tagList(icon("ruler"), " Méthode de découpage"),
+                          choiceNames = list(
+                            HTML("<b>Largeur égale</b> <small style='color:#7f8c8d;'>(intervalles de même amplitude)</small>"),
+                            HTML("<b>Effectifs égaux</b> <small style='color:#7f8c8d;'>(quantiles)</small>"),
+                            HTML("<b>Bornes personnalisées</b> <small style='color:#7f8c8d;'>(ex. classes d'âge)</small>")),
+                          choiceValues = list("width", "quantile", "manual"),
+                          selected = "manual"),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] != 'manual'", ns("cutMethod")),
+                          sliderInput(ns("cutNClasses"), "Nombre de classes", min = 2, max = 12, value = 4, step = 1)),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] == 'manual'", ns("cutMethod")),
+                          textInput(ns("cutBreaks"), "Bornes (séparées par virgules)",
+                                    value = "0, 3, 15, 100",
+                                    placeholder = "ex. 0, 3, 15, 100"),
+                          tags$small(style = "color:#7f8c8d;", icon("info-circle"),
+                            " n bornes = n-1 classes. Les valeurs hors bornes deviendront NA.")),
+                        radioButtons(ns("cutLabels"), "Étiquettes des classes",
+                          choices = c("Automatiques ([a ; b[)" = "auto",
+                                      "Personnalisées" = "custom"),
+                          selected = "custom", inline = TRUE),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] == 'custom'", ns("cutLabels")),
+                          textInput(ns("cutLabelsTxt"), "Étiquettes (une par classe, séparées par virgules)",
+                                    value = "0-3 ans, 4-15 ans, +15 ans",
+                                    placeholder = "ex. 0-3 ans, 4-15 ans, +15 ans")),
+                        checkboxInput(ns("cutRight"),
+                          tagList("Intervalles fermés à droite ", tags$code("]a ; b]"),
+                            tags$small(style="color:#7f8c8d;", " -- recommandé pour des âges entiers : la borne 3 inclut les 3 ans")),
+                          value = TRUE),
+                        uiOutput(ns("cutNewNameUI")),
+                        actionButton(ns("applyCut"), tagList(icon("layer-group"), " Créer la variable de classes"),
+                                     class = "btn-primary")
+                      )
+                    ),
+                    column(6,
+                      div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #8e44ad;",
+                        h5(icon("eye"), " Aperçu en direct", style = "color:#8e44ad;margin-top:0;"),
+                        uiOutput(ns("cutPreviewMsg")),
+                        tableOutput(ns("cutPreviewTable")),
+                        plotOutput(ns("cutPreviewPlot"), height = "230px"),
+                        p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                          icon("info-circle"),
+                          " La variable créée est un facteur ORDONNÉ : les classes sont directement utilisables dans les analyses ordinales, tris et comparaisons.")
+                      )
+                    )
+                  )
+                )
+              ),
+
               fluidRow(
                 box(
                   title = tagList(
@@ -1592,6 +1657,109 @@ mod_clean_server <- function(id, values) {
     showNotification(tagList(icon("check"),
       sprintf(" Traitement appliqué (%d valeur(s)/ligne(s) affectée(s)).", n_changed)),
       type = "message", duration = 4)
+  })
+
+  # =========================================================================
+  # CLASSES D'INTERVALLES (discrétisation) -- ex. classes d'âge
+  # =========================================================================
+  output$cutVarSelect <- renderUI({
+    req(values$cleanData)
+    d <- values$cleanData
+    # candidates : numeriques + colonnes texte convertibles (format FR)
+    is_cand <- vapply(d, function(col)
+      is.numeric(col) || !is.null(hstat_as_numeric_fr(col)), logical(1))
+    ch <- names(d)[is_cand]
+    if (length(ch) == 0)
+      return(div(class = "alert alert-warning",
+                 icon("exclamation-triangle"), " Aucune variable numérique disponible."))
+    selectInput(ns("cutVar"), tagList(icon("hashtag"), " Variable numérique à découper"),
+                choices = ch, width = "100%")
+  })
+
+  output$cutNewNameUI <- renderUI({
+    req(input$cutVar)
+    textInput(ns("cutNewName"), "Nom de la nouvelle variable",
+              value = paste0(input$cutVar, "_classes"), width = "100%")
+  })
+
+  # Calcul (partage par l'apercu et l'application)
+  cut_result <- reactive({
+    req(values$cleanData, input$cutVar, input$cutVar %in% names(values$cleanData))
+    brks <- NULL
+    if (identical(input$cutMethod, "manual")) {
+      toks <- strsplit(trimws(input$cutBreaks %||% ""), "[;\\s]+")[[1]]
+      if (length(toks) == 1) toks <- strsplit(toks, ",")[[1]]
+      toks <- gsub("[,;]+$", "", toks)
+      toks <- gsub(",", ".", toks, fixed = TRUE)
+      brks <- suppressWarnings(as.numeric(toks[nzchar(toks)]))
+    }
+    labs <- NULL
+    if (identical(input$cutLabels, "custom") && nzchar(trimws(input$cutLabelsTxt %||% ""))) {
+      labs <- trimws(strsplit(input$cutLabelsTxt, ",")[[1]])
+    }
+    hstat_cut_intervals(values$cleanData[[input$cutVar]],
+                        method = input$cutMethod %||% "manual",
+                        n_classes = input$cutNClasses %||% 4,
+                        breaks_manual = brks,
+                        labels_custom = labs,
+                        right = isTRUE(input$cutRight))
+  })
+
+  output$cutPreviewMsg <- renderUI({
+    r <- tryCatch(cut_result(), error = function(e) NULL)
+    if (is.null(r)) return(NULL)
+    if (!isTRUE(r$ok))
+      return(div(class = "alert alert-danger", style = "padding:8px;",
+                 icon("times-circle"), " ", r$msg))
+    tagList(
+      div(class = "alert alert-success", style = "padding:8px;",
+          icon("check-circle"),
+          sprintf(" %d classes -- bornes : %s", nlevels(r$factor),
+                  paste(formatC(signif(r$breaks, 4), format = "g"), collapse = " | "))),
+      if (!is.null(r$msg))
+        div(class = "alert alert-warning", style = "padding:8px;",
+            icon("exclamation-triangle"), " ", r$msg))
+  })
+
+  output$cutPreviewTable <- renderTable({
+    r <- tryCatch(cut_result(), error = function(e) NULL)
+    if (is.null(r) || !isTRUE(r$ok)) return(NULL)
+    r$counts
+  }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
+
+  output$cutPreviewPlot <- renderPlot({
+    r <- tryCatch(cut_result(), error = function(e) NULL)
+    if (is.null(r) || !isTRUE(r$ok)) return(NULL)
+    d <- r$counts
+    ggplot2::ggplot(d, ggplot2::aes(Classe, Effectif, fill = Classe)) +
+      ggplot2::geom_col(show.legend = FALSE) +
+      ggplot2::geom_text(ggplot2::aes(label = sprintf("%d (%.0f%%)", Effectif, Pourcentage)),
+                         vjust = -0.3, size = 3.4) +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +
+      ggplot2::labs(x = NULL, y = "Effectif") +
+      ggplot2::theme_minimal(base_size = 12)
+  })
+
+  observeEvent(input$applyCut, {
+    r <- tryCatch(cut_result(), error = function(e) NULL)
+    if (is.null(r) || !isTRUE(r$ok)) {
+      showNotification(tagList(icon("times"), " ",
+        if (!is.null(r)) r$msg else "Paramètres incomplets."), type = "error", duration = 5)
+      return()
+    }
+    new_name <- trimws(input$cutNewName %||% "")
+    if (!nzchar(new_name)) new_name <- paste0(input$cutVar, "_classes")
+    d <- values$cleanData
+    overwrite <- new_name %in% names(d)
+    d[[new_name]] <- r$factor
+    values$cleanData <- d
+    values$filteredData <- d
+    values$data <- d
+    showNotification(tagList(icon("check"),
+      sprintf(" Variable « %s » créée (%d classes, facteur ordonné)%s.",
+              new_name, nlevels(r$factor),
+              if (overwrite) " -- ancienne colonne remplacée" else "")),
+      type = "message", duration = 5)
   })
 
   output$cleanedData <- renderDT({

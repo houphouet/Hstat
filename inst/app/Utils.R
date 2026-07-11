@@ -2,7 +2,11 @@
 options(encoding = "UTF-8")
 
 # Limite de taille des fichiers televerses : 2 Go (defaut Shiny = 5 Mo)
-options(shiny.maxRequestSize = 2 * 1024^3)
+# Limite d'upload configurable via la variable d'environnement HSTAT_MAX_UPLOAD_MB
+# (defaut : 2048 Mo). Reduire cette valeur en cas de deploiement multi-utilisateurs.
+.hstat_max_mb <- suppressWarnings(as.numeric(Sys.getenv("HSTAT_MAX_UPLOAD_MB", "2048")))
+if (!is.finite(.hstat_max_mb) || .hstat_max_mb <= 0) .hstat_max_mb <- 2048
+options(shiny.maxRequestSize = .hstat_max_mb * 1024^2)
 
 # --- Qualite d'affichage des graphiques --------------------------------------
 
@@ -81,7 +85,7 @@ install_and_load <- function(packages) {
 
 required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyWidgets", "shinyalert", "DT", "shinycssloaders",
-  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "rmarkdown", "haven", "base64enc",
+  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "rmarkdown", "haven", "base64enc",
   "dplyr", "knitr", "stringr", "scales", "ggplot2", "ggdendro", "reshape2", "sortable",
   "tibble", "plotrix", "plotly",  "qqplotr", "tidyr",  "report", "see", "corrplot",
   "car", "agricolae", "pwr", "forcats", "bslib", "factoextra",  "FactoMineR","questionr",  "digest",
@@ -2089,6 +2093,79 @@ hstat_sql_path <- function(path) {
   gsub("'", "''", gsub("\\\\", "/", path))
 }
 
+# -- Creation de classes d'intervalles (discretisation) -----------------------
+# Transforme une variable numerique en classes (ex. classes d'age), sous forme
+# de facteur ORDONNE. Methodes : largeur egale, effectifs egaux (quantiles),
+# bornes personnalisees. Etiquettes automatiques ("[0 ; 3[") ou fournies.
+# Retourne list(ok, factor, breaks, counts, msg, n_na_created).
+hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
+                                n_classes = 4, breaks_manual = NULL,
+                                labels_custom = NULL, right = FALSE, dig = 3) {
+  method <- match.arg(method)
+  xnum <- if (is.numeric(x)) as.numeric(x) else hstat_as_numeric_fr(x)
+  if (is.null(xnum))
+    return(list(ok = FALSE, msg = "La variable n'est pas numérique (conversion impossible)."))
+  xv <- xnum[is.finite(xnum)]
+  if (length(xv) < 2)
+    return(list(ok = FALSE, msg = "Trop peu de valeurs numériques valides."))
+  rng <- range(xv)
+
+  if (method == "width") {
+    if (!is.finite(n_classes) || n_classes < 2)
+      return(list(ok = FALSE, msg = "Il faut au moins 2 classes."))
+    if (rng[1] == rng[2])
+      return(list(ok = FALSE, msg = "Variable constante : impossible de créer des classes."))
+    breaks <- seq(rng[1], rng[2], length.out = n_classes + 1)
+  } else if (method == "quantile") {
+    if (!is.finite(n_classes) || n_classes < 2)
+      return(list(ok = FALSE, msg = "Il faut au moins 2 classes."))
+    breaks <- unique(stats::quantile(xv, probs = seq(0, 1, length.out = n_classes + 1),
+                                     names = FALSE, type = 7))
+    if (length(breaks) < 3)
+      return(list(ok = FALSE, msg = paste0(
+        "Quantiles non distincts (valeurs trop concentrées) : réduisez le nombre ",
+        "de classes ou utilisez la méthode « largeur égale ».")))
+  } else {
+    breaks <- suppressWarnings(sort(unique(as.numeric(breaks_manual))))
+    breaks <- breaks[is.finite(breaks)]
+    if (length(breaks) < 2)
+      return(list(ok = FALSE, msg = "Fournissez au moins deux bornes numériques distinctes."))
+  }
+
+  labels <- NULL
+  if (!is.null(labels_custom) && length(labels_custom) > 0) {
+    labels_custom <- trimws(as.character(labels_custom))
+    labels_custom <- labels_custom[nzchar(labels_custom)]
+    if (length(labels_custom) != length(breaks) - 1)
+      return(list(ok = FALSE, msg = sprintf(
+        "Nombre d'étiquettes (%d) différent du nombre de classes (%d).",
+        length(labels_custom), length(breaks) - 1)))
+    labels <- labels_custom
+  } else {
+    # Etiquettes lisibles : [a ; b[ ou ]a ; b] selon `right`
+    fmt <- function(v) formatC(signif(v, max(dig, 3)), format = "g", big.mark = " ")
+    lo <- breaks[-length(breaks)]; hi <- breaks[-1]
+    labels <- if (right) sprintf("]%s ; %s]", fmt(lo), fmt(hi))
+              else sprintf("[%s ; %s[", fmt(lo), fmt(hi))
+    # la classe extreme incluse (include.lowest) : crochet ferme
+    if (right) labels[1] <- sub("^\\]", "[", labels[1])
+    else labels[length(labels)] <- sub("\\[$", "]", labels[length(labels)])
+  }
+
+  f <- cut(xnum, breaks = breaks, labels = labels, right = right,
+           include.lowest = TRUE, ordered_result = TRUE)
+  n_na_created <- sum(is.na(f) & !is.na(xnum))
+  counts <- as.data.frame(table(Classe = f, useNA = "no"))
+  names(counts) <- c("Classe", "Effectif")
+  counts$Pourcentage <- round(100 * counts$Effectif / max(sum(counts$Effectif), 1), 1)
+
+  list(ok = TRUE, factor = f, breaks = breaks, counts = counts,
+       n_na_created = n_na_created,
+       msg = if (n_na_created > 0) sprintf(
+         "%d valeur(s) hors bornes -> NA (élargissez les bornes si nécessaire).",
+         n_na_created) else NULL)
+}
+
 # Echappement d'un identifiant SQL (nom de colonne issu du fichier utilisateur)
 # pour DuckDB : doublement des guillemets internes puis encadrement par "...".
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
@@ -2526,14 +2603,15 @@ hstat_duckdb_connect <- function() {
 hstat_duckdb_register <- function(con, path, kind, header = TRUE, sep = ",") {
   p   <- hstat_sql_path(path)
   tbl <- "hstat_source"
-  DBI::dbExecute(con, sprintf("DROP VIEW IF EXISTS %s", tbl))
+  DBI::dbExecute(con, sprintf("DROP VIEW IF EXISTS %s", hstat_sql_ident(tbl)))
   if (kind == "csv") {
     delim <- if (identical(sep, "\t")) "\\t" else sep
     sql <- sprintf(
       "CREATE VIEW %s AS SELECT * FROM read_csv_auto('%s', header=%s, delim='%s', sample_size=-1)",
-      tbl, p, if (isTRUE(header)) "true" else "false", delim)
+      hstat_sql_ident(tbl), p, if (isTRUE(header)) "true" else "false",
+      gsub("'", "''", delim))  # delim echappe (securite)
   } else if (kind == "parquet") {
-    sql <- sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet('%s')", tbl, p)
+    sql <- sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet('%s')", hstat_sql_ident(tbl), p)
   } else {
     stop("Type non pris en charge par DuckDB : ", kind)
   }
@@ -2552,10 +2630,10 @@ hstat_duckdb_open_file <- function(path) {
 
 # -- Metadonnees d'une table/vue DuckDB ---------------------------------------
 hstat_duckdb_nrow <- function(con, tbl) {
-  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT COUNT(*) AS n FROM %s", tbl))$n[1])
+  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT COUNT(*) AS n FROM %s", hstat_sql_ident(tbl)))$n[1])
 }
 hstat_duckdb_colnames <- function(con, tbl) {
-  DBI::dbGetQuery(con, sprintf("SELECT * FROM %s LIMIT 0", tbl)) |> names()
+  DBI::dbGetQuery(con, sprintf("SELECT * FROM %s LIMIT 0", hstat_sql_ident(tbl))) |> names()
 }
 hstat_duckdb_na_total <- function(con, tbl) {
   cols <- hstat_duckdb_colnames(con, tbl)
@@ -2563,24 +2641,24 @@ hstat_duckdb_na_total <- function(con, tbl) {
   expr <- paste(sprintf('SUM(CASE WHEN %s IS NULL THEN 1 ELSE 0 END)',
                         hstat_sql_ident(cols)),
                 collapse = " + ")
-  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT (%s) AS na FROM %s", expr, tbl))$na[1])
+  as.numeric(DBI::dbGetQuery(con, sprintf("SELECT (%s) AS na FROM %s", expr, hstat_sql_ident(tbl)))$na[1])
 }
 
 # -- Echantillon representatif (reservoir sampling DuckDB) --------------------
 hstat_duckdb_sample <- function(con, tbl, n = HSTAT_SAMPLE_SIZE) {
   total <- hstat_duckdb_nrow(con, tbl)
   if (total <= n) {
-    df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", tbl))
+    df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", hstat_sql_ident(tbl)))
   } else {
     df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s USING SAMPLE %d ROWS",
-                                       tbl, as.integer(n)))
+                                       hstat_sql_ident(tbl), as.integer(n)))
   }
   as.data.frame(df)
 }
 
 # -- Materialisation complete d'une source DuckDB (petits fichiers) -----------
 hstat_duckdb_collect <- function(con, tbl) {
-  as.data.frame(DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", tbl)))
+  as.data.frame(DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", hstat_sql_ident(tbl))))
 }
 
 # -- Fermeture propre d'une connexion DuckDB ----------------------------------
@@ -2694,7 +2772,7 @@ hstat_duckdb_describe_global <- function(con, tbl, num_vars, stats_sel) {
     ex <- .hstat_sql_stat_exprs(v, stats_sel)
     if (length(ex) == 0) return(NULL)
     sel <- paste(sprintf("%s AS %s", ex, names(ex)), collapse = ", ")
-    r <- DBI::dbGetQuery(con, sprintf("SELECT %s FROM %s", sel, tbl))
+    r <- DBI::dbGetQuery(con, sprintf("SELECT %s FROM %s", sel, hstat_sql_ident(tbl)))
     data.frame(Facteurs = "Global", Variable = v, r, check.names = FALSE)
   })
   do.call(rbind, Filter(Negate(is.null), rows))
@@ -2710,7 +2788,7 @@ hstat_duckdb_describe_grouped <- function(con, tbl, group_vars, num_vars, stats_
     sel <- paste(sprintf("%s AS %s", ex, names(ex)), collapse = ", ")
     r <- DBI::dbGetQuery(con, sprintf(
       "SELECT %s, %s FROM %s GROUP BY %s ORDER BY %s",
-      gcols, sel, tbl, gcols, gcols))
+      gcols, sel, hstat_sql_ident(tbl), gcols, gcols))
     r$Variable <- v
     r[, c(group_vars, "Variable", names(ex)), drop = FALSE]
   })
@@ -2721,7 +2799,7 @@ hstat_duckdb_describe_grouped <- function(con, tbl, group_vars, num_vars, stats_
 hstat_duckdb_crosstab <- function(con, tbl, row_var, col_var) {
   r <- DBI::dbGetQuery(con, sprintf(
     'SELECT %s AS rv, %s AS cv, COUNT(*) AS n FROM %s GROUP BY 1, 2',
-    hstat_sql_ident(row_var), hstat_sql_ident(col_var), tbl))
+    hstat_sql_ident(row_var), hstat_sql_ident(col_var), hstat_sql_ident(tbl)))
   if (nrow(r) == 0) return(NULL)
   stats::xtabs(n ~ rv + cv, data = r)
 }
@@ -2734,7 +2812,7 @@ hstat_duckdb_cor <- function(con, tbl, num_vars) {
   for (i in 1:(k-1)) for (j in (i+1):k) {
     val <- tryCatch(DBI::dbGetQuery(con, sprintf(
       'SELECT CORR(%s,%s) AS r FROM %s',
-      hstat_sql_ident(num_vars[i]), hstat_sql_ident(num_vars[j]), tbl))$r[1],
+      hstat_sql_ident(num_vars[i]), hstat_sql_ident(num_vars[j]), hstat_sql_ident(tbl)))$r[1],
       error = function(e) NA_real_)
     m[i, j] <- m[j, i] <- val
   }
@@ -2743,7 +2821,7 @@ hstat_duckdb_cor <- function(con, tbl, num_vars) {
 
 # -- Comptage exact de lignes apres filtre SQL (optionnel) -------------------
 hstat_duckdb_count <- function(con, tbl, where = NULL) {
-  sql <- sprintf("SELECT COUNT(*) AS n FROM %s", tbl)
+  sql <- sprintf("SELECT COUNT(*) AS n FROM %s", hstat_sql_ident(tbl))
   if (!is.null(where) && nzchar(where)) sql <- paste0(sql, " WHERE ", where)
   as.numeric(DBI::dbGetQuery(con, sql)$n[1])
 }

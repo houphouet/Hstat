@@ -372,7 +372,7 @@ ui <- dashboardPage(
             'plotTitle', 'legendTitle', 'xAxisLabel', 'yAxisLabel',
             'quickPlotTitle', 'quickXLabel', 'quickYLabel',
             'customTitle', 'customSubtitle', 'customLegendTitle',
-            'descPlotTitle', 'crosstabTitle',
+            'descPlotTitle',
             'distTitle', 'missingTitle',
             'pcaPlotTitle', 'hcpcClusterTitle', 'hcpcDendTitle',
             'afdIndTitle', 'afdVarTitle',
