@@ -1,0 +1,405 @@
+/* =====================================================================
+   HStat — Thème issu de la maquette Claude Design « HStat Refonte »
+   Palette + composants (clair / sombre). N'altère pas la logique R ;
+   ne fait que remapper l'apparence d'AdminLTE/shinydashboard.
+   Polices IBM Plex chargées LOCALEMENT (fonts/) -> fonctionne hors-ligne.
+   ===================================================================== */
+
+@font-face { font-family:'IBM Plex Sans'; font-style:normal; font-weight:400;
+  font-display:swap; src:url('fonts/ibm-plex-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-style:normal; font-weight:500;
+  font-display:swap; src:url('fonts/ibm-plex-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-style:normal; font-weight:600;
+  font-display:swap; src:url('fonts/ibm-plex-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-style:normal; font-weight:700;
+  font-display:swap; src:url('fonts/ibm-plex-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:400;
+  font-display:swap; src:url('fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:500;
+  font-display:swap; src:url('fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:600;
+  font-display:swap; src:url('fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2'); }
+
+/* ---- Palette CLAIR (par défaut) ---- */
+:root,
+body.hstat-light {
+  --bg:        #f3f5f8;
+  --paper:     #ffffff;
+  --panel:     #fbfcfe;
+  --ink:       #161a20;
+  --ink2:      #586273;
+  --ink3:      #8a93a3;
+  --line:      #e7eaf0;
+  --line2:     #d4dae2;
+  --accent:    #2f6bd4;
+  --accent-soft: #eaf1fc;
+  --accent-ink:  #ffffff;
+  --quanti:    #2f6bd4;
+  --quanti-soft: #eaf1fc;
+  --quali:     #a76512;
+  --quali-soft: #f6efe6;
+  --mixte:     #1d8a5d;
+  --mixte-soft: #e6f3ed;
+  --stripe:    #eef1f6;
+  --ok:        #1d8a5d;
+  --warn:      #a76512;
+  --danger:    #c0392b;
+  --accent-dark: #2556ab;
+  --shadow:    0 1px 2px rgba(20,26,31,.07);
+  --shadow2:   0 6px 22px rgba(20,26,31,.09);
+  --radius:    11px;
+  --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --sans:  'IBM Plex Sans', 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono:  'IBM Plex Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+}
+
+/* ---- Palette SOMBRE ---- */
+body.hstat-dark {
+  --bg:        #0e1117;
+  --paper:     #161b23;
+  --panel:     #1b212b;
+  --ink:       #e8ecf2;
+  --ink2:      #9aa5b3;
+  --ink3:      #69727f;
+  --line:      #262e39;
+  --line2:     #353e4b;
+  --accent:    #4d86e8;
+  --accent-soft: #1e2b3f;
+  --accent-ink:  #ffffff;
+  --quanti:    #4d86e8;
+  --quanti-soft: #1e2b3f;
+  --quali:     #d29a52;
+  --quali-soft: #322a1d;
+  --mixte:     #3fb27f;
+  --mixte-soft: #16291f;
+  --stripe:    #1f2731;
+  --ok:        #3fb27f;
+  --warn:      #d29a52;
+  --danger:    #e06b5e;
+  --accent-dark: #3a6fc4;
+  --shadow:    0 1px 2px rgba(0,0,0,.5);
+  --shadow2:   0 10px 30px rgba(0,0,0,.5);
+}
+
+/* ===================== TYPOGRAPHIE & FOND ===================== */
+body, .content-wrapper, .wrapper {
+  font-family: var(--sans);
+  background: var(--bg) !important;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.content-wrapper { color: var(--ink); }
+h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(--ink); }
+.text-muted, small { color: var(--ink3); }
+
+/* ===================== EN-TÊTE (top bar) — BLEU d'origine ===================== */
+.skin-blue .main-header .navbar { background: #3c8dbc !important; border-bottom: none; }
+.skin-blue .main-header .logo {
+  background: #357ca5 !important;
+  color: #ffffff !important;
+  border-bottom: none;
+  border-right: none;
+  font-family: var(--sans);
+  font-weight: 600;
+}
+.skin-blue .main-header .logo:hover { background: #2f6f93 !important; }
+.skin-blue .main-header .navbar .sidebar-toggle { color: #ffffff !important; }
+.skin-blue .main-header .navbar .sidebar-toggle:hover { background: rgba(0,0,0,.1) !important; color: #fff !important; }
+.main-header .navbar-custom-menu .navbar-nav > li > a { color: #ffffff !important; }
+.skin-blue .main-header .logo .fa-flask { color: #ffffff; }
+
+/* La bascule de theme reste lisible sur le bandeau bleu */
+.hstat-theme-toggle { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.25); }
+.hstat-theme-toggle .seg { color: rgba(255,255,255,.85); }
+.hstat-theme-toggle .seg.active { background: #ffffff; color: #2c3e50; }
+
+/* ===================== BARRE LATÉRALE — BLEU foncé d'origine ===================== */
+.skin-blue .main-sidebar, .skin-blue .left-side { background: #222d32 !important; }
+.skin-blue .main-sidebar { border-right: none; }
+.skin-blue .sidebar-menu > li.header {
+  background: #1a2226 !important;
+  color: #4b646f !important;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  padding: 16px 16px 7px;
+}
+.skin-blue .sidebar-menu > li > a {
+  color: #b8c7ce !important;
+  border-left: 3px solid transparent;
+  font-size: 13.5px;
+  padding: 10px 14px;
+}
+.skin-blue .sidebar-menu > li > a > .fa,
+.skin-blue .sidebar-menu > li > a > .fas,
+.skin-blue .sidebar-menu > li > a > .far { color: #b8c7ce; width: 18px; }
+.skin-blue .sidebar-menu > li:hover > a,
+.skin-blue .sidebar-menu > li.active > a {
+  background: #1e282c !important;
+  color: #ffffff !important;
+  border-left-color: #3c8dbc;
+}
+.skin-blue .sidebar-menu > li.active > a > .fa,
+.skin-blue .sidebar-menu > li.active > a > .fas { color: #3c8dbc; }
+.skin-blue .sidebar a { color: #b8c7ce; }
+/* Champs dans la sidebar (graine aleatoire) lisibles sur fond fonce */
+.skin-blue .sidebar .form-control { background:#2c3b41; color:#e6edf0; border-color:#374850; }
+.skin-blue .sidebar label, .skin-blue .sidebar .control-label { color:#b8c7ce; }
+
+/* ===================== ENCADRÉS (box) ===================== */
+.box {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.box > .box-header { border-radius: var(--radius) var(--radius) 0 0; }
+.box-header .box-title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.box-body { color: var(--ink); }
+.box-footer { background: var(--panel); border-top: 1px solid var(--line); color: var(--ink3); }
+
+/* En-têtes colorés des box selon le statut -> COULEURS ADMINLTE D'ORIGINE.
+   On colore aussi bien les solidHeader (.box-solid) que la barre superieure des
+   box non-solid (border-top epais facon AdminLTE). */
+.box.box-primary { border-top: 3px solid #3c8dbc; }
+.box.box-info    { border-top: 3px solid #00c0ef; }
+.box.box-success { border-top: 3px solid #00a65a; }
+.box.box-warning { border-top: 3px solid #f39c12; }
+.box.box-danger  { border-top: 3px solid #dd4b39; }
+.box.box-solid.box-primary > .box-header { background: #3c8dbc !important; color: #fff !important; }
+.box.box-solid.box-info    > .box-header { background: #00c0ef !important; color: #fff !important; }
+.box.box-solid.box-success > .box-header { background: #00a65a !important; color: #fff !important; }
+.box.box-solid.box-warning > .box-header { background: #f39c12 !important; color: #fff !important; }
+.box.box-solid.box-danger  > .box-header { background: #dd4b39 !important; color: #fff !important; }
+.box.box-solid > .box-header,
+.box.box-solid > .box-header > .fa, .box.box-solid > .box-header > .fas,
+.box.box-solid > .box-header .box-title,
+.box.box-solid > .box-header a { color: #fff !important; }
+.box.box-solid.box-primary { border-top-color: #3c8dbc; }
+.box.box-solid.box-info    { border-top-color: #00c0ef; }
+.box.box-solid.box-success { border-top-color: #00a65a; }
+.box.box-solid.box-warning { border-top-color: #f39c12; }
+.box.box-solid.box-danger  { border-top-color: #dd4b39; }
+
+/* Box "background=yellow" (bandeau titre des modules) -> orange d'origine */
+.box.bg-yellow, .bg-yellow {
+  background: linear-gradient(135deg, #f39c12, #e08e0b) !important;
+  color: #fff !important;
+  border: none !important;
+}
+.box.bg-yellow h3, .box.bg-yellow p { color: #fff !important; }
+
+/* ===================== BOUTONS ===================== */
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  border: 1px solid var(--line2);
+  box-shadow: none;
+  transition: all .12s;
+}
+.btn-primary, .btn-info {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+}
+.btn-primary:hover, .btn-info:hover {
+  background: var(--accent-dark); border-color: transparent; color: #fff;
+}
+.btn-success { background: var(--mixte); border-color: var(--mixte); color: #fff; }
+.btn-warning { background: var(--quali); border-color: var(--quali); color: #fff; }
+.btn-danger  { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-default {
+  background: var(--paper); color: var(--ink2); border: 1px solid var(--line2);
+}
+.btn-default:hover { background: var(--bg); color: var(--ink); }
+
+/* ===================== CHAMPS DE FORMULAIRE ===================== */
+.form-control, .selectize-input, .selectize-dropdown {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  box-shadow: none;
+}
+.form-control:focus, .selectize-input.focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47,107,212,.22);
+}
+label, .control-label { color: var(--ink2); font-weight: 500; }
+.selectize-dropdown .active { background: var(--accent-soft); color: var(--ink); }
+.selectize-control.multi .selectize-input > div {
+  background: var(--accent-soft); color: var(--ink); border-radius: 5px;
+}
+
+/* Boutons radio / cases : accent */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+
+/* ===================== ONGLETS (nav-tabs) ===================== */
+.nav-tabs-custom, .nav-tabs-custom > .tab-content {
+  background: var(--paper); border-radius: var(--radius);
+  box-shadow: var(--shadow); border: 1px solid var(--line);
+}
+.nav-tabs-custom > .nav-tabs { border-bottom: 1px solid var(--line); }
+.nav-tabs > li > a { color: var(--ink3); border: none !important; }
+.nav-tabs > li.active > a, .nav-tabs > li > a:hover {
+  color: var(--accent) !important; background: transparent !important;
+  border-bottom: 2px solid var(--accent) !important; font-weight: 600;
+}
+.nav-tabs-custom > .nav-tabs > li.active { border-top-color: var(--accent); }
+
+/* ===================== TABLES (DT) ===================== */
+table.dataTable thead th {
+  background: var(--bg); color: var(--ink2);
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0; text-transform: none;
+  border-bottom: 2px solid var(--line2) !important;
+}
+table.dataTable tbody td { color: var(--ink); border-color: var(--line) !important; }
+table.dataTable.stripe tbody tr.odd,
+table.dataTable.display tbody tr.odd { background: var(--stripe); }
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+  background: var(--paper); color: var(--ink); border: 1px solid var(--line2); border-radius: 6px;
+}
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate .paginate_button { color: var(--ink2) !important; }
+.dt-button {
+  background: var(--paper) !important; color: var(--ink2) !important;
+  border: 1px solid var(--line2) !important; border-radius: 6px !important;
+}
+
+/* ===================== DIVERS ===================== */
+pre, .shiny-text-output.shiny-bound-output {
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.callout { border-radius: 8px; box-shadow: none; }
+.callout.callout-warning { background: var(--quali-soft); border-left-color: var(--quali); color: var(--ink2); }
+.callout.callout-info { background: var(--accent-soft); border-left-color: var(--accent); color: var(--ink2); }
+hr { border-top-color: var(--line); }
+a { color: var(--accent); }
+
+/* Barre de défilement discrète */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Bascule de thème dans le header */
+.hstat-theme-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 7px;
+  padding: 4px; margin: 10px 8px;
+}
+.hstat-theme-toggle .seg {
+  font-size: 12px; font-weight: 500; color: var(--ink3);
+  padding: 4px 11px; border-radius: 5px; cursor: pointer; user-select: none;
+}
+.hstat-theme-toggle .seg.active { background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
+
+/* ===================== CATALOGUE DE MÉTHODES (Analyses multivariées) ===================== */
+.mv-catalog-wrap { margin-bottom: 16px; }
+.mv-catalog {
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px;
+}
+.mv-catalog-head {
+  font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 10px;
+}
+.mv-catalog-search {
+  border-radius: 8px; margin-bottom: 12px; background: var(--bg);
+  border: 1px solid var(--line2);
+}
+.mv-cat-group {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--quanti); margin: 12px 2px 6px;
+}
+.mv-cat-note { font-size: 12px; color: var(--ink3); padding: 2px 4px 4px; line-height: 1.5; }
+.mv-cat-item {
+  padding: 9px 11px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; margin-bottom: 4px; transition: all .12s;
+  break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid;
+}
+.mv-cat-group { break-inside: avoid; -webkit-column-break-inside: avoid; }
+.mv-cat-item:hover { background: var(--bg); border-color: var(--line); }
+.mv-cat-item.active { background: var(--accent-soft); border-color: var(--accent); }
+.mv-cat-item-title { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.mv-cat-item.active .mv-cat-item-title { color: var(--accent); }
+.mv-cat-item-desc { font-size: 12px; color: var(--ink3); margin-top: 2px; line-height: 1.4; }
+.mv-config-hint {
+  background: var(--accent-soft); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 8px;
+  padding: 14px 16px; color: var(--ink2); font-size: 13.5px; height: 100%;
+  display: flex; align-items: center;
+}
+
+/* Couleurs des groupes du catalogue (quanti/quali/mixte, comme la maquette) */
+.mv-cat-group.mv-grp-quanti { color: #2f6bd4; }
+.mv-cat-group.mv-grp-quali  { color: #a76512; }
+.mv-cat-group.mv-grp-mixte  { color: #1d8a5d; }
+
+/* ===================== OUTILS DU BANDEAU (graine, aide, reset) ===================== */
+/* Les <li> custom de la navbar sont centres verticalement sur la hauteur du header
+   (50px), exactement comme la bascule Clair/Sombre, pour un alignement parfait. */
+.main-header .navbar-custom-menu > .nav > li { display: flex; align-items: center; height: 50px; }
+.hstat-header-tools { display: flex; align-items: center; gap: 8px; padding: 0 6px; height: 50px; }
+.hstat-header-tools .hstat-seed { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; }
+.hstat-header-tools .hstat-seed label {
+  margin: 0; color: rgba(255,255,255,.9); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.hstat-header-tools .hstat-seed .form-group { margin: 0; }
+.hstat-header-tools .hstat-seed .form-control {
+  height: 32px; padding: 2px 8px; border-radius: 6px; font-size: 13px;
+  background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.3);
+  text-align: center;
+}
+.hstat-header-tools .hstat-hdr-btn {
+  height: 32px; padding: 4px 14px; margin: 0; border-radius: 6px; font-size: 12.5px;
+  background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.28);
+  font-weight: 500; display: inline-flex; align-items: center; gap: 5px;
+}
+.hstat-header-tools .hstat-hdr-btn:hover { background: rgba(255,255,255,.28); color: #fff; }
+.hstat-header-tools .hstat-hdr-btn-warn { background: rgba(243,156,18,.95); border-color: transparent; }
+.hstat-header-tools .hstat-hdr-btn-warn:hover { background: #e08e0b; }
+/* La bascule de theme : meme hauteur, sans marge superieure parasite */
+.main-header .navbar .nav > li > .hstat-theme-toggle { margin: 0 8px; }
+@media (max-width: 980px){
+  .hstat-header-tools .hstat-seed label { display:none; }
+}
+
+/* ===================== LAYOUT Analyses multivariées (maquette : catalogue + config) ===================== */
+/* Catalogue a GAUCHE (largeur fixe, collant) + analyses a DROITE (reste de la
+   largeur). min-width:0 sur la colonne de droite evite que les box debordent. */
+.mv-layout { display: flex; gap: 18px; align-items: flex-start; }
+.mv-catalog-col { flex: 0 0 360px; width: 360px; position: sticky; top: 12px; align-self: flex-start; }
+.mv-analyses-col { flex: 1 1 0; min-width: 0; }
+.mv-analyses-col .box { width: 100%; }
+.mv-catalog .mv-cat-list { columns: 1; }
+@media (max-width: 1100px){
+  .mv-layout { flex-direction: column; }
+  .mv-catalog-col { position: static; width: 100%; flex-basis: auto; }
+  .mv-catalog .mv-cat-list { columns: 2; column-gap: 18px; }
+}
+
+/* ===================== EN-TÊTE DE MÉTHODE (panneau droit, façon maquette) ===================== */
+.mv-method-header {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
+}
+.mv-mh-top { margin-bottom: 8px; }
+.mv-mh-badge {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 5px; color: #fff;
+  background: #2f6bd4;
+}
+.mv-mh-badge.mv-mh-quanti { background: #2f6bd4; }
+.mv-mh-badge.mv-mh-quali  { background: #a76512; }
+.mv-mh-badge.mv-mh-mixte  { background: #1d8a5d; }
+.mv-mh-title { margin: 4px 0 6px; font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+.mv-mh-desc { margin: 0; color: var(--ink2); font-size: 14px; line-height: 1.5; }
+/* Quand une methode est choisie, l'invite vide disparait */
+.mv-analyses-col.has-selection .mv-empty-hint { display: none; }
+
+/* Groupes du catalogue : pastille colorée + compteur (façon maquette) */
+.mv-cat-group { display: flex; align-items: center; gap: 7px; }
+.mv-grp-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.mv-grp-quanti .mv-grp-dot { background: #2f6bd4; }
+.mv-grp-quali  .mv-grp-dot { background: #a76512; }
+.mv-grp-mixte  .mv-grp-dot { background: #1d8a5d; }
+.mv-grp-count { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink3); }
