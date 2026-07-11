@@ -1,6 +1,10 @@
-# HStat : Shiny Statistical Analysis Application
+# HStat — Shiny Statistical Analysis Application
 
-HStat is an interactive web application built with R Shiny that enables a complete data analysis pipeline, from data import to advanced multivariate analyses, without writing a single line of code.
+[![R-CMD-check](https://github.com/houphouet/Hstat/actions/workflows/R.yml/badge.svg)](https://github.com/houphouet/Hstat/actions/workflows/R.yml)
+
+HStat is an interactive web application built with R Shiny that enables a
+complete data analysis pipeline — from data import to advanced multivariate
+analyses — without writing a single line of code.
 
 ---
 
@@ -12,15 +16,24 @@ HStat is an interactive web application built with R Shiny that enables a comple
 
 ---
 
-## Launch the application
+## Installation
 
-Open RStudio, then run in the console:
+Install directly from GitHub using `remotes`:
 
 ```r
-shiny::runApp("HStat.R")
+# install.packages("remotes")
+remotes::install_github("houphouet/Hstat")
 ```
 
-Required packages are installed automatically if needed.
+## Launch the application
+
+```r
+library(HStat)
+run_hstat()
+```
+
+This opens the app in your default web browser. Required packages are
+installed automatically if needed on first run.
 
 ---
 
@@ -28,11 +41,15 @@ Required packages are installed automatically if needed.
 
 ```
 ├── DESCRIPTION
-├── GUIDE_RESTRUCTURATION.md
-├── Hstat.Rproj
-├── inst
-│   └── app
+├── NAMESPACE
+├── R/
+│   └── run_hstat.R
+├── inst/
+│   └── app/
 │       ├── HStat.R
+│       ├── Server.R
+│       ├── UX.R
+│       ├── Utils.R
 │       ├── mod_clean.R
 │       ├── mod_crosstab.R
 │       ├── mod_descriptive.R
@@ -43,50 +60,29 @@ Required packages are installed automatically if needed.
 │       ├── mod_tests.R
 │       ├── mod_threshold.R
 │       ├── mod_viz.R
-│       ├── Server.R
-│       ├── Utils.R
-│       ├── UX.R
-│       └── www
-│           ├── fonts
-│           │   ├── archivo-latin-400-normal.woff2
-│           │   ├── archivo-latin-500-normal.woff2
-│           │   ├── archivo-latin-600-normal.woff2
-│           │   ├── archivo-latin-700-normal.woff2
-│           │   ├── Archivo-LICENSE.txt
-│           │   ├── ibm-plex-mono-latin-400-normal.woff2
-│           │   ├── ibm-plex-mono-latin-500-normal.woff2
-│           │   ├── ibm-plex-mono-latin-600-normal.woff2
-│           │   ├── ibm-plex-sans-latin-400-normal.woff2
-│           │   ├── ibm-plex-sans-latin-500-normal.woff2
-│           │   ├── ibm-plex-sans-latin-600-normal.woff2
-│           │   ├── ibm-plex-sans-latin-700-normal.woff2
-│           │   ├── inter-latin-400-normal.woff2
-│           │   ├── inter-latin-500-normal.woff2
-│           │   ├── inter-latin-600-normal.woff2
-│           │   ├── inter-latin-700-normal.woff2
-│           │   ├── Inter-LICENSE.txt
-│           │   ├── newsreader-latin-400-italic.woff2
-│           │   ├── newsreader-latin-400-normal.woff2
-│           │   ├── newsreader-latin-500-normal.woff2
-│           │   ├── newsreader-latin-600-normal.woff2
-│           │   └── Newsreader-LICENSE.txt
+│       └── www/
+│           ├── fonts/
 │           ├── hstat-theme.css
 │           └── Sortable.min.js
-├── NAMESPACE
-├── R
-│   └── run_hstat.R
-├── README.md
-└── tests
-    ├── test-hstat.R
-    ├── testthat
-    │   └── test-hstat.R
-    └── testthat.R
+├── tests/
+│   ├── testthat.R
+│   └── testthat/
+│       └── test-hstat.R
+└── README.md
 ```
 
 ## License
 
-This project is open source.
+This project is licensed under the GPL-3.0 License.
 
 ---
 
-*HStat is developed to make statistical analysis accessible without any programming barrier.*
+## Author
+
+**Houphouet KOUADIO**
+ORCID: [0000-0002-8238-1091](https://orcid.org/0000-0002-8238-1091)
+
+---
+
+*HStat is developed to make statistical analysis accessible without any
+programming barrier.*
