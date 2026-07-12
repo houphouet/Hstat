@@ -2282,6 +2282,9 @@ mod_viz_server <- function(id, values) {
   }
   
   create_scatter_plot <- function(data, x_var, y_var, color_var = NULL) {
+    # Gros volumes : on limite le nombre de points AFFICHES (echantillon
+    # reproductible) pour garder le navigateur reactif avec 1M+ lignes.
+    data <- hstat_sample_rows(data)
     data <- data[!is.na(data[[x_var]]) & !is.na(data[[y_var]]), ]
     p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
     if(!is.null(color_var)) {
@@ -2441,7 +2444,8 @@ mod_viz_server <- function(id, values) {
     }
     
     if(isTRUE(input$showOutliers))
-      p <- p + geom_jitter(width = 0.2, alpha = 0.3, size = 1)
+      p <- p + geom_jitter(data = function(d) hstat_sample_rows(d, notify = FALSE),
+                           width = 0.2, alpha = 0.3, size = 1)
     
     return(p)
   }

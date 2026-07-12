@@ -967,6 +967,8 @@ permdisp_test <- function(Y, group, dist_method = "euclidean") {
     return(list(F = NA_real_, df1 = NA_real_, df2 = NA_real_,
                 p.value = NA_real_, conclusion = "Test impossible"))
   
+  cap <- hstat_cap_Y_group(Y, group, what = "Homogeneite des dispersions (betadisper)")
+  Y <- cap$Y; group <- cap$group
   res <- tryCatch({
     d  <- vegan::vegdist(Y, method = dist_method)
     bd <- vegan::betadisper(d, group)
@@ -1099,6 +1101,8 @@ pairwise_permanova <- function(Y, group, permutations = 999,
                         n2 = sum(group == pr[2]),
                         F  = NA_real_, R2 = NA_real_, p_value = NA_real_))
     }
+    capp <- hstat_cap_Y_group(Yp, gp, what = "PERMANOVA par paires")
+    Yp <- capp$Y; gp <- capp$group
     res <- tryCatch({
       d  <- vegan::vegdist(Yp, method = dist_method)
       a  <- vegan::adonis2(d ~ gp, permutations = permutations, by = "terms")
@@ -1775,6 +1779,7 @@ permanova_simple_effects <- function(df, response, fixed, tested,
     sub[[tested]] <- droplevels(sub[[tested]])
     if (nlevels(sub[[tested]]) < 2 || nrow(sub) < 4) next
     
+    sub <- hstat_cap_df_rows(sub, what = "PERMANOVA stratifiee")
     Y <- as.matrix(sub[, response, drop = FALSE])
     d <- tryCatch(vegan::vegdist(Y, method = dist_method), error = function(e) NULL)
     if (is.null(d)) next
@@ -2071,6 +2076,187 @@ color_groups_dt <- function(dt, df, col = "Groupes") {
 HSTAT_BIGDATA_THRESHOLD <- 500 * 1024^2      # 500 Mo
 # Taille de l'echantillon de travail en mode hors-memoire.
 HSTAT_SAMPLE_SIZE       <- 100000L
+
+# -- Gros volumes : garde-fous pour 1 000 000+ lignes -------------------------
+# Nombre maximal de points traces sur un nuage de points. Au-dela, un
+# echantillon aleatoire est affiche (les statistiques, elles, restent
+# calculees sur TOUTES les lignes). Configurable via HSTAT_PLOT_MAX_POINTS.
+HSTAT_PLOT_MAX_POINTS <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_PLOT_MAX_POINTS", "100000")))
+  if (!is.finite(v) || v < 1000) 100000L else v
+}
+
+# Echantillonne un data.frame pour l'AFFICHAGE graphique uniquement.
+# Echantillon reproductible (seed locale) pour que le graphique ne change pas
+# a chaque re-rendu. L'attribut 'hstat_sampled_from' garde le n d'origine.
+hstat_sample_rows <- function(df, n = HSTAT_PLOT_MAX_POINTS, notify = TRUE) {
+  if (is.null(df) || !is.data.frame(df) || nrow(df) <= n) return(df)
+  n0 <- nrow(df)
+  old_seed <- if (exists(".Random.seed", envir = globalenv()))
+    get(".Random.seed", envir = globalenv()) else NULL
+  on.exit({
+    if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = globalenv())
+  }, add = TRUE)
+  set.seed(20260712L)
+  idx <- sort(sample.int(n0, n))
+  out <- df[idx, , drop = FALSE]
+  attr(out, "hstat_sampled_from") <- n0
+  if (isTRUE(notify) && !is.null(shiny::getDefaultReactiveDomain())) {
+    shiny::showNotification(
+      sprintf(paste0("Nuage de points : affichage d'un echantillon de %s points ",
+                     "sur %s lignes (les calculs statistiques utilisent toutes ",
+                     "les lignes)."),
+              format(n, big.mark = " "), format(n0, big.mark = " ")),
+      type = "message", duration = 8)
+  }
+  out
+}
+
+# Test de Shapiro-Wilk robuste aux gros echantillons : shapiro.test() refuse
+# n > 5000 (limite de R). Au-dela, le test est applique a un sous-echantillon
+# aleatoire de 5000 valeurs (pratique standard) et la methode l'indique.
+hstat_shapiro <- function(x) {
+  x <- x[is.finite(as.numeric(x))]
+  n <- length(x)
+  if (n < 3) stop("Shapiro-Wilk : au moins 3 valeurs valides sont requises.")
+  if (n <= 5000) return(stats::shapiro.test(x))
+  old_seed <- if (exists(".Random.seed", envir = globalenv()))
+    get(".Random.seed", envir = globalenv()) else NULL
+  on.exit({
+    if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = globalenv())
+  }, add = TRUE)
+  set.seed(20260712L)
+  res <- stats::shapiro.test(sample(x, 5000L))
+  res$method <- sprintf(
+    "Shapiro-Wilk normality test (sous-echantillon aleatoire de 5000 valeurs sur %s)",
+    format(n, big.mark = " "))
+  res
+}
+
+# Taille max des analyses a matrice de distances (dist, vegdist, silhouette,
+# cophenetique) : au-dela, echantillonnage (une matrice de distances est en
+# O(n^2) : 1 000 000 de lignes = ~4 To de RAM). Configurable par variable
+# d'environnement.
+HSTAT_DIST_MAX_N <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_DIST_MAX_N", "5000")))
+  if (!is.finite(v) || v < 100) 5000L else v
+}
+# Taille max pour la correlation de Kendall (algorithme en O(n^2)).
+HSTAT_KENDALL_MAX_N <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_KENDALL_MAX_N", "20000")))
+  if (!is.finite(v) || v < 100) 20000L else v
+}
+# Taille max pour les imputations couteuses (kNN, missForest).
+HSTAT_IMPUTE_MAX_N <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_IMPUTE_MAX_N", "100000")))
+  if (!is.finite(v) || v < 1000) 100000L else v
+}
+
+# Notification (si session Shiny active) qu'une analyse a ete calculee sur un
+# echantillon.
+hstat_bigdata_note <- function(what, n_used, n_total) {
+  if (is.null(shiny::getDefaultReactiveDomain())) return(invisible(NULL))
+  shiny::showNotification(
+    sprintf("%s : calcul sur un echantillon aleatoire de %s lignes (sur %s).",
+            what, format(n_used, big.mark = " "), format(n_total, big.mark = " ")),
+    type = "message", duration = 8)
+  invisible(NULL)
+}
+
+# Indices d'un echantillon reproductible (seed locale, restauree ensuite).
+hstat_cap_indices <- function(n0, max_n = HSTAT_DIST_MAX_N) {
+  if (n0 <= max_n) return(seq_len(n0))
+  old_seed <- if (exists(".Random.seed", envir = globalenv()))
+    get(".Random.seed", envir = globalenv()) else NULL
+  on.exit({
+    if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = globalenv())
+  }, add = TRUE)
+  set.seed(20260712L)
+  sort(sample.int(n0, max_n))
+}
+
+# Plafonne les lignes d'un data.frame/matrice (avec notification).
+hstat_cap_df_rows <- function(df, max_n = HSTAT_DIST_MAX_N, what = "Analyse") {
+  n0 <- nrow(df)
+  if (is.null(n0) || n0 <= max_n) return(df)
+  idx <- hstat_cap_indices(n0, max_n)
+  hstat_bigdata_note(what, length(idx), n0)
+  df[idx, , drop = FALSE]
+}
+
+# Plafonne conjointement une matrice de reponses Y et son facteur de groupes.
+hstat_cap_Y_group <- function(Y, group, max_n = HSTAT_DIST_MAX_N,
+                              what = "Analyse multivariee (distances)") {
+  n0 <- nrow(Y)
+  if (is.null(n0) || n0 <= max_n) return(list(Y = Y, group = group))
+  idx <- hstat_cap_indices(n0, max_n)
+  hstat_bigdata_note(what, length(idx), n0)
+  list(Y = Y[idx, , drop = FALSE], group = droplevels(factor(group[idx])))
+}
+
+# Silhouette moyenne, robuste aux gros n : calcul vectorise (cluster::silhouette)
+# sur un echantillon si necessaire (la version exacte est en O(n^2)).
+hstat_silhouette_mean <- function(coords, clusters, max_n = HSTAT_DIST_MAX_N) {
+  coords <- as.matrix(coords)
+  cl <- as.integer(as.factor(clusters))
+  n0 <- nrow(coords)
+  if (n0 > max_n) {
+    idx <- hstat_cap_indices(n0, max_n)
+    coords <- coords[idx, , drop = FALSE]
+    cl <- cl[idx]
+    hstat_bigdata_note("Silhouette", length(idx), n0)
+  }
+  if (length(unique(cl)) < 2) return(NA_real_)
+  sil <- tryCatch(cluster::silhouette(cl, stats::dist(coords)),
+                  error = function(e) NULL)
+  if (is.null(sil)) return(NA_real_)
+  mean(sil[, 3])
+}
+
+# Correlation cophenetique, robuste aux gros n : exacte si possible, sinon
+# estimee en re-ajustant une CAH sur un echantillon (meme methode).
+hstat_cophenetic_corr <- function(coords, tree, hc_method = "ward.D2",
+                                  max_n = HSTAT_DIST_MAX_N) {
+  coords <- as.matrix(coords)
+  n0 <- nrow(coords)
+  if (n0 <= max_n) {
+    ct <- tryCatch(stats::cophenetic(tree), error = function(e) NULL)
+    if (!is.null(ct) && isTRUE(attr(ct, "Size") == n0)) {
+      return(tryCatch(stats::cor(stats::dist(coords), ct),
+                      error = function(e) NA_real_))
+    }
+  }
+  idx <- hstat_cap_indices(n0, max_n)
+  if (n0 > max_n) hstat_bigdata_note("Correlation cophenetique", length(idx), n0)
+  tryCatch({
+    d  <- stats::dist(coords[idx, , drop = FALSE])
+    hc <- stats::hclust(d, method = hc_method)
+    stats::cor(d, stats::cophenetic(hc))
+  }, error = function(e) NA_real_)
+}
+
+# Proportion de paires concordantes entre deux partitions (indice de Rand
+# simple), vectorisee : remplace combn() + apply(), impraticables des 10 000
+# lignes (n(n-1)/2 paires).
+hstat_pair_agreement <- function(a, b) {
+  sa <- outer(a, a, "==")
+  sb <- outer(b, b, "==")
+  ut <- upper.tri(sa)
+  mean(sa[ut] == sb[ut])
+}
+
+# Test de correlation de Kendall robuste aux gros n : tau est en O(n^2)
+# (plusieurs heures au-dela de ~100 000) ; au-dela du seuil, calcul sur un
+# echantillon aleatoire conjoint.
+hstat_kendall_test <- function(x, y, max_n = HSTAT_KENDALL_MAX_N) {
+  n0 <- length(x)
+  if (n0 > max_n) {
+    idx <- hstat_cap_indices(n0, max_n)
+    x <- x[idx]; y <- y[idx]
+    hstat_bigdata_note("Correlation de Kendall", length(idx), n0)
+  }
+  stats::cor.test(x, y, method = "kendall")
+}
 
 # -- Detection du type de fichier ---------------------------------------------
 hstat_file_kind <- function(path) {

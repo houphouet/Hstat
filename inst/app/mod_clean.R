@@ -1410,16 +1410,35 @@ mod_clean_server <- function(id, values) {
         sel <- input$naVars
         ok <- TRUE
         if (input$naMethod == "knn") {
-          if (requireNamespace("VIM", quietly = TRUE)) {
+          if (!requireNamespace("VIM", quietly = TRUE)) {
+            ok <- FALSE
+            showNotification("Package 'VIM' indisponible. Installez-le pour l'imputation KNN.",
+                             type = "error", duration = 6)
+          } else if (nrow(data_temp) > HSTAT_IMPUTE_MAX_N) {
+            # kNN est en O(n^2) : au-dela du seuil il gelerait l'application.
+            ok <- FALSE
+            showNotification(sprintf(paste0(
+              "Imputation KNN impossible sur %s lignes (limite : %s, algorithme ",
+              "en O(n^2)). Utilisez 'mice' ou la mediane/le mode, adaptes aux ",
+              "grands jeux de donnees."),
+              format(nrow(data_temp), big.mark = " "),
+              format(HSTAT_IMPUTE_MAX_N, big.mark = " ")),
+              type = "warning", duration = 12)
+          } else {
             imp <- tryCatch(VIM::kNN(data_temp, variable = sel,
                                      k = input$naKnnK %||% 5, imp_var = FALSE),
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp <- imp
-          } else ok <- FALSE
-          if (!ok) showNotification("Package 'VIM' indisponible. Installez-le pour l'imputation KNN.",
-                                    type = "error", duration = 6)
+            if (!ok) showNotification("Echec de l'imputation KNN.",
+                                      type = "error", duration = 6)
+          }
         } else if (input$naMethod == "mice") {
           if (requireNamespace("mice", quietly = TRUE)) {
+            if (nrow(data_temp) > 200000L)
+              showNotification(paste0("Imputation multiple (mice) sur ",
+                format(nrow(data_temp), big.mark = " "),
+                " lignes : le calcul peut prendre plusieurs minutes."),
+                type = "message", duration = 10)
             sub <- data_temp[, sel, drop = FALSE]
             mids <- tryCatch(mice::mice(sub, m = input$naMiceM %||% 5,
                                         method = "pmm", printFlag = FALSE),
@@ -1439,15 +1458,27 @@ mod_clean_server <- function(id, values) {
           if (!ok) showNotification("Package 'mice' indisponible. Installez-le pour l'imputation multiple.",
                                     type = "error", duration = 6)
         } else if (input$naMethod == "rf") {
-          if (requireNamespace("missForest", quietly = TRUE)) {
+          if (!requireNamespace("missForest", quietly = TRUE)) {
+            ok <- FALSE
+            showNotification("Package 'missForest' indisponible. Repli : médiane/mode.",
+                             type = "warning", duration = 6)
+          } else if (nrow(data_temp) > HSTAT_IMPUTE_MAX_N) {
+            ok <- FALSE
+            showNotification(sprintf(paste0(
+              "missForest est trop lent au-dela de %s lignes (%s ici). ",
+              "Repli automatique : médiane/mode."),
+              format(HSTAT_IMPUTE_MAX_N, big.mark = " "),
+              format(nrow(data_temp), big.mark = " ")),
+              type = "warning", duration = 12)
+          } else {
             sub <- data_temp[, sel, drop = FALSE]
             sub[] <- lapply(sub, function(x) if (is.character(x)) as.factor(x) else x)
             imp <- tryCatch(missForest::missForest(sub)$ximp,
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp[, sel] <- imp
-          } else ok <- FALSE
-          if (!ok) showNotification("Package 'missForest' indisponible. Repli : médiane/mode.",
-                                    type = "warning", duration = 6)
+            if (!ok) showNotification("Echec de missForest. Repli : médiane/mode.",
+                                      type = "warning", duration = 6)
+          }
           if (!ok) {
             for (col in sel) {
               x <- data_temp[[col]]

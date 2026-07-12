@@ -1603,6 +1603,8 @@ mod_correlation_server <- function(id, values) {
       }
       # Retire les colonnes parfaitement colineaires (|r| ~ 1) qui rendent la matrice
       # singuliere et font echouer le reordonnancement hierarchique (solve()).
+      if (identical(method, "kendall"))
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
       cm0 <- suppressWarnings(stats::cor(cor_data, use = "pairwise.complete.obs", method = method))
       if (!is.null(cm0)) {
         cm0[is.na(cm0)] <- 0
@@ -1620,6 +1622,8 @@ mod_correlation_server <- function(id, values) {
         showNotification("Moins de 2 variables non colinéaires.", type = "warning")
         return(invisible())
       }
+      if (identical(method, "kendall"))
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
       cor_matrix <- suppressWarnings(stats::cor(cor_data, use = "complete.obs", method = method))
       p_matrix <- tryCatch(
         corrplot::cor.mtest(cor_data, conf.level = 1 - sig_level, method = method)$p,
@@ -2072,7 +2076,7 @@ mod_tests_server <- function(id, values) {
         data_values <- data_values[!is.na(data_values)]
         
         if (length(data_values) >= 3 && length(data_values) <= 5000) {
-          norm_test <- shapiro.test(data_values)
+          norm_test <- hstat_shapiro(data_values)
           results_list[[var]] <- data.frame(
             Test = "Normalité (données brutes)",
             Variable = var,
@@ -2206,13 +2210,13 @@ mod_tests_server <- function(id, values) {
         group2_data <- group2_data[!is.na(group2_data)]
         
         normality_group1 <- if(length(group1_data) >= 3 && length(group1_data) <= 5000) {
-          shapiro.test(group1_data)
+          hstat_shapiro(group1_data)
         } else {
           list(p.value = NA)
         }
         
         normality_group2 <- if(length(group2_data) >= 3 && length(group2_data) <= 5000) {
-          shapiro.test(group2_data)
+          hstat_shapiro(group2_data)
         } else {
           list(p.value = NA)
         }
@@ -2576,7 +2580,7 @@ mod_tests_server <- function(id, values) {
         
         residuals_data <- residuals(model)
         if (length(residuals_data) > 3) {
-          normality_results[[var]] <- shapiro.test(residuals_data)
+          normality_results[[var]] <- hstat_shapiro(residuals_data)
         }
         
         fitted_data <- fitted(model)
@@ -3526,6 +3530,7 @@ mod_tests_server <- function(id, values) {
       dist_method <- "euclidean"
       nperm       <- 999L
       
+      df_clean <- hstat_cap_df_rows(df_clean, what = "PERMANOVA")
       Y <- as.matrix(df_clean[, input$responseVar, drop = FALSE])
       
       rhs <- paste(sapply(input$factorVar, function(x) paste0("`", x, "`")),
@@ -4965,7 +4970,7 @@ mod_tests_server <- function(id, values) {
         cat("Résidus constants ou quasi-constants (ajustement parfait).\n")
         cat("Le test de normalité n'est pas applicable.\n")
       } else {
-        shapiro.test(residuals_data)
+        hstat_shapiro(residuals_data)
       }
     }, error = function(e) {
       cat("Erreur dans le test de normalité:", e$message, "\n")
@@ -4986,7 +4991,7 @@ mod_tests_server <- function(id, values) {
       } else if (sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
       } else {
-        norm_test <- shapiro.test(residuals_data)
+        norm_test <- hstat_shapiro(residuals_data)
         interp_text <- interpret_normality_resid(norm_test$p.value)
       }
       

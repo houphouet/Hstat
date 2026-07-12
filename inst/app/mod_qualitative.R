@@ -380,7 +380,10 @@ hstat_q_epitools_block <- function(tab2, kind = c("OR", "RR"), conf = 0.95) {
     }
     meas[i, ] <- c(est, exp(log(est) - z * se), exp(log(est) + z * se))
     sub <- rbind(tab2[1, ], tab2[i, ])
-    pv[i, 1] <- tryCatch(stats::fisher.test(sub)$p.value, error = function(e) NA_real_)
+    pv[i, 1] <- tryCatch(stats::fisher.test(sub)$p.value,
+                         error = function(e)
+                           tryCatch(stats::fisher.test(sub, simulate.p.value = TRUE, B = 5000)$p.value,
+                                    error = function(e2) NA_real_))
     pv[i, 2] <- tryCatch(suppressWarnings(stats::chisq.test(sub)$p.value),
                          error = function(e) NA_real_)
   }
@@ -1250,7 +1253,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     rx <- rx[ok_idx]; ry <- ry[ok_idx]
     if (length(rx) < 4) return(list(ok = FALSE, notes = "Trop peu de paires."))
     sp <- suppressWarnings(stats::cor.test(rx, ry, method = "spearman"))
-    kd <- suppressWarnings(stats::cor.test(rx, ry, method = "kendall"))
+    kd <- suppressWarnings(hstat_kendall_test(rx, ry))
     metrics <- data.frame(
       Metrique = c("Paires valides", "Rho de Spearman", "p-value (Spearman)",
                    "Tau de Kendall", "p-value (Kendall)"),
@@ -1294,7 +1297,8 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     plot_fn <- function() {
       if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
       ggplot2::ggplot(data.frame(x = rx, y = ry), ggplot2::aes(x, y)) +
-        ggplot2::geom_jitter(width = 0.15, height = 0.15, alpha = 0.5, color = "#2980b9") +
+        ggplot2::geom_jitter(data = function(d) hstat_sample_rows(d, notify = FALSE),
+                             width = 0.15, height = 0.15, alpha = 0.5, color = "#2980b9") +
         ggplot2::geom_smooth(method = "lm", se = FALSE, color = "#c0392b") +
         ggplot2::labs(title = sprintf("Relation ordinale : %s vs %s", xname, gname),
                       x = xname, y = gname) +

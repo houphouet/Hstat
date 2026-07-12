@@ -2369,21 +2369,12 @@ server <- function(input, output, session) {
       })
       DB <- round(mean(DB_vals), 3)
       
-      sil_vals <- numeric(n)
-      for (i in 1:n) {
-        cl_i <- clusters[i]; same <- which(clusters == cl_i); same <- same[same != i]
-        a_i <- if (length(same) == 0) 0 else mean(sqrt(rowSums(sweep(coords[same, , drop = FALSE], 2, coords[i, ])^2)))
-        b_i <- min(sapply(unique(clusters[clusters != cl_i]), function(cl) {
-          other <- which(clusters == cl)
-          mean(sqrt(rowSums(sweep(coords[other, , drop = FALSE], 2, coords[i, ])^2)))
-        }))
-        sil_vals[i] <- if (max(a_i, b_i) == 0) 0 else (b_i - a_i) / max(a_i, b_i)
-      }
-      sil_mean <- round(mean(sil_vals), 3)
+      # Gros volumes : silhouette vectorisee (cluster::silhouette), calculee
+      # sur un echantillon au-dela de HSTAT_DIST_MAX_N (l'exact est en O(n^2)).
+      sil_mean <- round(hstat_silhouette_mean(coords, clusters), 3)
       
       tree      <- res.hcpc$call$t$tree
-      dist_orig <- dist(res.pca$ind$coord)
-      coph_corr <- round(cor(dist_orig, cophenetic(tree)), 3)
+      coph_corr <- round(hstat_cophenetic_corr(res.pca$ind$coord, tree), 3)
       
       df_indices <- data.frame(
         Indice         = c("Calinski-Harabasz (CH)", "Davies-Bouldin (DB)", "Silhouette moyenne", "Corrélation cophenétique"),
@@ -2597,7 +2588,18 @@ server <- function(input, output, session) {
         req(res.pca)
       }
       # nb.clust = -1 -> HCPC choisit automatiquement le nombre de classes
-      res.hcpc <- HCPC(res.pca, nb.clust = nbclust, graph = FALSE)
+      # Gros volumes : HCPC fait une CAH (O(n^2)) sur tous les individus ;
+      # au-dela du seuil, pre-partition k-means (argument kk) prevue par
+      # FactoMineR pour les grands jeux de donnees.
+      n_ind <- nrow(res.pca$ind$coord)
+      res.hcpc <- if (n_ind > HSTAT_DIST_MAX_N) {
+        hstat_bigdata_note("Classification (HCPC, pre-partition k-means)",
+                           min(1000L, n_ind), n_ind)
+        HCPC(res.pca, nb.clust = nbclust, graph = FALSE,
+             kk = min(1000L, n_ind))
+      } else {
+        HCPC(res.pca, nb.clust = nbclust, graph = FALSE)
+      }
       return(res.hcpc)
     }, error = function(e) {
       showNotification(paste("Erreur HCPC :", e$message), type = "error", duration = 8)
@@ -3215,25 +3217,13 @@ server <- function(input, output, session) {
       DB <- round(mean(DB_vals), 3)
       
       # ---- Silhouette ----
-      sil_vals <- numeric(n)
-      for (i in 1:n) {
-        cl_i <- clusters[i]
-        same <- which(clusters == cl_i)
-        same <- same[same != i]
-        a_i  <- if (length(same) == 0) 0 else mean(sqrt(rowSums(sweep(coords[same, , drop = FALSE], 2, coords[i, ])^2)))
-        b_i  <- min(sapply(unique(clusters[clusters != cl_i]), function(cl) {
-          other <- which(clusters == cl)
-          mean(sqrt(rowSums(sweep(coords[other, , drop = FALSE], 2, coords[i, ])^2)))
-        }))
-        sil_vals[i] <- if (max(a_i, b_i) == 0) 0 else (b_i - a_i) / max(a_i, b_i)
-      }
-      sil_mean <- round(mean(sil_vals), 3)
+      # Gros volumes : silhouette vectorisee (cluster::silhouette), calculee
+      # sur un echantillon au-dela de HSTAT_DIST_MAX_N (l'exact est en O(n^2)).
+      sil_mean <- round(hstat_silhouette_mean(coords, clusters), 3)
       
       # ---- Corrélation cophénétique ----
       tree        <- res.hcpc$call$t$tree
-      dist_orig   <- dist(res.pca$ind$coord)
-      coph_dist   <- cophenetic(tree)
-      coph_corr   <- round(cor(dist_orig, coph_dist), 3)
+      coph_corr   <- round(hstat_cophenetic_corr(res.pca$ind$coord, tree), 3)
       
       # ---- Interprétations ----
       ch_interp <- div(
@@ -3323,6 +3313,15 @@ server <- function(input, output, session) {
       clusters <- vd$clusters
       k        <- vd$k
       n        <- nrow(coords)
+      # Gros volumes : le bootstrap refait 30 CAH completes (dist en O(n^2)) ;
+      # au-dela du seuil, la stabilite est evaluee sur un echantillon.
+      if (n > HSTAT_DIST_MAX_N) {
+        idx_cap  <- hstat_cap_indices(n, HSTAT_DIST_MAX_N)
+        hstat_bigdata_note("Stabilite du clustering (bootstrap)", length(idx_cap), n)
+        coords   <- coords[idx_cap, , drop = FALSE]
+        clusters <- clusters[idx_cap]
+        n        <- nrow(coords)
+      }
       
       n_boot  <- 30
       prop    <- 0.8
@@ -3337,12 +3336,8 @@ server <- function(input, output, session) {
         clust_sub <- cutree(hc_sub, k = k)
         clust_ref <- clusters[idx_b]
         
-        n_sub <- length(clust_sub)
-        pairs <- combn(n_sub, 2)
-        agree <- mean(apply(pairs, 2, function(p) {
-          (clust_sub[p[1]] == clust_sub[p[2]]) == (clust_ref[p[1]] == clust_ref[p[2]])
-        }))
-        rand_indices[b] <- agree
+        # Vectorise : combn() genere n(n-1)/2 paires, impraticable des ~10 000
+        rand_indices[b] <- hstat_pair_agreement(clust_sub, clust_ref)
       }
       
       mean_rand <- round(mean(rand_indices), 3)
@@ -6296,7 +6291,7 @@ server <- function(input, output, session) {
         bss <- km$betweenss / km$totss
         sil <- NA
         if (mv_has("cluster") && nrow(Xc) <= 5000)
-          sil <- mean(cluster::silhouette(km$cluster, dist(Xc))[, 3])
+          sil <- hstat_silhouette_mean(Xc, km$cluster)
         ch <- (km$betweenss/(k-1)) / (km$tot.withinss/(nrow(Xc)-k))
         st_bss <- if (bss >= .5) "ok" else if (bss >= .3) "warn" else "err"
         st_sil <- if (is.na(sil)) "info" else if (sil >= .5) "ok" else if (sil >= .25) "warn" else "err"
@@ -7039,7 +7034,7 @@ server <- function(input, output, session) {
         vif_max <- tryCatch(if (length(xv) >= 2) max(car::vif(fit)) else 1,
                             error = function(e) NA)
         bp <- tryCatch(lmtest::bptest(fit)$p.value, error = function(e) NA)
-        sw <- tryCatch(stats::shapiro.test(stats::residuals(fit)[1:min(5000,nrow(sub))])$p.value,
+        sw <- tryCatch(hstat_shapiro(stats::residuals(fit))$p.value,
                        error = function(e) NA)
         dw <- tryCatch(lmtest::dwtest(fit)$statistic, error = function(e) NA)
         st_r2 <- if (r2a >= .5) "ok" else if (r2a >= .3) "warn" else "err"
