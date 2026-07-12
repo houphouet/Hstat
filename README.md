@@ -1,10 +1,10 @@
-# HStat — Shiny Statistical Analysis Application
+# HStat : Shiny Statistical Analysis Application
 
 [![R-CMD-check](https://github.com/houphouet/Hstat/actions/workflows/R.yml/badge.svg)](https://github.com/houphouet/Hstat/actions/workflows/R.yml)
 
 HStat is an interactive web application built with R Shiny that enables a
-complete data analysis pipeline — from data import to advanced multivariate
-analyses — without writing a single line of code.
+complete data analysis pipeline, from data import to advanced multivariate
+analyses without writing a single line of code.
 
 ---
 
@@ -41,35 +41,78 @@ installed automatically if needed on first run.
 
 ```
 ├── DESCRIPTION
+├── Hstat.Rproj
+├── inst
+│   ├── app
+│   │   ├── app.R
+│   │   ├── HStat.R
+│   │   ├── mod_clean.R
+│   │   ├── mod_descriptive.R
+│   │   ├── mod_design.R
+│   │   ├── mod_explore.R
+│   │   ├── mod_filter.R
+│   │   ├── mod_qualitative.R
+│   │   ├── mod_tests.R
+│   │   ├── mod_threshold.R
+│   │   ├── mod_viz.R
+│   │   ├── Server.R
+│   │   ├── Utils.R
+│   │   ├── UX.R
+│   │   └── www
+│   │       ├── fonts
+│   │       │   ├── archivo-latin-400-normal.woff2
+│   │       │   ├── archivo-latin-500-normal.woff2
+│   │       │   ├── archivo-latin-600-normal.woff2
+│   │       │   ├── archivo-latin-700-normal.woff2
+│   │       │   ├── Archivo-LICENSE.txt
+│   │       │   ├── ibm-plex-mono-latin-400-normal.woff2
+│   │       │   ├── ibm-plex-mono-latin-500-normal.woff2
+│   │       │   ├── ibm-plex-mono-latin-600-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-400-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-500-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-600-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-700-normal.woff2
+│   │       │   ├── inter-latin-400-normal.woff2
+│   │       │   ├── inter-latin-500-normal.woff2
+│   │       │   ├── inter-latin-600-normal.woff2
+│   │       │   ├── inter-latin-700-normal.woff2
+│   │       │   ├── Inter-LICENSE.txt
+│   │       │   ├── newsreader-latin-400-italic.woff2
+│   │       │   ├── newsreader-latin-400-normal.woff2
+│   │       │   ├── newsreader-latin-500-normal.woff2
+│   │       │   ├── newsreader-latin-600-normal.woff2
+│   │       │   └── Newsreader-LICENSE.txt
+│   │       ├── hstat-theme.css
+│   │       └── Sortable.min.js
+│   └── CITATION
+├── man
+│   └── run_hstat.Rd
 ├── NAMESPACE
-├── R/
-│   └── run_hstat.R
-├── inst/
-│   └── app/
-│       ├── HStat.R
-│       ├── Server.R
-│       ├── UX.R
-│       ├── Utils.R
-│       ├── mod_clean.R
-│       ├── mod_crosstab.R
-│       ├── mod_descriptive.R
-│       ├── mod_design.R
-│       ├── mod_explore.R
-│       ├── mod_filter.R
-│       ├── mod_qualitative.R
-│       ├── mod_tests.R
-│       ├── mod_threshold.R
-│       ├── mod_viz.R
-│       └── www/
-│           ├── fonts/
-│           ├── hstat-theme.css
-│           └── Sortable.min.js
-├── tests/
-│   ├── testthat.R
-│   └── testthat/
-│       └── test-hstat.R
-└── README.md
+├── R
+│   ├── run_hstat.R
+│   └── zzz.R
+├── README.md
+└── tests
+    ├── testthat
+    │   └── test-hstat.R
+    └── testthat.R
 ```
+
+## Deployment / Déploiement
+
+**Local (recommended):** install the package and run:
+```r
+library(HStat)
+run_hstat()   # installs missing dependencies, then launches
+```
+
+**Shiny hosting (shinyapps.io, Posit Connect, Shiny Server):** these platforms
+look for `app.R` at the *root* of the deployed folder. A root `app.R` is
+provided for this purpose (it bridges to `inst/app/`). Deploy the repository
+root; make sure all packages listed in `DESCRIPTION` are available on the
+server.
+
+---
 
 ## How to cite / Comment citer
 
