@@ -23,7 +23,39 @@ source("mod_viz.R", local = FALSE, encoding = "UTF-8")
 source("mod_tests.R", local = FALSE, encoding = "UTF-8")
 source("mod_design.R", local = FALSE, encoding = "UTF-8")
 source("mod_qualitative.R", local = FALSE, encoding = "UTF-8")
-source("UX.R",     local = FALSE, encoding = "UTF-8")
+.hstat_ui_err <- NULL
+tryCatch(
+  source("UX.R", local = FALSE, encoding = "UTF-8"),
+  error = function(e) {
+    .hstat_ui_err <<- conditionMessage(e)
+    message("HStat : erreur lors de la construction de l'interface : ",
+            conditionMessage(e))
+  })
 source("Server.R", local = FALSE, encoding = "UTF-8")
+
+# Filet de securite : si la construction de `ui` a echoue (paquet d'interface
+# manquant, etc.), on remplace par une UI de secours lisible plutot que de
+# laisser Shiny afficher l'enigmatique "No UI defined".
+if (!exists("ui") || is.null(ui) ||
+    !(inherits(ui, "shiny.tag") || inherits(ui, "shiny.tag.list") ||
+      inherits(ui, "shiny.tag.function") || is.function(ui))) {
+  ui <- shiny::fluidPage(
+    shiny::tags$h2("HStat - interface indisponible"),
+    shiny::tags$p("Certains paquets requis n'ont pas pu etre charges, ",
+                  "l'interface n'a donc pas pu etre construite."),
+    if (!is.null(.hstat_ui_err))
+      shiny::tags$pre(style = "background:#fbeaea;padding:8px;border-radius:4px;",
+                      paste("Detail :", .hstat_ui_err)),
+    shiny::tags$p("Lancez l'application via ",
+                  shiny::tags$code("HStat::run_hstat()"),
+                  " : cette fonction installe automatiquement les dependances ",
+                  "manquantes avant le demarrage."),
+    shiny::tags$p("Vous pouvez aussi installer manuellement les paquets, ",
+                  "puis relancer.")
+  )
+}
+if (!exists("server") || !is.function(server)) {
+  server <- function(input, output, session) {}
+}
 
 shinyApp(ui, server)

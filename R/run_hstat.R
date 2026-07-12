@@ -3,10 +3,14 @@
 #' Starts the HStat interactive statistical analysis application in your
 #' default web browser. On first launch, any missing package dependencies
 #' are installed automatically (an internet connection is required the first
-#' time).
+#' time only).
 #'
 #' @param ... Additional arguments passed to \code{\link[shiny]{runApp}}
 #'   (e.g. \code{launch.browser}, \code{port}).
+#' @param install_missing Logical; if \code{TRUE} (default) missing package
+#'   dependencies are installed before the app is launched. Set to
+#'   \code{FALSE} to skip installation (e.g. on a managed server where
+#'   packages are provisioned separately).
 #'
 #' @return No return value. Called for its side effect of launching the app.
 #'
@@ -16,7 +20,7 @@
 #' }
 #'
 #' @export
-run_hstat <- function(...) {
+run_hstat <- function(..., install_missing = TRUE) {
   app_dir <- system.file("app", package = "HStat")
 
   if (app_dir == "") {
@@ -33,32 +37,38 @@ run_hstat <- function(...) {
          app_file, ").", call. = FALSE)
   }
 
-  # --- Dependances critiques pour CONSTRUIRE l'interface -------------------
-  # Sans elles, HStat.R echoue sur dashboardPage()/pickerInput() et Shiny
-  # renvoie l'erreur trompeuse "No UI defined". On s'assure donc qu'elles
-  # sont presentes AVANT de lancer l'application, avec un message clair.
-  ui_critical <- c("shiny", "shinydashboard", "shinyWidgets", "shinyjs",
-                   "DT", "ggplot2", "plotly", "dplyr")
-  missing_ui <- ui_critical[
-    !vapply(ui_critical, requireNamespace, logical(1), quietly = TRUE)]
-
-  if (length(missing_ui) > 0) {
-    message("HStat : installation des paquets d'interface requis : ",
-            paste(missing_ui, collapse = ", "))
-    installed <- tryCatch({
-      utils::install.packages(missing_ui, quiet = TRUE)
-      TRUE
-    }, error = function(e) FALSE)
-    still_missing <- ui_critical[
-      !vapply(ui_critical, requireNamespace, logical(1), quietly = TRUE)]
-    if (length(still_missing) > 0) {
+  # --- Installation prealable de TOUTES les dependances -------------------
+  # C'est indispensable : HStat.R construit l'interface (dashboardPage,
+  # dropdownMenu, pickerInput, ...) des le sourcage. Si un seul de ces
+  # paquets manque, la construction de `ui` echoue, shinyApp() n'est jamais
+  # atteint, et Shiny affiche le trompeur "No UI defined".
+  if (isTRUE(install_missing)) {
+    deps <- .hstat_required_packages()
+    missing_pkgs <- deps[!vapply(deps, requireNamespace, logical(1),
+                                 quietly = TRUE)]
+    if (length(missing_pkgs) > 0) {
+      message("HStat : installation de ", length(missing_pkgs),
+              " paquet(s) manquant(s)...\n  ",
+              paste(missing_pkgs, collapse = ", "))
+      tryCatch(
+        utils::install.packages(missing_pkgs),
+        error = function(e)
+          message("Certains paquets n'ont pas pu etre installes : ",
+                  conditionMessage(e)))
+    }
+    # Verifier les paquets STRICTEMENT necessaires a l'interface
+    ui_critical <- c("shiny", "shinydashboard", "shinyWidgets", "shinyjs",
+                     "DT", "ggplot2", "plotly", "dplyr", "shinycssloaders")
+    still <- ui_critical[!vapply(ui_critical, requireNamespace, logical(1),
+                                 quietly = TRUE)]
+    if (length(still) > 0) {
       stop(
-        "HStat ne peut pas demarrer : les paquets suivants, indispensables a\n",
-        "l'interface, sont manquants et n'ont pas pu etre installes :\n  ",
-        paste(still_missing, collapse = ", "),
-        "\n\nInstallez-les manuellement puis relancez run_hstat() :\n",
-        '  install.packages(c(', paste(sprintf('"%s"', still_missing),
-                                        collapse = ", "), "))",
+        "HStat ne peut pas demarrer : ces paquets d'interface sont ",
+        "manquants et n'ont pas pu etre installes :\n  ",
+        paste(still, collapse = ", "),
+        "\n\nInstallez-les manuellement puis relancez run_hstat() :\n  ",
+        "install.packages(c(",
+        paste(sprintf('\"%s\"', still), collapse = ", "), "))",
         call. = FALSE)
     }
   }
@@ -66,4 +76,26 @@ run_hstat <- function(...) {
   # runApp() sur un DOSSIER sert automatiquement le sous-dossier www/
   # (feuille de style + polices) et detecte app.R.
   shiny::runApp(app_dir, ...)
+}
+
+# Liste des dependances requises, lue depuis inst/app/Utils.R (source unique de
+# verite) pour rester synchronisee avec l'application. Repli sur une liste
+# minimale si l'extraction echoue.
+.hstat_required_packages <- function() {
+  utils_file <- system.file("app", "Utils.R", package = "HStat")
+  fallback <- c("shiny", "shinydashboard", "shinyWidgets", "shinyjs", "DT",
+                "shinycssloaders", "ggplot2", "plotly", "dplyr", "tidyr",
+                "DT", "colourpicker", "sortable", "ggrepel", "scales")
+  if (!nzchar(utils_file) || !file.exists(utils_file)) return(fallback)
+  txt <- tryCatch(paste(readLines(utils_file, warn = FALSE, encoding = "UTF-8"),
+                        collapse = "\n"),
+                  error = function(e) "")
+  m <- regmatches(txt, regexpr("required_packages\\s*<-\\s*c\\((?:[^()]|\\([^()]*\\))*\\)",
+                               txt, perl = TRUE))
+  if (length(m) == 0) return(fallback)
+  pkgs <- regmatches(m, gregexpr('"([^"]+)"', m))[[1]]
+  pkgs <- gsub('"', "", pkgs)
+  pkgs <- setdiff(unique(pkgs), c("stats", "utils", "methods", "grDevices",
+                                  "graphics", "tools", "grid", "base"))
+  if (length(pkgs) < 5) fallback else pkgs
 }

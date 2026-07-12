@@ -46,23 +46,26 @@ install_and_load <- function(packages) {
   to_install <- packages[!packages %in% installed_packages]
 
   if (length(to_install) > 0) {
-    # Verifier la disponibilite d'une connexion avant de tenter l'installation
-    online <- tryCatch({
-      con <- url("https://cran.r-project.org", open = "rb")
-      on.exit(close(con), add = TRUE)
+    # On tente directement l'installation : install.packages() gere lui-meme
+    # l'absence de reseau. (L'ancienne detection "en ligne" via url() traitait
+    # tout avertissement SSL/proxy comme hors-ligne et n'installait alors RIEN,
+    # ce qui provoquait ensuite une UI incomplete -> "No UI defined".)
+    repos <- getOption("repos")
+    if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@") ||
+        is.na(repos["CRAN"]))
+      repos <- c(CRAN = "https://cloud.r-project.org")
+    ok <- tryCatch({
+      install.packages(to_install, repos = repos)
       TRUE
     }, error = function(e) FALSE, warning = function(e) FALSE)
 
-    if (online) {
-      tryCatch(
-        install.packages(to_install, repos = "https://cran.r-project.org"),
-        error = function(e) message("Echec d'installation : ", conditionMessage(e)))
-    } else {
+    still_missing <- to_install[!to_install %in% rownames(installed.packages())]
+    if (length(still_missing) > 0) {
       message("\n", strrep("=", 70),
-              "\n  HStat -- mode hors-ligne détecté",
-              "\n  Packages manquants : ", paste(to_install, collapse = ", "),
-              "\n  Connectez-vous une fois a Internet pour les installer,",
-              "\n  ou installez-les manuellement, puis relancez l'application.",
+              "\n  HStat -- certains paquets n'ont pas pu etre installes",
+              "\n  Manquants : ", paste(still_missing, collapse = ", "),
+              "\n  Verifiez votre connexion Internet, puis relancez l'application.",
+              "\n  (Installation manuelle : install.packages(c(...)) )",
               "\n", strrep("=", 70), "\n")
     }
   }
