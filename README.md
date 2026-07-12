@@ -1,10 +1,10 @@
-# HStat — Shiny Statistical Analysis Application
+# HStat : Shiny Statistical Analysis Application
 
 [![R-CMD-check](https://github.com/houphouet/Hstat/actions/workflows/R.yml/badge.svg)](https://github.com/houphouet/Hstat/actions/workflows/R.yml)
 
 HStat is an interactive web application built with R Shiny that enables a
-complete data analysis pipeline — from data import to advanced multivariate
-analyses — without writing a single line of code.
+complete data analysis pipeline, from data import to advanced multivariate
+analyses without writing a single line of code.
 
 ---
 
@@ -71,22 +71,6 @@ installed automatically if needed on first run.
 └── README.md
 ```
 
-## Deployment / Déploiement
-
-**Local (recommended):** install the package and run:
-```r
-library(HStat)
-run_hstat()   # installs missing dependencies, then launches
-```
-
-**Shiny hosting (shinyapps.io, Posit Connect, Shiny Server):** these platforms
-look for `app.R` at the *root* of the deployed folder. A root `app.R` is
-provided for this purpose (it bridges to `inst/app/`). Deploy the repository
-root; make sure all packages listed in `DESCRIPTION` are available on the
-server.
-
----
-
 ## How to cite / Comment citer
 
 If HStat is useful for your work, please cite it. In R:
@@ -98,7 +82,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.2.4. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.3.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
