@@ -2258,6 +2258,14 @@ hstat_kendall_test <- function(x, y, max_n = HSTAT_KENDALL_MAX_N) {
   stats::cor.test(x, y, method = "kendall")
 }
 
+# Valeur numerique finie ou valeur par defaut. Contrairement a %||%, protege
+# aussi contre NA, NaN et Inf (un numericInput vide renvoie NA, pas NULL, et
+# un calcul de puissance peut legitimement renvoyer n = Inf).
+hstat_finite <- function(x, default) {
+  x <- suppressWarnings(as.numeric(if (is.null(x)) default else x))
+  if (length(x) != 1 || !is.finite(x)) default else x
+}
+
 # -- Detection du type de fichier ---------------------------------------------
 hstat_file_kind <- function(path) {
   ext <- tolower(tools::file_ext(path))

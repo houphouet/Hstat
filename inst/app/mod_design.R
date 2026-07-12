@@ -2243,9 +2243,17 @@ mod_design_server <- function(id, values) {
       k <- input$powK; df1 <- input$powDf1; groups <- input$powGroups; covars <- input$powCovars %||% 0
       F_total <- test %in% c("anova_factorial", "rm_between", "rm_within", "rm_interaction",
                              "ancova", "manova_global", "reg_r2inc", "reg_r2dev", "f_generic")
-      base <- if (F_total) (r$ntot %||% 60) else (r$nper %||% 60)
-      ns_seq <- seq(if (F_total) (df1 %||% 2) + (groups %||% 2) + covars + 2 else 3,
-                    max(120, base * 2), by = 1)
+      # Bornes assainies : %||% ne protege que contre NULL, or un champ vide
+      # renvoie NA et un calcul de puissance peut renvoyer n = Inf (effet ~0) ;
+      # seq() exige des bornes finies.
+      base <- if (F_total) hstat_finite(r$ntot, 60) else hstat_finite(r$nper, 60)
+      from <- if (F_total) hstat_finite(df1, 2) + hstat_finite(groups, 2) +
+        hstat_finite(covars, 0) + 2 else 3
+      to   <- min(max(120, ceiling(base * 2)), 100000)
+      if (!is.finite(from) || !is.finite(to) || to <= from) { from <- 3; to <- 120 }
+      # Pas adaptatif : au plus ~600 evaluations de puissance, sinon la courbe
+      # gele l'interface quand le n requis est tres grand.
+      ns_seq <- seq(from, to, by = max(1, ceiling((to - from) / 600)))
       pw <- vapply(ns_seq, function(nn) {
         res <- suppressWarnings(tryCatch(hstat_gpower(test, "posthoc", effect = eff, alpha = alpha,
           n = nn, k = k, df1 = df1, groups = groups, covars = covars, alt = alt)$power,
