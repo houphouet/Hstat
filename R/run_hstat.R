@@ -44,8 +44,9 @@ run_hstat <- function(..., install_missing = TRUE) {
   # atteint, et Shiny affiche le trompeur "No UI defined".
   if (isTRUE(install_missing)) {
     deps <- .hstat_required_packages()
-    missing_pkgs <- deps[!vapply(deps, requireNamespace, logical(1),
-                                 quietly = TRUE)]
+    missing_pkgs <- deps[!vapply(deps, function(p)
+      suppressWarnings(suppressMessages(requireNamespace(p, quietly = TRUE))),
+      logical(1))]
     if (length(missing_pkgs) > 0) {
       message("HStat : installation de ", length(missing_pkgs),
               " paquet(s) manquant(s)...\n  ",
@@ -59,8 +60,9 @@ run_hstat <- function(..., install_missing = TRUE) {
     # Verifier les paquets STRICTEMENT necessaires a l'interface
     ui_critical <- c("shiny", "shinydashboard", "shinyWidgets", "shinyjs",
                      "DT", "ggplot2", "plotly", "dplyr", "shinycssloaders")
-    still <- ui_critical[!vapply(ui_critical, requireNamespace, logical(1),
-                                 quietly = TRUE)]
+    still <- ui_critical[!vapply(ui_critical, function(p)
+      suppressWarnings(suppressMessages(requireNamespace(p, quietly = TRUE))),
+      logical(1))]
     if (length(still) > 0) {
       stop(
         "HStat ne peut pas demarrer : ces paquets d'interface sont ",

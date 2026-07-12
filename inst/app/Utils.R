@@ -73,10 +73,14 @@ install_and_load <- function(packages) {
   # Chargement : on n'interrompt pas l'application pour un package optionnel manquant
   missing_after <- character(0)
   for (pkg in packages) {
-    ok <- suppressWarnings(suppressPackageStartupMessages(
-      requireNamespace(pkg, quietly = TRUE)))
+    # suppressMessages est indispensable : les messages "Registered S3
+    # method(s) overwritten by ..." ne sont PAS des messages de demarrage
+    # de package ; suppressPackageStartupMessages ne les masque donc pas.
+    ok <- suppressWarnings(suppressMessages(suppressPackageStartupMessages(
+      requireNamespace(pkg, quietly = TRUE))))
     if (ok) {
-      suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+      suppressWarnings(suppressMessages(suppressPackageStartupMessages(
+        library(pkg, character.only = TRUE))))
     } else {
       missing_after <- c(missing_after, pkg)
     }
