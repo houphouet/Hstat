@@ -31,7 +31,7 @@ tryCatch(
     message("HStat : erreur lors de la construction de l'interface : ",
             conditionMessage(e))
   })
-source("Server.R", local = FALSE, encoding = "UTF-8")
+source("app_server.R", local = FALSE, encoding = "UTF-8")
 
 # Filet de securite : si la construction de `ui` a echoue (paquet d'interface
 # manquant, etc.), on remplace par une UI de secours lisible plutot que de
