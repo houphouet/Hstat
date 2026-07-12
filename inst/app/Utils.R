@@ -92,7 +92,9 @@ required_packages <- c(
   "MASS", "cluster", "GGally", "psych", "nortest", "lmtest", "multcomp","FSA", "treemapify", "ggtext",
   "stats",  "emmeans", "performance","purrr", "PMCMRplus","multcompView", "rcompanion", "EMT",
   "bestNormalize","lme4", "lmerTest", "afex", "ARTool", "glmmTMB", "vegan", "heplots", "data.table",
-  "patchwork", "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb"  
+  "patchwork", "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb",
+  "DescTools", "epitools", "htmltools", "magrittr", "readxl", "rlang", "svglite", "writexl",
+  "mice", "missForest", "VIM"
 )
 
 
@@ -2213,6 +2215,57 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 # Echappement d'un identifiant SQL (nom de colonne issu du fichier utilisateur)
 # pour DuckDB : doublement des guillemets internes puis encadrement par "...".
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
+
+# Genere la citation du package HStat dans differents styles.
+# Lit dynamiquement version/annee/auteur (repli si le package n'est pas installe).
+hstat_citation <- function(style = c("text", "bibtex", "ris", "apa", "vancouver", "markdown")) {
+  style <- match.arg(style)
+  # Metadonnees (avec repli robuste)
+  vers <- tryCatch(as.character(utils::packageVersion("HStat")), error = function(e) "0.2.3")
+  year <- tryCatch(sub("-.*", "", as.character(utils::packageDate("HStat"))),
+                   error = function(e) NA_character_)
+  if (is.null(year) || is.na(year) || !nzchar(year)) year <- format(Sys.Date(), "%Y")
+  author_last <- "KOUADIO"; author_first <- "Houphouet"; author_initial <- "H"
+  title <- "HStat : Application Shiny interactive pour l'analyse statistique"
+  url   <- "https://github.com/houphouet/hstat"
+  orcid <- "0000-0002-8238-1091"
+
+  switch(style,
+    "text" = sprintf(
+      "%s, %s (%s). %s. Version %s. %s",
+      author_last, author_first, year, title, vers, url),
+
+    "apa" = sprintf(
+      "%s, %s. (%s). %s (Version %s) [Logiciel R]. %s",
+      author_last, substr(author_first, 1, 1), year, title, vers, url),
+
+    "vancouver" = sprintf(
+      "%s %s. %s [Logiciel R]. Version %s. %s; %s.",
+      author_last, author_initial, title, vers, year, url),
+
+    "markdown" = sprintf(
+      "%s, %s (%s). *%s*. Version %s. [%s](%s)",
+      author_last, author_first, year, title, vers, url, url),
+
+    "bibtex" = paste(
+      "@Manual{hstat,",
+      sprintf("  title  = {%s},", title),
+      sprintf("  author = {%s %s},", author_first, author_last),
+      sprintf("  year   = {%s},", year),
+      sprintf("  note   = {Version %s},", vers),
+      sprintf("  url    = {%s},", url),
+      "}", sep = "\n"),
+
+    "ris" = paste(
+      "TY  - COMP",
+      sprintf("AU  - %s, %s", author_last, author_first),
+      sprintf("PY  - %s", year),
+      sprintf("TI  - %s", title),
+      sprintf("ET  - Version %s", vers),
+      sprintf("UR  - %s", url),
+      "ER  - ", sep = "\n")
+  )
+}
 
 # -- Capuchons de moustache pour l'EXPORT des boxplots ------------------------
 # A l'ecran, les boxplots sont rendus par plotly (ggplotly), qui dessine ses

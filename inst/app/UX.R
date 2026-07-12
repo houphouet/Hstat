@@ -186,7 +186,9 @@ ui <- dashboardPage(
       menuItem("Analyses qualitatives", tabName = "qualitative", icon = icon("comments")),
       tags$li(class = "header", "4. Planification & outils"),
       menuItem("Plan & Puissance", tabName = "design", icon = icon("flask")),
-      menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("gauge-high"))
+      menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("gauge-high")),
+      tags$li(class = "header", "5. À propos"),
+      menuItem("Citer HStat", tabName = "cite", icon = icon("quote-right"))
     )
   ),
   dashboardBody(
@@ -201,6 +203,23 @@ ui <- dashboardPage(
       # Theme clair par defaut ; la bascule ajoute/retire la classe hstat-dark.
       tags$script(HTML(
         "document.addEventListener('DOMContentLoaded',function(){if(!document.body.classList.contains('hstat-dark')){document.body.classList.add('hstat-light');}});")),
+      # Accessibilite : declare la langue du document (lecteurs d'ecran, prononciation).
+      tags$script(HTML(
+        "document.documentElement.setAttribute('lang','fr');")),
+      # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
+      tags$script(HTML(
+        "Shiny.addCustomMessageHandler('hstat_copy_clip', function(m){",
+        "  var t = m.text || '';",
+        "  if (navigator.clipboard && window.isSecureContext) {",
+        "    navigator.clipboard.writeText(t);",
+        "  } else {",
+        "    var ta = document.createElement('textarea'); ta.value = t;",
+        "    ta.style.position='fixed'; ta.style.opacity='0';",
+        "    document.body.appendChild(ta); ta.focus(); ta.select();",
+        "    try { document.execCommand('copy'); } catch(e) {}",
+        "    document.body.removeChild(ta);",
+        "  }",
+        "});")),
       # Realigne en-tetes et corps des DataTables (scrollX) : quand une table est
       # rendue dans un onglet/box masque, DataTables fige des largeurs d'en-tete
       # erronees -> decalage colonnes/valeurs. On rajuste a chaque affichage.
@@ -1861,8 +1880,42 @@ ui <- dashboardPage(
       # ---- Seuils d'efficacité ----
       tabItem(tabName = "threshold",
               mod_threshold_ui("threshold")
+      ),
+
+      # ---- Citer HStat ----
+      tabItem(tabName = "cite",
+        fluidRow(
+          box(
+            title = tagList(icon("quote-right"), " Citer HStat"),
+            status = "primary", width = 12, solidHeader = TRUE,
+            p("Si HStat vous a été utile dans un travail de recherche, un rapport ou une publication, ",
+              "merci de le citer. Choisissez le style souhaité, puis copiez la citation."),
+            fluidRow(
+              column(5,
+                radioButtons("citeStyle", tagList(icon("list"), " Style de citation"),
+                  choiceNames = list(
+                    "Texte (auteur-date)", "BibTeX (LaTeX)", "RIS (EndNote, Zotero, Mendeley)",
+                    "APA (7e édition)", "Vancouver", "Markdown"),
+                  choiceValues = list("text", "bibtex", "ris", "apa", "vancouver", "markdown"),
+                  selected = "text")),
+              column(7,
+                div(style = "background:#f7f9fb;border:1px solid #d9e2ec;border-radius:8px;padding:14px;",
+                  tags$strong(icon("file-lines"), " Citation"),
+                  tags$pre(id = "citeText", style = "white-space:pre-wrap;word-break:break-word;margin-top:8px;background:#fff;border:1px solid #e1e8ed;border-radius:6px;padding:10px;font-size:12.5px;max-height:320px;overflow:auto;",
+                           verbatimTextOutput("citeOutput", placeholder = TRUE)),
+                  actionButton("citeCopy", tagList(icon("copy"), " Copier dans le presse-papiers"),
+                               class = "btn-success", style = "margin-top:8px;"),
+                  downloadButton("citeDownload", " Télécharger", class = "btn-info", style = "margin-top:8px;"))
+              )
+            ),
+            hr(),
+            p(style = "font-size:12px;color:#7f8c8d;",
+              icon("info-circle"),
+              HTML(" Dans R, vous pouvez aussi exécuter <code>citation(\"HStat\")</code> pour obtenir la citation officielle du package."))
+          )
+        )
       )
-      
+
     )
   )
 )

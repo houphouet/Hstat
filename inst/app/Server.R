@@ -7904,4 +7904,27 @@ server <- function(input, output, session) {
 
   # ---- Seuils d'efficacite (module Shiny) ----
   mod_threshold_server("threshold", values)
+
+  # ---- Citer HStat ----
+  cite_text <- reactive({
+    hstat_citation(input$citeStyle %||% "text")
+  })
+  output$citeOutput <- renderText({ cite_text() })
+
+  observeEvent(input$citeCopy, {
+    txt <- cite_text()
+    # Copie via l'API navigateur (repli execCommand pour les contextes non securises)
+    session$sendCustomMessage("hstat_copy_clip", list(text = txt))
+    showNotification(tagList(icon("check"), " Citation copiée dans le presse-papiers."),
+                     type = "message", duration = 3)
+  })
+
+  output$citeDownload <- downloadHandler(
+    filename = function() {
+      ext <- switch(input$citeStyle %||% "text",
+                    bibtex = "bib", ris = "ris", markdown = "md", "txt")
+      paste0("citation_HStat.", ext)
+    },
+    content = function(file) writeLines(cite_text(), file, useBytes = TRUE)
+  )
 }

@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.2.0
+Version: 0.2.4
 Authors@R: person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
                    role = c("aut", "cre"),
                    comment = c(ORCID = "0000-0002-8238-1091"))
@@ -9,6 +9,8 @@ Description: HStat is an interactive Shiny web application that provides
     a complete data analysis pipeline, from data import to advanced
     multivariate analyses, without writing a single line of code.
 License: GPL-3
+URL: https://github.com/houphouet/hstat
+BugReports: https://github.com/houphouet/hstat/issues
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.1
@@ -31,6 +33,7 @@ Imports:
     dplyr,
     DT,
     duckdb,
+    emmeans,
     EMT,
     epitools,
     factoextra,
@@ -52,6 +55,7 @@ Imports:
     lme4,
     lmerTest,
     lmtest,
+    magrittr,
     MASS,
     mice,
     missForest,
@@ -96,8 +100,8 @@ Imports:
     treemapify,
     vegan,
     VIM,
-    writexl
+    writexl,
+    zip
 Suggests:
-    testthat (>= 3.0.0),
-    magrittr
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
