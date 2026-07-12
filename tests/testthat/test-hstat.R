@@ -23,17 +23,31 @@ local({
   # Resolution robuste du chemin de Utils.R : que les tests soient lances depuis
   # la racine de l'application (sys.source("Utils.R")) ou depuis tests/
   # (testthat::test_dir, qui se place dans le dossier du fichier de test).
-  utils_path <- "Utils.R"
-  if (!file.exists(utils_path)) utils_path <- file.path("..", "Utils.R")
-  if (!file.exists(utils_path)) {
-    cand <- normalizePath(file.path(dirname(getwd()), "Utils.R"), mustWork = FALSE)
-    if (file.exists(cand)) utils_path <- cand
-  }
+  # Candidats couvrant toutes les facons de lancer les tests : depuis le
+  # dossier de l'app, depuis tests/, depuis testthat/ (test_dir), ou avec le
+  # package installe (R CMD check).
+  candidates <- c(
+    "Utils.R", file.path("..", "Utils.R"),
+    file.path("..", "..", "inst", "app", "Utils.R"),   # depuis tests/testthat/
+    file.path("..", "inst", "app", "Utils.R"),          # depuis tests/
+    file.path("inst", "app", "Utils.R"),                # depuis la racine du package
+    tryCatch(system.file("app", "Utils.R", package = "HStat"), error = function(e) "")
+  )
+  utils_path <- candidates[file.exists(candidates)][1]
+  if (is.na(utils_path))
+    stop("Impossible de localiser Utils.R depuis ", getwd())
   # Empeche install_and_load de bloquer si un package manque dans l'env de test
   e <- new.env()
   assign("install_and_load", function(...) invisible(NULL), envir = e)
   suppressWarnings(suppressMessages(
     sys.source(utils_path, envir = e, keep.source = FALSE)))
+  # Les fonctions de calcul qualitatives (hstat_q_*) vivent dans
+  # mod_qualitative.R, au meme endroit que Utils.R : le charger aussi, sinon
+  # tous les tests qualitatifs echouent avec "could not find function".
+  qual_path <- file.path(dirname(utils_path), "mod_qualitative.R")
+  if (file.exists(qual_path))
+    suppressWarnings(suppressMessages(
+      sys.source(qual_path, envir = e, keep.source = FALSE)))
   # Exporter TOUTES les fonctions (y compris cachees, ex. .hstat_sql_stat_exprs)
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
