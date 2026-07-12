@@ -1,10 +1,10 @@
-# HStat : Shiny Statistical Analysis Application
+# HStat — Shiny Statistical Analysis Application
 
 [![R-CMD-check](https://github.com/houphouet/Hstat/actions/workflows/R.yml/badge.svg)](https://github.com/houphouet/Hstat/actions/workflows/R.yml)
 
 HStat is an interactive web application built with R Shiny that enables a
-complete data analysis pipeline, from data import to advanced multivariate
-analyses without writing a single line of code.
+complete data analysis pipeline — from data import to advanced multivariate
+analyses — without writing a single line of code.
 
 ---
 
@@ -51,6 +51,7 @@ installed automatically if needed on first run.
 │       ├── UX.R
 │       ├── Utils.R
 │       ├── mod_clean.R
+│       ├── mod_crosstab.R
 │       ├── mod_descriptive.R
 │       ├── mod_design.R
 │       ├── mod_explore.R
@@ -109,6 +110,8 @@ This project is licensed under the GPL-3.0 License.
 
 **Houphouet KOUADIO**
 ORCID: [0000-0002-8238-1091](https://orcid.org/0000-0002-8238-1091)
+
+Development started on **17 September 2025** (développement débuté le 17 septembre 2025).
 
 ---
 
