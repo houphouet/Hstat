@@ -51,7 +51,6 @@ installed automatically if needed on first run.
 │       ├── UX.R
 │       ├── Utils.R
 │       ├── mod_clean.R
-│       ├── mod_crosstab.R
 │       ├── mod_descriptive.R
 │       ├── mod_design.R
 │       ├── mod_explore.R
