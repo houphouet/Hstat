@@ -90,7 +90,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.2.4},
+  note   = {Version 0.3.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
