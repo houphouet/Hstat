@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.5.0
+Version: 0.5.1
 Authors@R: person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
                    role = c("aut", "cre"),
                    comment = c(ORCID = "0000-0002-8238-1091"))
@@ -33,6 +33,8 @@ Imports:
     DescTools,
     digest,
     dplyr,
+    dlm,
+    dlnm,
     DT,
     duckdb,
     e1071,
@@ -79,6 +81,7 @@ Imports:
     plotrix,
     poLCA,
     pROC,
+    prophet,
     PMCMRplus,
     psych,
     purrr,
@@ -107,6 +110,7 @@ Imports:
     stringr,
     svglite,
     tibble,
+    torch,
     tidyr,
     treemapify,
     vegan,
@@ -115,7 +119,5 @@ Imports:
     writexl,
     zip
 Suggests:
-    prophet,
-    testthat (>= 3.0.0),
-    torch
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3

@@ -63,7 +63,7 @@ Environment variables (all optional):
 
 ---
 
-## Predictive modelling (v0.5.0)
+## Predictive modelling (v0.5.x)
 
 Three dedicated modules cover forecasting and prediction end to end. Every
 model reports interpreted metrics, customizable plots, an automatic
@@ -74,7 +74,13 @@ cap for raster formats).
 
 **Time series** — naïve & seasonal naïve, historical mean, drift, SES, Holt,
 damped Holt, Holt-Winters (additive/multiplicative), ETS, auto-ARIMA, manual
-SARIMA, TBATS, Theta, STL+ETS, NNAR, and Prophet (optional). Models are
+SARIMA, TBATS, Theta, STL+ETS, NNAR, Prophet, DLM (dynamic linear model:
+local level + trend + seasonality estimated by MLE and filtered by Kalman,
+`dlm` package) and DLNM (distributed lag non-linear model, `dlnm` package:
+delayed non-linear effect of an exposure variable — e.g. temperature or
+pollution — on the outcome, the classic environmental-epidemiology design;
+quasi-Poisson family is selected automatically for count outcomes, and the
+simulator accepts a file of future exposure values). Models are
 compared on a held-out test window (RMSE/MAE/MAPE/MASE/AIC), residuals are
 diagnosed (Ljung-Box, ACF), the series is decomposed (STL), and the simulator
 forecasts any horizon — optionally after appending newly imported
@@ -95,8 +101,12 @@ learning curves), and an LSTM sequence forecaster (torch). Predictors are
 standardized automatically; the architecture and trained parameter count are
 reported.
 
-Optional packages: `prophet` and `torch` are suggested, not required — the
-corresponding models simply explain how to install them when missing.
+All modelling packages — including `prophet`, `torch`, `dlm` and `dlnm` —
+are installed automatically at first launch. They are loaded via their
+namespaces only (never attached), so none of their exports can mask core
+functions of the app (e.g. `mclust::em` vs `shiny::em`). torch additionally
+downloads its native libraries once (`torch::install_torch()` is run
+automatically; if it fails, the neuralnet engine remains fully available).
 
 ---
 
@@ -145,7 +155,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.1. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -153,7 +163,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.5.0},
+  note   = {Version 0.5.1},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

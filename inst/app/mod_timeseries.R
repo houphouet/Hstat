@@ -23,7 +23,9 @@
   "Méthode Thêta"                             = "theta",
   "STL + ETS (décomposition)"                 = "stlf",
   "NNAR (réseau de neurones AR)"              = "nnetar",
-  "Prophet (si installé, nécessite des dates)" = "prophet")
+  "DLM — modèle linéaire dynamique (Kalman)"  = "dlmts",
+  "DLNM — retards distribués non linéaires"   = "dlnm",
+  "Prophet (nécessite des dates)"             = "prophet")
 
 mod_timeseries_ui <- function(id) {
   ns <- NS(id)
@@ -52,6 +54,17 @@ mod_timeseries_ui <- function(id) {
           checkboxGroupInput(ns("tsModels"), "Modèles à comparer",
             choices = .ts_catalog(),
             selected = c("naive", "ses", "ets", "arima", "theta")),
+          conditionalPanel(
+            condition = sprintf("input['%s'] && input['%s'].indexOf('dlnm') > -1",
+                                ns("tsModels"), ns("tsModels")),
+            selectInput(ns("dlnmExpo"),
+                        "DLNM : variable d'exposition (ex. température, pollution)",
+                        choices = NULL),
+            numericInput(ns("dlnmLag"), "DLNM : décalage maximal (lags)",
+                         value = 14, min = 1, max = 60, step = 1),
+            tags$small(style = "color:#6b7280;",
+              "Le DLNM modélise l'effet retardé et non linéaire de l'exposition ",
+              "sur la série (usage classique en épidémiologie environnementale).")),
           conditionalPanel(
             condition = sprintf("input['%s'] && input['%s'].indexOf('sarima') > -1",
                                 ns("tsModels"), ns("tsModels")),
@@ -140,6 +153,8 @@ mod_timeseries_server <- function(id, values) {
         logical(1))]
       updateSelectInput(session, "tsDate",
         choices = c("— Aucune (ordre des lignes) —" = "", dt_like))
+      updateSelectInput(session, "dlnmExpo", choices = num,
+                        selected = if (length(num) > 1) num[2] else NULL)
     })
 
     # ---- Construction de la série ts ----------------------------------------
@@ -151,29 +166,47 @@ mod_timeseries_server <- function(id, values) {
 
     build_series <- function(df) {
       y <- suppressWarnings(as.numeric(df[[input$tsVar]]))
+      row_idx <- seq_along(y)
       dts <- NULL
       if (nzchar(input$tsDate %||% "")) {
         raw <- df[[input$tsDate]]
         dts <- if (inherits(raw, c("Date", "POSIXct"))) as.Date(raw)
                else suppressWarnings(as.Date(as.character(raw)))
         if (all(is.na(dts))) dts <- NULL
-        if (!is.null(dts)) { o <- order(dts); y <- y[o]; dts <- dts[o] }
+        if (!is.null(dts)) { o <- order(dts); y <- y[o]; dts <- dts[o]
+                             row_idx <- row_idx[o] }
       }
       keep <- which(is.finite(y))
       if (length(keep) < 8) stop("Au moins 8 observations valides sont requises.")
-      y <- y[seq(min(keep), max(keep))]
-      if (!is.null(dts)) dts <- dts[seq(min(keep), max(keep))]
+      rng <- seq(min(keep), max(keep))
+      y <- y[rng]; row_idx <- row_idx[rng]
+      if (!is.null(dts)) dts <- dts[rng]
       # Interpolation des trous internes (forecast::na.interp si dispo)
       if (anyNA(y)) {
         y <- if (requireNamespace("forecast", quietly = TRUE))
                as.numeric(forecast::na.interp(stats::ts(y, frequency = max(1, ts_freq()))))
              else stats::approx(seq_along(y), y, xout = seq_along(y), rule = 2)$y
       }
-      list(y = stats::ts(y, frequency = max(1, ts_freq())), dates = dts)
+      list(y = stats::ts(y, frequency = max(1, ts_freq())), dates = dts,
+           row_idx = row_idx)
+    }
+
+    # Objet 'forecast' minimal a partir d'une moyenne et d'un ecart-type ------
+    .ts_fc_obj <- function(mu, se, train, method) {
+      fq <- stats::frequency(train); tsp <- stats::tsp(train)
+      z80 <- stats::qnorm(0.90); z95 <- stats::qnorm(0.975)
+      fc <- list(mean  = stats::ts(mu, start = tsp[2] + 1 / fq, frequency = fq),
+                 lower = cbind(`80%` = mu - z80 * se, `95%` = mu - z95 * se),
+                 upper = cbind(`80%` = mu + z80 * se, `95%` = mu + z95 * se),
+                 x = train, fitted = rep(NA_real_, length(train)),
+                 residuals = rep(NA_real_, length(train)), method = method)
+      class(fc) <- "forecast"
+      fc
     }
 
     # ---- Ajustement d'un modèle du catalogue --------------------------------
-    fit_one <- function(idm, train, h, dates_train = NULL) {
+    fit_one <- function(idm, train, h, dates_train = NULL,
+                        expo = NULL, expo_future = NULL) {
       if (!requireNamespace("forecast", quietly = TRUE) && idm != "prophet")
         stop("Le package 'forecast' est requis (install.packages(\"forecast\")).")
       f <- stats::frequency(train)
@@ -212,6 +245,57 @@ mod_timeseries_server <- function(id, values) {
                    as_fc(forecast::stlf(train, h = h)) },
         nnetar = { m <- forecast::nnetar(train)
                    as_fc(forecast::forecast(m, h = h, PI = FALSE)) },
+        dlmts  = {
+          if (!requireNamespace("dlm", quietly = TRUE))
+            stop("Le package 'dlm' est requis (install.packages(\"dlm\")).")
+          seas <- season_ok
+          build <- function(par) {
+            m <- dlm::dlmModPoly(order = 2, dV = exp(par[1]), dW = exp(par[2:3]))
+            if (seas) m <- m + dlm::dlmModSeas(f, dV = 0,
+                                               dW = c(exp(par[4]), rep(0, f - 2)))
+            m
+          }
+          npar <- if (seas) 4L else 3L
+          est <- dlm::dlmMLE(as.numeric(train), parm = rep(-2, npar), build = build)
+          if (!est$convergence %in% c(0L, 1L))
+            stop("DLM : l'estimation du maximum de vraisemblance n'a pas converge.")
+          filt <- dlm::dlmFilter(as.numeric(train), build(est$par))
+          fc0 <- dlm::dlmForecast(filt, nAhead = h)
+          mu <- as.numeric(fc0$f)
+          se <- sqrt(vapply(fc0$Q, function(q) q[1, 1], numeric(1)))
+          as_fc(.ts_fc_obj(mu, se, train, "DLM"), 2 * npar + 2 * est$value)
+        },
+        dlnm   = {
+          if (!requireNamespace("dlnm", quietly = TRUE))
+            stop("Le package 'dlnm' est requis (install.packages(\"dlnm\")).")
+          if (is.null(expo) || is.null(expo_future))
+            stop("DLNM : choisissez une variable d'exposition dans la configuration.")
+          L <- as.integer(max(1, min(60, hstat_finite(input$dlnmLag, 14))))
+          x_all <- c(expo, expo_future)
+          if (length(train) <= L + 10)
+            stop("DLNM : serie trop courte pour ce decalage maximal (reduire les lags).")
+          cb <- dlnm::crossbasis(x_all, lag = L,
+                                 argvar = list(fun = "ns", df = 3),
+                                 arglag = list(fun = "ns", df = 3))
+          n_tr <- length(train)
+          X <- cbind(1, unclass(cb), seq_along(x_all))
+          y_tr <- as.numeric(train)
+          is_count <- all(y_tr >= 0) && all(abs(y_tr - round(y_tr)) < 1e-8)
+          fam <- if (is_count) stats::quasipoisson() else stats::gaussian()
+          rows <- which(seq_along(x_all) <= n_tr & stats::complete.cases(X))
+          fit <- suppressWarnings(stats::glm.fit(X[rows, , drop = FALSE],
+                                                 y_tr[rows], family = fam))
+          beta <- fit$coefficients
+          beta[!is.finite(beta)] <- 0
+          mu_all <- fam$linkinv(as.numeric(X %*% beta))
+          res_tr <- rep(NA_real_, n_tr)
+          res_tr[rows] <- y_tr[rows] - mu_all[rows]
+          fc <- .ts_fc_obj(mu_all[(n_tr + 1):(n_tr + h)],
+                           rep(stats::sd(res_tr, na.rm = TRUE), h), train,
+                           if (is_count) "DLNM (quasi-Poisson)" else "DLNM (gaussien)")
+          fc$residuals <- res_tr
+          as_fc(fc)
+        },
         prophet = {
           if (!requireNamespace("prophet", quietly = TRUE))
             stop("Prophet n'est pas installé (install.packages(\"prophet\")).")
@@ -252,13 +336,30 @@ mod_timeseries_server <- function(id, values) {
       cat_all <- .ts_catalog()
       ids <- input$tsModels %||% character(0)
       validate(need(length(ids) > 0, "Sélectionnez au moins un modèle."))
+      expo_ser <- NULL
+      if ("dlnm" %in% ids) {
+        validate(need(nzchar(input$dlnmExpo %||% ""),
+                      "DLNM : choisissez la variable d'exposition."),
+                 need(!identical(input$dlnmExpo, input$tsVar),
+                      "DLNM : l'exposition doit différer de la variable prévue."))
+        ex <- suppressWarnings(as.numeric(df[[input$dlnmExpo]]))[ser$row_idx]
+        if (anyNA(ex))
+          ex <- stats::approx(seq_along(ex), ex, xout = seq_along(ex), rule = 2)$y
+        validate(need(all(is.finite(ex)),
+                      "DLNM : exposition invalide sur la plage de la série."))
+        expo_ser <- ex
+      }
       res <- list()
       withProgress(message = "Entraînement des modèles", value = 0, {
         for (i in seq_along(ids)) {
           idm <- ids[i]
           incProgress(1 / length(ids), detail = names(cat_all)[match(idm, cat_all)])
           res[[idm]] <- tryCatch({
-            r <- fit_one(idm, train, h = n_test, dates_train = dtr)
+            r <- fit_one(idm, train, h = n_test, dates_train = dtr,
+                         expo = if (is.null(expo_ser)) NULL
+                                else utils::head(expo_ser, n - n_test),
+                         expo_future = if (is.null(expo_ser)) NULL
+                                       else utils::tail(expo_ser, n_test))
             pred <- as.numeric(r$fc$mean)
             mets <- hstat_metrics_reg(test, pred)
             # MASE : MAE / MAE du naïf (saisonnier si possible) sur le train
@@ -273,7 +374,7 @@ mod_timeseries_server <- function(id, values) {
         }
       })
       list(res = res, y = y, train = train, test = test, n_test = n_test,
-           dates = ser$dates, labels = cat_all)
+           dates = ser$dates, labels = cat_all, expo = expo_ser)
     })
 
     # Table comparative -------------------------------------------------------
@@ -467,7 +568,42 @@ mod_timeseries_server <- function(id, values) {
     sim <- eventReactive(input$simRun, {
       c0 <- cur()
       y <- c0$f$y
-      # Nouvelles observations importées : ajoutées à la fin de la série
+      h <- max(1, hstat_finite(input$simH, 12))
+      # --- Cas DLNM : le fichier importé fournit les EXPOSITIONS futures -----
+      if (identical(input$tsShow, "dlnm")) {
+        expo_full <- c0$f$expo
+        validate(need(!is.null(expo_full),
+                      "DLNM : relancez l'entraînement avec une exposition."))
+        L <- as.integer(max(1, hstat_finite(input$dlnmLag, 14)))
+        note <- NULL
+        if (!is.null(input$simFile$datapath)) {
+          nd <- tryCatch({
+            if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
+              as.data.frame(readxl::read_excel(input$simFile$datapath))
+            else utils::read.csv(input$simFile$datapath, check.names = FALSE)
+          }, error = function(e) NULL)
+          validate(need(!is.null(nd), "Fichier importé illisible."),
+                   need(input$dlnmExpo %in% names(nd),
+                        sprintf("Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).",
+                                input$dlnmExpo)))
+          ef <- suppressWarnings(as.numeric(nd[[input$dlnmExpo]]))
+          ef <- ef[is.finite(ef)]
+          validate(need(length(ef) > 0, "Aucune exposition future valide dans le fichier."))
+          if (length(ef) < h) h <- length(ef)
+          ef <- ef[seq_len(h)]
+        } else {
+          ef <- rep(mean(utils::tail(expo_full, L)), h)
+          note <- "Aucune exposition future fournie : l'exposition a été maintenue à sa moyenne récente (importez un fichier avec la colonne d'exposition pour un scénario réel)."
+        }
+        r <- tryCatch(fit_one("dlnm", y, h = h, expo = expo_full,
+                              expo_future = ef),
+                      error = function(e) e)
+        validate(need(!inherits(r, "error"),
+                      if (inherits(r, "error")) conditionMessage(r) else ""))
+        return(list(fc = r$fc, y = y, h = h, appended = 0L,
+                    label = c0$label, note = note))
+      }
+      # --- Cas général : le fichier importé AJOUTE des observations ----------
       appended <- 0L
       if (!is.null(input$simFile$datapath)) {
         nd <- tryCatch({
@@ -484,13 +620,13 @@ mod_timeseries_server <- function(id, values) {
         y <- stats::ts(c(as.numeric(y), add), frequency = stats::frequency(y))
         appended <- length(add)
       }
-      h <- max(1, hstat_finite(input$simH, 12))
       r <- tryCatch(fit_one(input$tsShow, y, h = h,
                             dates_train = c0$f$dates),
                     error = function(e) e)
       validate(need(!inherits(r, "error"),
                     if (inherits(r, "error")) conditionMessage(r) else ""))
-      list(fc = r$fc, y = y, h = h, appended = appended, label = c0$label)
+      list(fc = r$fc, y = y, h = h, appended = appended, label = c0$label,
+           note = NULL)
     })
 
     sim_table <- reactive({
@@ -541,7 +677,8 @@ mod_timeseries_server <- function(id, values) {
                   format(first, big.mark = " "), format(last, big.mark = " ")),
           if (!is.null(d$`Borne haute 95%`))
             "Les bornes à 95 % encadrent la valeur future avec 95 % de confiance : plus elles s'écartent, plus l'incertitude croît avec l'horizon — les premières périodes sont toujours les plus fiables."
-          else "Ce modèle ne fournit pas d'intervalles de prévision (point uniquement).")
+          else "Ce modèle ne fournit pas d'intervalles de prévision (point uniquement).",
+          if (!is.null(s$note)) tags$p(tags$em(s$note)))
     })
   })
 }

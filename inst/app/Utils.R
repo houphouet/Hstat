@@ -103,14 +103,67 @@ required_packages <- c(
   "bestNormalize","lme4", "lmerTest", "afex", "ARTool", "glmmTMB", "vegan", "heplots", "data.table",
   "patchwork", "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb",
   "DescTools", "epitools", "htmltools", "magrittr", "readxl", "rlang", "svglite", "writexl",
-  "mice", "missForest", "VIM",
-  # Modelisation predictive (series temporelles / ML / DL)
-  "forecast", "glmnet", "rpart", "randomForest", "xgboost", "e1071",
-  "kknn", "pROC", "dbscan", "mclust", "neuralnet"
+  "mice", "missForest", "VIM"
 )
 
 
 install_and_load(required_packages)
+
+# -- Packages de modelisation predictive (series temporelles / ML / DL) -------
+# CES PACKAGES NE DOIVENT JAMAIS ETRE ATTACHES PAR library() : plusieurs
+# d'entre eux masquent des fonctions vitales de l'application une fois sur le
+# chemin de recherche (mclust::em masque shiny::em et casse toute l'interface
+# avec "l'argument modelName est manquant" ; xgboost::slice masque
+# dplyr::slice ; randomForest::margin masque ggplot2::margin ; pROC::var/cov
+# masquent stats::var/cov...). Tous les appels du code HStat sont prefixe s
+# par :: ; il suffit donc d'installer puis de charger leur espace de noms
+# (loadNamespace), ce qui enregistre aussi leurs methodes S3 (predict, etc.)
+# sans rien masquer.
+hstat_model_packages <- c(
+  "forecast", "glmnet", "rpart", "randomForest", "xgboost", "e1071",
+  "kknn", "pROC", "dbscan", "mclust", "neuralnet",
+  "dlm", "dlnm",          # modeles lineaires dynamiques & retards distribues
+  "prophet", "torch"      # inclus (installes automatiquement)
+)
+
+hstat_load_model_packages <- function(packages = hstat_model_packages) {
+  installed <- rownames(utils::installed.packages())
+  to_install <- packages[!packages %in% installed]
+  if (length(to_install) > 0) {
+    repos <- getOption("repos")
+    if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@") ||
+        is.na(repos["CRAN"]))
+      repos <- c(CRAN = "https://cloud.r-project.org")
+    tryCatch(utils::install.packages(to_install, repos = repos),
+             error = function(e) NULL, warning = function(w) NULL)
+  }
+  missing_after <- character(0)
+  for (pkg in packages) {
+    ok <- suppressWarnings(suppressMessages(suppressPackageStartupMessages(
+      requireNamespace(pkg, quietly = TRUE))))
+    if (!ok) missing_after <- c(missing_after, pkg)
+  }
+  # torch : le package R installe ensuite ses bibliotheques natives (libtorch)
+  # au premier usage ; on le fait ici, une seule fois, sans bloquer l'app.
+  if (!"torch" %in% missing_after) {
+    tryCatch({
+      if (!torch::torch_is_installed()) {
+        message("HStat : installation des bibliotheques natives de torch ",
+                "(telechargement unique, quelques minutes)...")
+        torch::install_torch()
+      }
+    }, error = function(e)
+      message("HStat : bibliotheques torch non installees (", conditionMessage(e),
+              ") -- executer torch::install_torch() manuellement. ",
+              "Les modeles neuralnet restent disponibles."))
+  }
+  if (length(missing_after) > 0)
+    message("HStat : packages de modelisation indisponibles ",
+            "(les modeles correspondants seront limites) : ",
+            paste(missing_after, collapse = ", "))
+  invisible(missing_after)
+}
+hstat_load_model_packages()
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
 
