@@ -59,6 +59,44 @@ Environment variables (all optional):
 | `HSTAT_DIST_MAX_N` | `5000` | Cap for O(n²) distance-matrix analyses |
 | `HSTAT_KENDALL_MAX_N` | `20000` | Cap for Kendall correlation |
 | `HSTAT_IMPUTE_MAX_N` | `100000` | Cap for kNN/missForest imputation |
+| `HSTAT_ML_MAX_N` | `200000` | Training-set cap for ML/DL models |
+
+---
+
+## Predictive modelling (v0.5.0)
+
+Three dedicated modules cover forecasting and prediction end to end. Every
+model reports interpreted metrics, customizable plots, an automatic
+plain-language interpretation, a prediction simulator (manual input or batch
+import of new cases), and full export: tables as CSV/Excel, figures as
+PNG/JPG/TIFF/BMP/PDF/SVG at up to 20,000 DPI (with an automatic pixel safety
+cap for raster formats).
+
+**Time series** — naïve & seasonal naïve, historical mean, drift, SES, Holt,
+damped Holt, Holt-Winters (additive/multiplicative), ETS, auto-ARIMA, manual
+SARIMA, TBATS, Theta, STL+ETS, NNAR, and Prophet (optional). Models are
+compared on a held-out test window (RMSE/MAE/MAPE/MASE/AIC), residuals are
+diagnosed (Ljung-Box, ACF), the series is decomposed (STL), and the simulator
+forecasts any horizon — optionally after appending newly imported
+observations.
+
+**Machine learning** — task auto-detected (regression vs classification):
+linear/logistic model, Ridge/Lasso/Elastic-Net (glmnet), decision tree
+(rpart), random forest, gradient boosting (xgboost), SVM (e1071), k-nearest
+neighbours (kknn), Naïve Bayes, and a single-layer neural network (nnet),
+plus unsupervised clustering (k-means, hierarchical, PAM, DBSCAN, Gaussian
+mixtures) with silhouette and elbow diagnostics. Includes ROC curves,
+confusion matrices, variable importance, and model comparison on a held-out
+test set.
+
+**Deep learning** — 100 % R, no Python required: multi-layer perceptron via
+`neuralnet` (always available) or via `torch` (optional, with per-epoch
+learning curves), and an LSTM sequence forecaster (torch). Predictors are
+standardized automatically; the architecture and trained parameter count are
+reported.
+
+Optional packages: `prophet` and `torch` are suggested, not required — the
+corresponding models simply explain how to install them when missing.
 
 ---
 
@@ -107,7 +145,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.4.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -115,7 +153,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.4.0},
+  note   = {Version 0.5.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -451,6 +451,9 @@ server <- function(input, output, session) {
   mod_correlation_server("corrélation", values)
   mod_design_server("design", values)
   mod_qualitative_server("qualitative", values)
+  mod_timeseries_server("timeseries", values)
+  mod_ml_server("ml", values)
+  mod_dl_server("dl", values)
 
   # ---- Analyses multivariees ----
   

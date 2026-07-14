@@ -1009,3 +1009,73 @@ test_that("le test d'adéquation stratifié teste Y dans chaque groupe de X", {
   expect_equal(nrow(r$tables[["Synthèse par groupe (X)"]]), 2)
   expect_true("Table croisée X x Y" %in% names(r$tables))
 })
+
+
+# =============================================================================
+#  v0.5.0 -- Modelisation predictive : helpers de metriques, alignement,
+#  simulation et garde-fou d'export haute resolution
+# =============================================================================
+
+test_that("hstat_metrics_reg calcule et interprete les 4 metriques", {
+  set.seed(1)
+  obs <- rnorm(200, 50, 10); pred <- obs + rnorm(200, 0, 3)
+  m <- hstat_metrics_reg(obs, pred)
+  expect_setequal(m$Metrique, c("RMSE", "MAE", "MAPE (%)", "R2"))
+  expect_gt(m$Valeur[m$Metrique == "R2"], 0.85)
+  expect_true(all(nzchar(m$Interpretation)))
+  # Robustesse : NA et effectif minimal
+  expect_s3_class(hstat_metrics_reg(c(1, NA, 3), c(1, 2, 3)), "data.frame")
+})
+
+test_that("hstat_metrics_cls gere binaire, multiclasse et matrice de confusion", {
+  set.seed(2)
+  y  <- factor(sample(c("A", "B"), 300, TRUE))
+  py <- y; flip <- sample(300, 45)
+  py[flip] <- factor(ifelse(y[flip] == "A", "B", "A"), levels = levels(y))
+  mc <- hstat_metrics_cls(y, py)
+  expect_equal(mc$Valeur[mc$Metrique == "Exactitude (accuracy)"], 0.85,
+               tolerance = 1e-6)
+  expect_true(all(nzchar(mc$Interpretation)))
+  y3 <- factor(sample(c("X", "Y", "Z"), 300, TRUE))
+  mc3 <- hstat_metrics_cls(y3, y3)
+  expect_equal(mc3$Valeur[mc3$Metrique == "Exactitude (accuracy)"], 1)
+  cm <- hstat_confusion_df(y, py)
+  expect_equal(sum(as.matrix(cm)), 300)
+})
+
+test_that("hstat_model_interpretation produit un texte substantiel", {
+  m <- hstat_metrics_reg(1:50, (1:50) + rnorm(50, 0, 2))
+  txt <- hstat_model_interpretation("regression", m, "test", 100, 50)
+  expect_true(is.character(txt) && nchar(txt) > 80)
+  expect_match(txt, "generalisation")
+})
+
+test_that("hstat_align_newdata convertit types, niveaux et colonnes manquantes", {
+  ref <- data.frame(a = rnorm(10),
+                    b = factor(rep(c("u", "v"), 5)))
+  nd  <- data.frame(a = c("1.5", "2.5"), b = c("u", "w"))
+  al  <- hstat_align_newdata(nd, ref, c("a", "b"))
+  expect_true(is.numeric(al$data$a))
+  expect_true(is.factor(al$data$b))
+  expect_true(is.na(al$data$b[2]))        # modalite inconnue -> NA
+  expect_false(is.null(al$warn))
+  bad <- hstat_align_newdata(data.frame(a = 1), ref, c("a", "b"))
+  expect_null(bad$data)
+  expect_match(bad$warn, "manquantes")
+})
+
+test_that("le garde-fou d'export plafonne les pixels sans toucher au DPI", {
+  max_px <- 16000
+  for (dpi in c(300, 5000, 20000)) {
+    w <- 10; h <- 6
+    scale <- min(1, max_px / (w * dpi), max_px / (h * dpi))
+    expect_lte(w * scale * dpi, max_px + 1e-6)
+    expect_lte(h * scale * dpi, max_px + 1e-6)
+    expect_gt(scale, 0)
+  }
+})
+
+test_that("HSTAT_ML_MAX_N est defini et raisonnable", {
+  expect_true(is.integer(HSTAT_ML_MAX_N) || is.numeric(HSTAT_ML_MAX_N))
+  expect_gte(HSTAT_ML_MAX_N, 1000)
+})

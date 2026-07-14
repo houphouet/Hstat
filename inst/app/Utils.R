@@ -103,7 +103,10 @@ required_packages <- c(
   "bestNormalize","lme4", "lmerTest", "afex", "ARTool", "glmmTMB", "vegan", "heplots", "data.table",
   "patchwork", "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb",
   "DescTools", "epitools", "htmltools", "magrittr", "readxl", "rlang", "svglite", "writexl",
-  "mice", "missForest", "VIM"
+  "mice", "missForest", "VIM",
+  # Modelisation predictive (series temporelles / ML / DL)
+  "forecast", "glmnet", "rpart", "randomForest", "xgboost", "e1071",
+  "kknn", "pROC", "dbscan", "mclust", "neuralnet"
 )
 
 
@@ -3279,4 +3282,362 @@ hstat_safe_eval <- function(formula_str, data) {
   funs <- Filter(Negate(is.null), funs)
   enclos <- list2env(funs, parent = emptyenv())
   eval(expr, envir = as.list(data), enclos = enclos)
+}
+
+
+# ==============================================================================
+#  Modelisation predictive (series temporelles / ML / DL) : infrastructure
+# ==============================================================================
+
+# Plafond de lignes pour l'entrainement des modeles ML/DL (certains algorithmes
+# comme SVM ou randomForest deviennent impraticables au-dela). Configurable via
+# HSTAT_ML_MAX_N. Les predictions, elles, ne sont jamais plafonnees.
+HSTAT_ML_MAX_N <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_ML_MAX_N", "200000")))
+  if (!is.finite(v) || v < 1000) 200000L else v
+}
+
+# -- Interpretation automatique d'une valeur de R2 ----------------------------
+.hstat_interp_r2 <- function(r2) {
+  if (!is.finite(r2)) return("Non calculable sur ces donnees.")
+  if (r2 >= 0.9) "Excellent : le modele explique la quasi-totalite de la variance."
+  else if (r2 >= 0.7) "Bon : le modele capture l'essentiel de la structure des donnees."
+  else if (r2 >= 0.5) "Moyen : pouvoir explicatif reel mais une part importante reste inexpliquee."
+  else if (r2 >= 0.3) "Faible : le modele n'explique qu'une part limitee de la variance."
+  else "Tres faible : le modele explique peu ; revoir les variables ou le type de modele."
+}
+
+.hstat_interp_mape <- function(m) {
+  if (!is.finite(m)) return("MAPE non calculable (valeurs observees nulles).")
+  if (m < 10) "Excellente precision (erreur relative moyenne < 10 %)."
+  else if (m < 20) "Bonne precision (erreur relative moyenne < 20 %)."
+  else if (m < 50) "Precision moyenne : previsions indicatives."
+  else "Precision faible : previsions peu fiables en l'etat."
+}
+
+# -- Metriques de REGRESSION avec interpretation -------------------------------
+# Retourne un data.frame : Metrique, Valeur, Interpretation.
+hstat_metrics_reg <- function(obs, pred) {
+  obs <- as.numeric(obs); pred <- as.numeric(pred)
+  ok <- is.finite(obs) & is.finite(pred)
+  obs <- obs[ok]; pred <- pred[ok]
+  if (length(obs) < 2)
+    return(data.frame(Metrique = "Erreur", Valeur = NA_real_,
+                      Interpretation = "Pas assez d'observations valides.",
+                      stringsAsFactors = FALSE))
+  err  <- obs - pred
+  rmse <- sqrt(mean(err^2))
+  mae  <- mean(abs(err))
+  mape <- if (all(obs == 0)) NA_real_ else mean(abs(err[obs != 0] / obs[obs != 0])) * 100
+  ss_res <- sum(err^2); ss_tot <- sum((obs - mean(obs))^2)
+  r2   <- if (ss_tot > 0) 1 - ss_res / ss_tot else NA_real_
+  sc   <- stats::sd(obs)
+  data.frame(
+    Metrique = c("RMSE", "MAE", "MAPE (%)", "R2"),
+    Valeur   = round(c(rmse, mae, mape, r2), 4),
+    Interpretation = c(
+      sprintf("Erreur quadratique moyenne : %s unite(s) de la variable cible (ecart-type observe : %s). Penalise fortement les grosses erreurs.",
+              format(round(rmse, 3), big.mark = " "), format(round(sc, 3), big.mark = " ")),
+      sprintf("En moyenne, la prediction s'ecarte de %s unite(s) de la valeur reelle.",
+              format(round(mae, 3), big.mark = " ")),
+      .hstat_interp_mape(mape),
+      .hstat_interp_r2(r2)),
+    stringsAsFactors = FALSE)
+}
+
+# -- Matrice de confusion en data.frame ----------------------------------------
+hstat_confusion_df <- function(obs, pred) {
+  obs  <- factor(obs); pred <- factor(pred, levels = levels(obs))
+  as.data.frame.matrix(table(Observe = obs, Predit = pred))
+}
+
+# -- Metriques de CLASSIFICATION avec interpretation ----------------------------
+# prob : matrice/vecteur de probabilites (facultatif, pour l'AUC binaire).
+hstat_metrics_cls <- function(obs, pred, prob = NULL) {
+  obs  <- factor(obs); pred <- factor(pred, levels = levels(obs))
+  ok   <- !is.na(obs) & !is.na(pred)
+  obs  <- obs[ok]; pred <- pred[ok]
+  if (length(obs) < 2)
+    return(data.frame(Metrique = "Erreur", Valeur = NA_real_,
+                      Interpretation = "Pas assez d'observations valides.",
+                      stringsAsFactors = FALSE))
+  tab <- table(obs, pred)
+  acc <- sum(diag(tab)) / sum(tab)
+  # Kappa de Cohen
+  pe  <- sum(rowSums(tab) * colSums(tab)) / sum(tab)^2
+  kap <- if (pe < 1) (acc - pe) / (1 - pe) else NA_real_
+  # Precision / rappel / F1 par classe puis moyenne macro
+  prec <- diag(tab) / pmax(colSums(tab), 1)
+  rec  <- diag(tab) / pmax(rowSums(tab), 1)
+  f1   <- ifelse(prec + rec > 0, 2 * prec * rec / (prec + rec), 0)
+  # AUC pour le cas binaire si probabilites fournies
+  auc <- NA_real_
+  if (!is.null(prob) && nlevels(obs) == 2 &&
+      requireNamespace("pROC", quietly = TRUE)) {
+    p <- if (is.matrix(prob) || is.data.frame(prob)) as.numeric(prob[ok, ncol(prob)]) else as.numeric(prob)[ok]
+    auc <- tryCatch(as.numeric(pROC::auc(pROC::roc(obs, p, quiet = TRUE, levels = levels(obs), direction = "<"))),
+                    error = function(e) NA_real_)
+  }
+  maj <- max(prop.table(table(obs)))
+  vals <- c(acc, kap, mean(prec, na.rm = TRUE), mean(rec, na.rm = TRUE),
+            mean(f1, na.rm = TRUE), auc)
+  data.frame(
+    Metrique = c("Exactitude (accuracy)", "Kappa de Cohen", "Precision (macro)",
+                 "Rappel / sensibilite (macro)", "F1-score (macro)", "AUC (ROC)"),
+    Valeur   = round(vals, 4),
+    Interpretation = c(
+      sprintf("%.1f %% des observations sont bien classees (classe majoritaire seule : %.1f %% ; le modele %s).",
+              100 * acc, 100 * maj,
+              if (is.finite(acc) && acc > maj) "fait mieux que ce niveau de reference"
+              else "ne depasse pas ce niveau de reference"),
+      if (!is.finite(kap)) "Non calculable." else if (kap >= 0.8) "Accord quasi parfait au-dela du hasard."
+      else if (kap >= 0.6) "Accord substantiel au-dela du hasard."
+      else if (kap >= 0.4) "Accord modere au-dela du hasard."
+      else if (kap >= 0.2) "Accord faible : a peine mieux que le hasard."
+      else "Accord negligeable : equivalent au hasard.",
+      "Parmi les predictions d'une classe, part reellement correcte (moyenne des classes).",
+      "Parmi les cas reels d'une classe, part correctement retrouvee (moyenne des classes).",
+      "Compromis precision/rappel (1 = parfait). Robuste aux classes desequilibrees.",
+      if (!is.finite(auc)) "AUC calculee uniquement en classification binaire (avec probabilites)."
+      else if (auc >= 0.9) "Discrimination excellente entre les deux classes."
+      else if (auc >= 0.8) "Bonne discrimination."
+      else if (auc >= 0.7) "Discrimination acceptable."
+      else "Discrimination faible (0.5 = hasard)."),
+    stringsAsFactors = FALSE)
+}
+
+# -- Interpretation globale automatique d'un modele -----------------------------
+hstat_model_interpretation <- function(task, metrics_df, model_label,
+                                       n_train, n_test, notes = NULL) {
+  get_v <- function(m) {
+    i <- match(m, metrics_df$Metrique)
+    if (is.na(i)) NA_real_ else metrics_df$Valeur[i]
+  }
+  head_txt <- sprintf(
+    "Le modele %s a ete entraine sur %s observation(s) puis evalue sur %s observation(s) de test jamais vues pendant l'entrainement : les metriques ci-dessus refletent donc sa capacite de generalisation, pas sa memoire.",
+    model_label, format(n_train, big.mark = " "), format(n_test, big.mark = " "))
+  core <- if (identical(task, "regression")) {
+    r2 <- get_v("R2"); mape <- get_v("MAPE (%)")
+    paste0(.hstat_interp_r2(r2), " ", .hstat_interp_mape(mape))
+  } else {
+    acc <- get_v("Exactitude (accuracy)"); f1 <- get_v("F1-score (macro)")
+    sprintf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
+            100 * acc, f1,
+            if (is.finite(f1) && f1 >= 0.8) "le modele est operationnel pour la prediction."
+            else if (is.finite(f1) && f1 >= 0.6) "le modele est utilisable mais perfectible (plus de donnees, autres variables, reglages)."
+            else "le modele n'est pas encore fiable : enrichir les variables ou changer d'algorithme.")
+  }
+  paste(c(head_txt, core, notes), collapse = " ")
+}
+
+# ==============================================================================
+#  Export universel de graphiques : PNG/JPG/TIFF/BMP/PDF/SVG, DPI jusqu'a 20 000
+# ==============================================================================
+
+# Bloc UI reutilisable : format, dimensions, DPI (max 20 000) + bouton.
+hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
+  tagList(
+    fluidRow(
+      column(3, selectInput(ns(paste0(prefix, "Fmt")), "Format",
+               choices = c("PNG" = "png", "JPG" = "jpeg", "TIFF" = "tiff",
+                           "BMP" = "bmp", "PDF (vectoriel)" = "pdf",
+                           "SVG (vectoriel)" = "svg"), selected = "png")),
+      column(3, numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
+                             value = width, min = 3, max = 30, step = 0.5)),
+      column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
+                             value = height, min = 3, max = 30, step = 0.5)),
+      column(3, numericInput(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)",
+                             value = 300, min = 72, max = 20000, step = 50))),
+    tags$small(style = "color:#6b7280;",
+      "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
+      "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
+      "sont automatiquement reduites afin de garder une image ouvrable (plafond de securite en pixels)."),
+    div(style = "margin-top:8px;",
+        downloadButton(ns(paste0(prefix, "Dl")), "Télécharger le graphique",
+                       class = "btn-success"))
+  )
+}
+
+# Handler d'export associe. plot_fun() doit renvoyer un ggplot (ou NULL).
+# Garde-fou : plafonne chaque cote a 16 000 px (une image 16 000 x 16 000 en
+# RGBA occupe deja ~1 Go en memoire de trace) en reduisant la taille physique,
+# jamais le DPI demande (le fichier conserve la metadonnee DPI voulue).
+hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphique") {
+  downloadHandler(
+    filename = function() {
+      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
+      ext <- if (identical(fmt, "jpeg")) "jpg" else fmt
+      paste0(fname, "_", Sys.Date(), ".", ext)
+    },
+    content = function(file) {
+      g <- plot_fun()
+      if (is.null(g)) stop("Aucun graphique a exporter : lancez d'abord l'analyse.")
+      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
+      w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
+      h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
+      dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
+      dpi <- max(72, min(20000, dpi))
+      if (fmt %in% c("pdf", "svg")) {
+        dev <- if (identical(fmt, "pdf")) grDevices::cairo_pdf else "svg"
+        ggplot2::ggsave(file, g, width = w, height = h, device = dev, limitsize = FALSE)
+      } else {
+        max_px <- 16000
+        scale  <- min(1, max_px / (w * dpi), max_px / (h * dpi))
+        args <- list(filename = file, plot = g, width = w * scale,
+                     height = h * scale, dpi = dpi, device = fmt, limitsize = FALSE)
+        if (identical(fmt, "tiff")) args$compression <- "lzw"
+        if (identical(fmt, "jpeg")) args$quality <- 95
+        do.call(ggplot2::ggsave, args)
+      }
+    })
+}
+
+# NB : hstat_finite() est defini plus haut dans ce fichier.
+
+# ==============================================================================
+#  Personnalisation d'apparence reutilisable pour les graphiques de modelisation
+# ==============================================================================
+
+hstat_plot_opts_ui <- function(ns, prefix) {
+  tagList(
+    fluidRow(
+      column(6, textInput(ns(paste0(prefix, "Title")), "Titre", value = "")),
+      column(6, textInput(ns(paste0(prefix, "Sub")), "Sous-titre", value = ""))),
+    fluidRow(
+      column(6, textInput(ns(paste0(prefix, "Xlab")), "Titre de l'axe X", value = "")),
+      column(6, textInput(ns(paste0(prefix, "Ylab")), "Titre de l'axe Y", value = ""))),
+    fluidRow(
+      column(4, selectInput(ns(paste0(prefix, "Theme")), "Thème",
+               choices = c("Minimal" = "minimal", "Classique" = "classic",
+                           "Noir & blanc" = "bw", "Clair" = "light",
+                           "Sombre" = "dark"), selected = "minimal")),
+      column(4, numericInput(ns(paste0(prefix, "Base")), "Taille du texte",
+                             value = 13, min = 7, max = 30, step = 1)),
+      column(4, selectInput(ns(paste0(prefix, "Legend")), "Légende",
+               choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top",
+                           "Bas" = "bottom", "Masquée" = "none"),
+               selected = "right"))),
+    fluidRow(
+      column(4, if (requireNamespace("colourpicker", quietly = TRUE))
+                  colourpicker::colourInput(ns(paste0(prefix, "Col")),
+                    "Couleur principale", value = "#2c7fb8")
+                else textInput(ns(paste0(prefix, "Col")),
+                    "Couleur principale (hex)", value = "#2c7fb8")),
+      column(4, numericInput(ns(paste0(prefix, "Lwd")), "Épaisseur des lignes",
+                             value = 0.9, min = 0.2, max = 4, step = 0.1)),
+      column(4, numericInput(ns(paste0(prefix, "Rot")), "Rotation des labels X (°)",
+                             value = 0, min = 0, max = 90, step = 15)))
+  )
+}
+
+# Applique les options ci-dessus a un ggplot. La couleur/epaisseur sont lues par
+# les fonctions de trace via hstat_plot_opt(input, prefix, "Col"/"Lwd").
+hstat_apply_plot_opts <- function(g, input, prefix) {
+  if (is.null(g)) return(g)
+  th <- switch(input[[paste0(prefix, "Theme")]] %||% "minimal",
+               classic = ggplot2::theme_classic, bw = ggplot2::theme_bw,
+               light = ggplot2::theme_light, dark = ggplot2::theme_dark,
+               ggplot2::theme_minimal)
+  base <- hstat_finite(input[[paste0(prefix, "Base")]], 13)
+  g <- g + th(base_size = max(7, min(30, base)))
+  lab <- function(x) { x <- input[[paste0(prefix, x)]]; if (is.null(x) || !nzchar(x)) NULL else x }
+  if (!is.null(lab("Title"))) g <- g + ggplot2::labs(title = lab("Title"))
+  if (!is.null(lab("Sub")))   g <- g + ggplot2::labs(subtitle = lab("Sub"))
+  if (!is.null(lab("Xlab")))  g <- g + ggplot2::labs(x = lab("Xlab"))
+  if (!is.null(lab("Ylab")))  g <- g + ggplot2::labs(y = lab("Ylab"))
+  rot <- hstat_finite(input[[paste0(prefix, "Rot")]], 0)
+  g + ggplot2::theme(
+    legend.position = input[[paste0(prefix, "Legend")]] %||% "right",
+    axis.text.x = ggplot2::element_text(angle = rot,
+                                        hjust = if (rot > 0) 1 else 0.5))
+}
+
+hstat_plot_opt <- function(input, prefix, what, default) {
+  v <- input[[paste0(prefix, what)]]
+  if (is.null(v) || (is.character(v) && !nzchar(v))) default else v
+}
+
+# ==============================================================================
+#  Export de tableaux (CSV / Excel) et simulateur de predictions
+# ==============================================================================
+
+hstat_export_table_ui <- function(ns, prefix) {
+  div(style = "margin-top:6px;",
+      downloadButton(ns(paste0(prefix, "Csv")), "CSV", class = "btn-sm"),
+      downloadButton(ns(paste0(prefix, "Xlsx")), "Excel", class = "btn-sm"))
+}
+
+hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
+  output[[paste0(prefix, "Csv")]] <- downloadHandler(
+    filename = function() paste0(fname, "_", Sys.Date(), ".csv"),
+    content  = function(file) {
+      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
+      utils::write.csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
+    })
+  output[[paste0(prefix, "Xlsx")]] <- downloadHandler(
+    filename = function() paste0(fname, "_", Sys.Date(), ".xlsx"),
+    content  = function(file) {
+      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
+      writexl::write_xlsx(as.data.frame(d), file)
+    })
+}
+
+# Formulaire dynamique : un champ par predicteur (numerique -> valeur mediane,
+# facteur/caractere -> liste des modalites observees).
+hstat_sim_inputs_ui <- function(ns, df, vars, prefix) {
+  if (is.null(df) || length(vars) == 0) return(NULL)
+  ctrls <- lapply(vars, function(v) {
+    x <- df[[v]]
+    if (is.numeric(x)) {
+      md <- suppressWarnings(stats::median(x, na.rm = TRUE))
+      numericInput(ns(paste0(prefix, "_", v)), v,
+                   value = round(hstat_finite(md, 0), 4))
+    } else {
+      lv <- sort(unique(as.character(x[!is.na(x)])))
+      if (length(lv) == 0) lv <- ""
+      selectInput(ns(paste0(prefix, "_", v)), v, choices = lv)
+    }
+  })
+  do.call(tagList, lapply(seq_along(ctrls), function(i)
+    column(4, ctrls[[i]])))
+}
+
+# Recompose une ligne de donnees typee a partir du formulaire.
+hstat_sim_collect <- function(input, df, vars, prefix) {
+  vals <- lapply(vars, function(v) {
+    raw <- input[[paste0(prefix, "_", v)]]
+    x <- df[[v]]
+    if (is.numeric(x)) hstat_finite(raw, stats::median(x, na.rm = TRUE))
+    else {
+      lv <- levels(factor(x))
+      factor(as.character(raw %||% lv[1]), levels = lv)
+    }
+  })
+  names(vals) <- vars
+  as.data.frame(vals, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+# Aligne un nouveau jeu de donnees (simulation par import) sur les types et
+# niveaux de facteurs du jeu d'entrainement. Retourne list(data, warn).
+hstat_align_newdata <- function(newdf, ref, vars) {
+  miss <- setdiff(vars, names(newdf))
+  if (length(miss) > 0)
+    return(list(data = NULL,
+                warn = paste0("Colonnes manquantes dans le fichier importe : ",
+                              paste(miss, collapse = ", "))))
+  out <- newdf[, vars, drop = FALSE]
+  warns <- character(0)
+  for (v in vars) {
+    if (is.numeric(ref[[v]])) {
+      out[[v]] <- suppressWarnings(as.numeric(out[[v]]))
+    } else {
+      lv <- levels(factor(ref[[v]]))
+      bad <- setdiff(unique(as.character(out[[v]])), c(lv, NA))
+      if (length(bad) > 0)
+        warns <- c(warns, paste0(v, " : modalites inconnues ignorees (",
+                                 paste(utils::head(bad, 5), collapse = ", "), ")"))
+      out[[v]] <- factor(as.character(out[[v]]), levels = lv)
+    }
+  }
+  list(data = out, warn = if (length(warns)) paste(warns, collapse = " ; ") else NULL)
 }

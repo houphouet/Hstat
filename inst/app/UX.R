@@ -184,10 +184,14 @@ ui <- dashboardPage(
       menuItem("Comparaisons post-hoc", tabName = "multiple", icon = icon("sort-amount-down")),
       menuItem("Analyses multivariées", tabName = "multivariate", icon = icon("project-diagram")),
       menuItem("Analyses qualitatives", tabName = "qualitative", icon = icon("comments")),
-      tags$li(class = "header", "4. Planification & outils"),
+      tags$li(class = "header", "4. Modélisation & prédiction"),
+      menuItem("Séries temporelles", tabName = "timeseries", icon = icon("clock")),
+      menuItem("Machine Learning", tabName = "ml", icon = icon("robot")),
+      menuItem("Deep Learning", tabName = "dl", icon = icon("brain")),
+      tags$li(class = "header", "5. Planification & outils"),
       menuItem("Plan & Puissance", tabName = "design", icon = icon("flask")),
       menuItem("Seuils d'efficacité", tabName = "threshold", icon = icon("gauge-high")),
-      tags$li(class = "header", "5. À propos"),
+      tags$li(class = "header", "6. À propos"),
       menuItem("Citer HStat", tabName = "cite", icon = icon("quote-right"))
     )
   ),
@@ -1878,6 +1882,15 @@ ui <- dashboardPage(
       # ---- Analyses qualitatives d'enquete ----
       mod_qualitative_ui("qualitative"),
       # ---- Seuils d'efficacité ----
+      tabItem(tabName = "timeseries",
+              mod_timeseries_ui("timeseries")
+      ),
+      tabItem(tabName = "ml",
+              mod_ml_ui("ml")
+      ),
+      tabItem(tabName = "dl",
+              mod_dl_ui("dl")
+      ),
       tabItem(tabName = "threshold",
               mod_threshold_ui("threshold")
       ),

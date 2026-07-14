@@ -23,6 +23,9 @@ source("mod_viz.R", local = FALSE, encoding = "UTF-8")
 source("mod_tests.R", local = FALSE, encoding = "UTF-8")
 source("mod_design.R", local = FALSE, encoding = "UTF-8")
 source("mod_qualitative.R", local = FALSE, encoding = "UTF-8")
+source("mod_timeseries.R", local = FALSE, encoding = "UTF-8")
+source("mod_ml.R", local = FALSE, encoding = "UTF-8")
+source("mod_dl.R", local = FALSE, encoding = "UTF-8")
 .hstat_ui_err <- NULL
 tryCatch(
   source("UX.R", local = FALSE, encoding = "UTF-8"),
