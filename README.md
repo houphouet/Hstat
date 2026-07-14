@@ -104,9 +104,11 @@ reported.
 All modelling packages — including `prophet`, `torch`, `dlm` and `dlnm` —
 are installed automatically at first launch. They are loaded via their
 namespaces only (never attached), so none of their exports can mask core
-functions of the app (e.g. `mclust::em` vs `shiny::em`). torch additionally
-downloads its native libraries once (`torch::install_torch()` is run
-automatically; if it fails, the neuralnet engine remains fully available).
+functions of the app (e.g. `mclust::em` vs `shiny::em`). torch's native
+libraries (~600 MB) are **never downloaded at startup** — the app launches
+immediately, and the Deep Learning module offers a one-click, one-time
+download button (with progress) when a torch engine is requested; the
+neuralnet engine is always available without it.
 
 ---
 
@@ -155,7 +157,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.3. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -163,7 +165,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.5.1},
+  note   = {Version 0.5.3},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
