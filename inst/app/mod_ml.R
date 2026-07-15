@@ -44,6 +44,15 @@ mod_ml_ui <- function(id) {
               tags$details(
                 tags$summary(style = "cursor:pointer; font-weight:600;",
                              icon("gears"), " Hyperparamètres"),
+                checkboxInput(ns("hpAuto"),
+                  "Recherche automatique des hyperparamètres (grille + validation) — recommandé",
+                  value = TRUE),
+                tags$small(style = "color:#6b7280; display:block; margin-bottom:8px;",
+                  "Pour chaque modèle, une grille de réglages est évaluée sur une ",
+                  "validation interne au jeu d'entraînement ; le meilleur réglage est ",
+                  "retenu puis le modèle final est réentraîné avec. Le jeu de test ",
+                  "reste totalement à l'écart de cette recherche. Les valeurs ",
+                  "ci-dessous ne servent que si la recherche automatique est décochée."),
                 fluidRow(
                   column(6, numericInput(ns("hpAlpha"), "glmnet : alpha (0=Ridge, 1=Lasso)",
                                          value = 0.5, min = 0, max = 1, step = 0.1)),
@@ -83,6 +92,8 @@ mod_ml_ui <- function(id) {
           box(title = tagList(icon("chart-area"), " Diagnostic du modèle sélectionné"),
               status = "primary", width = 8, solidHeader = TRUE,
               selectInput(ns("mlShow"), "Modèle affiché", choices = NULL),
+              uiOutput(ns("mlDoc")),
+              uiOutput(ns("mlHp")),
               shinycssloaders::withSpinner(plotOutput(ns("mlPlot"), height = "420px")),
               tabsetPanel(
                 tabPanel("Téléchargement", div(style = "padding-top:10px;",
@@ -150,6 +161,7 @@ mod_ml_ui <- function(id) {
                   column(6, numericInput(ns("clMinPts"), "minPts",
                                          value = 5, min = 2, step = 1)))),
               checkboxInput(ns("clScale"), "Standardiser les variables", TRUE),
+              uiOutput(ns("clDoc")),
               actionButton(ns("clRun"), "Lancer le clustering",
                            icon = icon("play"), class = "btn-primary")),
           box(title = tagList(icon("chart-area"), " Visualisation des groupes"),
@@ -257,14 +269,33 @@ mod_ml_server <- function(id, values) {
       al
     }
 
+    # ---- Recherche d'hyperparamètres : validation interne au train --------------
+    # Le jeu de test n'est JAMAIS utilisé ici : la grille est évaluée sur une
+    # coupe de validation prélevée dans le jeu d'entraînement (plafonnée pour
+    # les algorithmes coûteux), puis le modèle final est réentraîné sur tout
+    # le train avec le meilleur réglage.
+    tune_split <- function(tr, cap = 20000) {
+      n <- nrow(tr)
+      if (n > cap) tr <- tr[sample.int(n, cap), , drop = FALSE]
+      n <- nrow(tr)
+      ix <- sample.int(n, max(2, floor(n * 0.75)))
+      list(fit = tr[ix, , drop = FALSE], val = tr[-ix, , drop = FALSE])
+    }
+    tune_score <- function(obs, pred, cls) {
+      if (cls) mean(as.character(pred) != as.character(obs))
+      else sqrt(mean((as.numeric(obs) - as.numeric(pred))^2))
+    }
+
     # ---- Ajustement d'un modèle ------------------------------------------------
     fit_ml <- function(idm, p) {
       tr <- p$train; te <- p$test; ti <- p$ti; cls <- p$task == "classification"
       need_pkg <- function(pkg) if (!requireNamespace(pkg, quietly = TRUE))
         stop(sprintf("Le package '%s' est requis (install.packages(\"%s\")).", pkg, pkg))
       pf <- NULL; imp <- NULL; label <- names(.ml_catalog())[match(idm, .ml_catalog())]
+      auto <- isTRUE(input$hpAuto); hp <- if (auto) NULL else "réglages manuels"
 
       if (idm == "lmglm") {
+        if (auto) hp <- "aucun hyperparamètre à régler"
         if (!cls) { m <- stats::lm(p$f, data = tr)
           pf <- function(nd) list(pred = as.numeric(stats::predict(m, nd)), prob = NULL)
           co <- summary(m)$coefficients
@@ -288,7 +319,18 @@ mod_ml_server <- function(id, values) {
         need_pkg("glmnet")
         x <- mk_mm(p, tr); y <- tr[[ti]]
         fam <- if (!cls) "gaussian" else if (nlevels(y) == 2) "binomial" else "multinomial"
-        m <- glmnet::cv.glmnet(x, y, alpha = hstat_finite(input$hpAlpha, 0.5), family = fam)
+        alpha <- hstat_finite(input$hpAlpha, 0.5)
+        if (auto) {
+          grid <- c(0, 0.25, 0.5, 0.75, 1)
+          cvm <- vapply(grid, function(a)
+            min(glmnet::cv.glmnet(x, y, alpha = a, family = fam, nfolds = 5)$cvm),
+            numeric(1))
+          alpha <- grid[which.min(cvm)]
+          hp <- sprintf("alpha = %.2f (%s), lambda par validation croisée",
+                        alpha, if (alpha == 0) "Ridge" else if (alpha == 1) "Lasso"
+                               else "Elastic-Net")
+        }
+        m <- glmnet::cv.glmnet(x, y, alpha = alpha, family = fam)
         pf <- function(nd) {
           xn <- mk_mm(p, nd)
           if (!cls) list(pred = as.numeric(stats::predict(m, xn, s = "lambda.min")), prob = NULL)
@@ -305,6 +347,15 @@ mod_ml_server <- function(id, values) {
           imp <- data.frame(Variable = rownames(co)[-1], Importance = abs(co[-1, 1]))
       } else if (idm == "rpart") {
         need_pkg("rpart")
+        if (auto) {
+          m0 <- rpart::rpart(p$f, data = tr, method = if (cls) "class" else "anova",
+                             cp = 5e-4)
+          ct <- m0$cptable
+          cp_best <- as.numeric(ct[which.min(ct[, "xerror"]), "CP"])
+          m <- rpart::prune(m0, cp = cp_best)
+          hp <- sprintf("cp = %.4g (élagage au minimum d'erreur de validation croisée, %d feuille(s))",
+                        cp_best, sum(m$frame$var == "<leaf>"))
+        } else
         m <- rpart::rpart(p$f, data = tr, method = if (cls) "class" else "anova",
                           cp = hstat_finite(input$hpCp, 0.01))
         pf <- function(nd) {
@@ -317,8 +368,26 @@ mod_ml_server <- function(id, values) {
                             Importance = as.numeric(m$variable.importance))
       } else if (idm == "rf") {
         need_pkg("randomForest")
-        m <- randomForest::randomForest(p$f, data = tr,
-               ntree = max(50, hstat_finite(input$hpTrees, 300)))
+        ntree <- max(50, hstat_finite(input$hpTrees, 300))
+        mtry_best <- NULL
+        if (auto) {
+          nv <- ncol(tr) - 1
+          cands <- sort(unique(pmax(1, c(floor(sqrt(nv)), floor(nv / 3),
+                                         floor(nv / 2)))))
+          tsp <- tune_split(tr)
+          sc <- vapply(cands, function(mt) {
+            mm <- randomForest::randomForest(p$f, data = tsp$fit,
+                                             ntree = 150, mtry = mt)
+            tune_score(tsp$val[[ti]], stats::predict(mm, tsp$val), cls)
+          }, numeric(1))
+          mtry_best <- cands[which.min(sc)]
+          ntree <- max(ntree, 500)
+          hp <- sprintf("mtry = %d (validation), ntree = %d", mtry_best, ntree)
+        }
+        m <- if (is.null(mtry_best))
+          randomForest::randomForest(p$f, data = tr, ntree = ntree)
+        else randomForest::randomForest(p$f, data = tr, ntree = ntree,
+                                        mtry = mtry_best)
         pf <- function(nd) {
           if (!cls) list(pred = as.numeric(stats::predict(m, nd)), prob = NULL)
           else list(pred = stats::predict(m, nd),
@@ -332,12 +401,38 @@ mod_ml_server <- function(id, values) {
         obj <- if (!cls) "reg:squarederror"
                else if (nlevels(tr[[ti]]) == 2) "binary:logistic" else "multi:softprob"
         lab <- if (!cls) tr[[ti]] else as.numeric(tr[[ti]]) - 1
-        pars <- list(objective = obj, max_depth = as.integer(hstat_finite(input$hpDepth, 4)),
-                     eta = hstat_finite(input$hpEta, 0.1))
+        depth <- as.integer(hstat_finite(input$hpDepth, 4))
+        eta <- hstat_finite(input$hpEta, 0.1)
+        nrounds <- as.integer(hstat_finite(input$hpRounds, 150))
+        if (auto) {
+          tsp <- tune_split(tr)
+          xf <- mk_mm(p, tsp$fit); xv <- mk_mm(p, tsp$val)
+          xv <- xv[, colnames(xf), drop = FALSE]
+          lf <- if (!cls) tsp$fit[[ti]] else as.numeric(tsp$fit[[ti]]) - 1
+          grid <- expand.grid(depth = c(3L, 5L, 7L), eta = c(0.05, 0.1, 0.3))
+          sc <- vapply(seq_len(nrow(grid)), function(i) {
+            pi_ <- list(objective = obj, max_depth = grid$depth[i], eta = grid$eta[i])
+            if (obj == "multi:softprob") pi_$num_class <- nlevels(tr[[ti]])
+            mm <- xgboost::xgboost(data = xf, label = lf, params = pi_,
+                                   nrounds = 150, verbose = 0)
+            pr <- stats::predict(mm, xv)
+            pv <- if (!cls) pr
+              else if (obj == "binary:logistic")
+                levels(tr[[ti]])[1 + (pr > 0.5)]
+              else levels(tr[[ti]])[max.col(matrix(pr, ncol = nlevels(tr[[ti]]),
+                                                   byrow = TRUE))]
+            tune_score(tsp$val[[ti]], pv, cls)
+          }, numeric(1))
+          b <- which.min(sc)
+          depth <- grid$depth[b]; eta <- grid$eta[b]
+          nrounds <- max(nrounds, 300L)
+          hp <- sprintf("max_depth = %d, eta = %.2f (validation), nrounds = %d",
+                        depth, eta, nrounds)
+        }
+        pars <- list(objective = obj, max_depth = depth, eta = eta)
         if (obj == "multi:softprob") pars$num_class <- nlevels(tr[[ti]])
         m <- xgboost::xgboost(data = x, label = lab, params = pars,
-                              nrounds = as.integer(hstat_finite(input$hpRounds, 150)),
-                              verbose = 0)
+                              nrounds = nrounds, verbose = 0)
         pf <- function(nd) {
           xn <- mk_mm(p, nd)
           miss <- setdiff(colnames(x), colnames(xn))
@@ -361,8 +456,19 @@ mod_ml_server <- function(id, values) {
         if (nrow(iv)) imp <- data.frame(Variable = iv$Feature, Importance = iv$Gain)
       } else if (idm == "svm") {
         need_pkg("e1071")
-        m <- e1071::svm(p$f, data = tr, kernel = input$hpKernel %||% "radial",
-                        cost = max(0.01, hstat_finite(input$hpCost, 1)),
+        cost <- max(0.01, hstat_finite(input$hpCost, 1))
+        kern <- input$hpKernel %||% "radial"
+        if (auto) {
+          tsp <- tune_split(tr, cap = 4000)
+          grid <- c(0.25, 1, 4, 16)
+          sc <- vapply(grid, function(cc) {
+            mm <- e1071::svm(p$f, data = tsp$fit, kernel = kern, cost = cc)
+            tune_score(tsp$val[[ti]], stats::predict(mm, tsp$val), cls)
+          }, numeric(1))
+          cost <- grid[which.min(sc)]
+          hp <- sprintf("noyau %s, C = %.2g (validation)", kern, cost)
+        }
+        m <- e1071::svm(p$f, data = tr, kernel = kern, cost = cost,
                         probability = cls)
         pf <- function(nd) {
           pr <- stats::predict(m, nd, probability = cls)
@@ -376,6 +482,17 @@ mod_ml_server <- function(id, values) {
       } else if (idm == "knn") {
         need_pkg("kknn")
         k <- max(1, as.integer(hstat_finite(input$hpK, 7)))
+        if (auto) {
+          tsp <- tune_split(tr, cap = 10000)
+          grid <- c(3, 5, 7, 11, 15, 21, 31)
+          grid <- grid[grid < nrow(tsp$fit)]
+          sc <- vapply(grid, function(kk) {
+            mm <- kknn::kknn(p$f, train = tsp$fit, test = tsp$val, k = kk)
+            tune_score(tsp$val[[ti]], mm$fitted.values, cls)
+          }, numeric(1))
+          k <- grid[which.min(sc)]
+          hp <- sprintf("k = %d voisins (validation)", k)
+        }
         pf <- function(nd) {
           m <- kknn::kknn(p$f, train = tr, test = nd, k = k)
           if (!cls) list(pred = as.numeric(m$fitted.values), prob = NULL)
@@ -384,6 +501,7 @@ mod_ml_server <- function(id, values) {
       } else if (idm == "nb") {
         if (!cls) stop("Naïve Bayes ne s'applique qu'à la classification.")
         need_pkg("e1071")
+        if (auto) hp <- "aucun hyperparamètre à régler"
         m <- e1071::naiveBayes(p$f, data = tr)
         pf <- function(nd) list(pred = stats::predict(m, nd),
                                 prob = stats::predict(m, nd, type = "raw"))
@@ -393,9 +511,25 @@ mod_ml_server <- function(id, values) {
         ctr <- vapply(tr[num], mean, numeric(1))
         scl <- vapply(tr[num], stats::sd, numeric(1)); scl[!is.finite(scl) | scl == 0] <- 1
         sc <- function(d) { for (v in num) d[[v]] <- (d[[v]] - ctr[v]) / scl[v]; d }
-        m <- nnet::nnet(p$f, data = sc(tr),
-                        size = max(1, as.integer(hstat_finite(input$hpSize, 8))),
-                        decay = 5e-4, maxit = 400, trace = FALSE,
+        size <- max(1, as.integer(hstat_finite(input$hpSize, 8)))
+        decay <- 5e-4
+        if (auto) {
+          tsp <- tune_split(tr, cap = 10000)
+          grid <- expand.grid(size = c(4L, 8L, 16L), decay = c(1e-4, 1e-3, 1e-2))
+          scv <- vapply(seq_len(nrow(grid)), function(i) {
+            mm <- nnet::nnet(p$f, data = sc(tsp$fit), size = grid$size[i],
+                             decay = grid$decay[i], maxit = 200, trace = FALSE,
+                             linout = !cls, MaxNWts = 5000)
+            pr <- stats::predict(mm, sc(tsp$val),
+                                 type = if (cls) "class" else "raw")
+            tune_score(tsp$val[[ti]], if (cls) pr else as.numeric(pr), cls)
+          }, numeric(1))
+          b <- which.min(scv)
+          size <- grid$size[b]; decay <- grid$decay[b]
+          hp <- sprintf("%d neurones cachés, decay = %.4g (validation)", size, decay)
+        }
+        m <- nnet::nnet(p$f, data = sc(tr), size = size,
+                        decay = decay, maxit = 400, trace = FALSE,
                         linout = !cls, MaxNWts = 5000)
         pf <- function(nd) {
           nd <- sc(nd)
@@ -416,7 +550,7 @@ mod_ml_server <- function(id, values) {
               else hstat_metrics_reg(te[[ti]], out$pred)
       if (!is.null(imp)) imp <- imp[order(-imp$Importance), , drop = FALSE]
       list(ok = TRUE, label = label, predict_fun = pf, metrics = mets,
-           pred = out$pred, prob = out$prob, imp = imp)
+           pred = out$pred, prob = out$prob, imp = imp, hp = hp)
     }
 
     fits <- eventReactive(input$mlRun, {
@@ -442,18 +576,20 @@ mod_ml_server <- function(id, values) {
       rows <- lapply(f$res, function(r) {
         if (!isTRUE(r$ok))
           return(data.frame(Modele = r$label, C1 = NA, C2 = NA, C3 = NA,
-                            Statut = paste("Échec :", r$err)))
+                            HP = "", Statut = paste("Échec :", r$err)))
         v <- function(m) { i <- match(m, r$metrics$Metrique)
                            if (is.na(i)) NA else r$metrics$Valeur[i] }
         if (cls) data.frame(Modele = r$label, C1 = v("Exactitude (accuracy)"),
                             C2 = v("F1-score (macro)"), C3 = v("AUC (ROC)"),
-                            Statut = "OK")
+                            HP = r$hp %||% "", Statut = "OK")
         else data.frame(Modele = r$label, C1 = v("RMSE"), C2 = v("MAE"),
-                        C3 = v("R2"), Statut = "OK")
+                        C3 = v("R2"), HP = r$hp %||% "", Statut = "OK")
       })
       out <- do.call(rbind, rows)
-      names(out) <- if (cls) c("Modèle", "Exactitude", "F1 (macro)", "AUC", "Statut")
-                    else c("Modèle", "RMSE", "MAE", "R2", "Statut")
+      names(out) <- if (cls) c("Modèle", "Exactitude", "F1 (macro)", "AUC",
+                               "Hyperparamètres retenus", "Statut")
+                    else c("Modèle", "RMSE", "MAE", "R2",
+                           "Hyperparamètres retenus", "Statut")
       key <- if (cls) -out[[2]] else out[[2]]
       out[order(is.na(key), key), , drop = FALSE]
     })
@@ -482,6 +618,19 @@ mod_ml_server <- function(id, values) {
       updateSelectInput(session, "mlShow", choices = stats::setNames(ok, labs),
                         selected = if (length(ok)) ok[1] else NULL)
     })
+
+    output$mlDoc <- renderUI({
+      req(nzchar(input$mlShow %||% ""))
+      hstat_model_doc_ui(input$mlShow)
+    })
+    output$mlHp <- renderUI({
+      c0 <- tryCatch(cur(), error = function(e) NULL)
+      if (is.null(c0) || is.null(c0$r$hp)) return(NULL)
+      div(class = "callout callout-success", style = "margin-top:4px;",
+          icon("gears"), strong(" Hyperparamètres retenus : "), c0$r$hp,
+          " — les métriques et graphiques ci-dessous sont calculés avec ces réglages.")
+    })
+    output$clDoc <- renderUI(hstat_model_doc_ui(input$clMethod %||% "kmeans"))
 
     cur <- reactive({
       f <- fits(); req(f, nzchar(input$mlShow %||% ""))
@@ -517,11 +666,15 @@ mod_ml_server <- function(id, values) {
                         x = "Taux de faux positifs", y = "Taux de vrais positifs")
       } else {
         d <- as.data.frame(table(Observe = p$test[[p$ti]], Predit = r$pred))
+        tot <- stats::ave(d$Freq, d$Observe, FUN = sum)
+        d$Pct <- ifelse(tot > 0, 100 * d$Freq / tot, 0)
         ggplot2::ggplot(d, ggplot2::aes(Predit, Observe, fill = Freq)) +
           ggplot2::geom_tile() +
-          ggplot2::geom_text(ggplot2::aes(label = Freq), color = "white") +
+          ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%.0f %%)", Freq, Pct)),
+                             color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
-          ggplot2::labs(title = sprintf("%s — matrice de confusion (test)", r$label))
+          ggplot2::labs(title = sprintf("%s — matrice de confusion (test)", r$label),
+                        caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
       }
       hstat_apply_plot_opts(g, input, "mlO")
     })
@@ -542,11 +695,15 @@ mod_ml_server <- function(id, values) {
                         x = "Erreur (observé − prédit)", y = "Effectif")
       } else {
         d <- as.data.frame(table(Observe = p$test[[p$ti]], Predit = r$pred))
+        tot <- stats::ave(d$Freq, d$Observe, FUN = sum)
+        d$Pct <- ifelse(tot > 0, 100 * d$Freq / tot, 0)
         ggplot2::ggplot(d, ggplot2::aes(Predit, Observe, fill = Freq)) +
           ggplot2::geom_tile() +
-          ggplot2::geom_text(ggplot2::aes(label = Freq), color = "white") +
+          ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%.0f %%)", Freq, Pct)),
+                             color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
-          ggplot2::labs(title = "Matrice de confusion (test)")
+          ggplot2::labs(title = "Matrice de confusion (test)",
+                        caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
       }
       hstat_apply_plot_opts(g, input, "mlO")
     })
@@ -590,7 +747,10 @@ mod_ml_server <- function(id, values) {
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("lightbulb"), strong(" Interprétation : "),
           hstat_model_interpretation(c0$p$task, c0$r$metrics, c0$r$label,
-                                     nrow(c0$p$train), nrow(c0$p$test)))
+                                     nrow(c0$p$train), nrow(c0$p$test),
+            notes = if (!is.null(c0$r$hp) && !identical(c0$r$hp, "réglages manuels"))
+              sprintf("Hyperparamètres retenus par la recherche automatique : %s.", c0$r$hp)
+            else NULL))
     })
 
     # ---- Simulateur ---------------------------------------------------------------

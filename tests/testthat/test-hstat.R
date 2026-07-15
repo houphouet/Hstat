@@ -1122,3 +1122,34 @@ test_that("HSTAT_ML_MAX_N est defini et raisonnable", {
   expect_true(is.integer(HSTAT_ML_MAX_N) || is.numeric(HSTAT_ML_MAX_N))
   expect_gte(HSTAT_ML_MAX_N, 1000)
 })
+
+
+# =============================================================================
+#  v0.6.0 -- Fiches modeles, seuils des metriques
+# =============================================================================
+
+test_that("hstat_model_doc couvre tous les modeles et fournit les 4 champs", {
+  ids <- c("naive","snaive","meanf","drift","ses","holt","holtd","hwadd","hwmul",
+           "ets","arima","sarima","tbats","theta","stlf","nnetar","dlmts","dlnm",
+           "prophet","lmglm","glmnet","rpart","rf","xgb","svm","knn","nb","nnet",
+           "kmeans","hclust","pam","dbscan","mclust","dl_neuralnet","dl_torch","lstm")
+  for (id in ids) {
+    f <- hstat_model_doc(id)
+    expect_false(is.null(f), info = id)
+    expect_true(all(c("nom","principe","objectif","conditions") %in% names(f)),
+                info = id)
+    expect_true(all(nchar(unlist(f)) > 10), info = id)
+  }
+  expect_null(hstat_model_doc("modele_inexistant"))
+})
+
+test_that("les tableaux de metriques exposent une colonne Seuils renseignee", {
+  m <- hstat_metrics_reg(1:50, (1:50) + rnorm(50))
+  expect_true("Seuils" %in% names(m))
+  expect_true(all(nzchar(m$Seuils)))
+  y <- factor(rep(c("A","B"), 25))
+  mc <- hstat_metrics_cls(y, y)
+  expect_true("Seuils" %in% names(mc))
+  expect_true(all(nzchar(mc$Seuils)))
+  expect_match(mc$Seuils[mc$Metrique == "Kappa de Cohen"], "Landis")
+})

@@ -63,86 +63,71 @@ Environment variables (all optional):
 
 ---
 
-## Predictive modelling (v0.5.x)
-
-Three dedicated modules cover forecasting and prediction end to end. Every
-model reports interpreted metrics, customizable plots, an automatic
-plain-language interpretation, a prediction simulator (manual input or batch
-import of new cases), and full export: tables as CSV/Excel, figures as
-PNG/JPG/TIFF/BMP/PDF/SVG at up to 20,000 DPI (with an automatic pixel safety
-cap for raster formats).
-
-**Time series** — naïve & seasonal naïve, historical mean, drift, SES, Holt,
-damped Holt, Holt-Winters (additive/multiplicative), ETS, auto-ARIMA, manual
-SARIMA, TBATS, Theta, STL+ETS, NNAR, Prophet, DLM (dynamic linear model:
-local level + trend + seasonality estimated by MLE and filtered by Kalman,
-`dlm` package) and DLNM (distributed lag non-linear model, `dlnm` package:
-delayed non-linear effect of an exposure variable — e.g. temperature or
-pollution — on the outcome, the classic environmental-epidemiology design;
-quasi-Poisson family is selected automatically for count outcomes, and the
-simulator accepts a file of future exposure values). Models are
-compared on a held-out test window (RMSE/MAE/MAPE/MASE/AIC), residuals are
-diagnosed (Ljung-Box, ACF), the series is decomposed (STL), and the simulator
-forecasts any horizon — optionally after appending newly imported
-observations.
-
-**Machine learning** — task auto-detected (regression vs classification):
-linear/logistic model, Ridge/Lasso/Elastic-Net (glmnet), decision tree
-(rpart), random forest, gradient boosting (xgboost), SVM (e1071), k-nearest
-neighbours (kknn), Naïve Bayes, and a single-layer neural network (nnet),
-plus unsupervised clustering (k-means, hierarchical, PAM, DBSCAN, Gaussian
-mixtures) with silhouette and elbow diagnostics. Includes ROC curves,
-confusion matrices, variable importance, and model comparison on a held-out
-test set.
-
-**Deep learning** — 100 % R, no Python required: multi-layer perceptron via
-`neuralnet` (always available) or via `torch` (optional, with per-epoch
-learning curves), and an LSTM sequence forecaster (torch). Predictors are
-standardized automatically; the architecture and trained parameter count are
-reported.
-
-All modelling packages — including `prophet`, `torch`, `dlm` and `dlnm` —
-are installed automatically at first launch. They are loaded via their
-namespaces only (never attached), so none of their exports can mask core
-functions of the app (e.g. `mclust::em` vs `shiny::em`). torch's native
-libraries (~600 MB) are **never downloaded at startup** — the app launches
-immediately, and the Deep Learning module offers a one-click, one-time
-download button (with progress) when a torch engine is requested; the
-neuralnet engine is always available without it.
-
----
-
 ## Project structure
 
 ```
+.
+├── app.R
 ├── DESCRIPTION
+├── Hstat.Rproj
+├── inst
+│   ├── app
+│   │   ├── app.R
+│   │   ├── app_server.R
+│   │   ├── HStat.R
+│   │   ├── mod_clean.R
+│   │   ├── mod_descriptive.R
+│   │   ├── mod_design.R
+│   │   ├── mod_dl.R
+│   │   ├── mod_explore.R
+│   │   ├── mod_filter.R
+│   │   ├── mod_ml.R
+│   │   ├── mod_qualitative.R
+│   │   ├── mod_tests.R
+│   │   ├── mod_threshold.R
+│   │   ├── mod_timeseries.R
+│   │   ├── mod_viz.R
+│   │   ├── Utils.R
+│   │   ├── UX.R
+│   │   └── www
+│   │       ├── fonts
+│   │       │   ├── archivo-latin-400-normal.woff2
+│   │       │   ├── archivo-latin-500-normal.woff2
+│   │       │   ├── archivo-latin-600-normal.woff2
+│   │       │   ├── archivo-latin-700-normal.woff2
+│   │       │   ├── Archivo-LICENSE.txt
+│   │       │   ├── ibm-plex-mono-latin-400-normal.woff2
+│   │       │   ├── ibm-plex-mono-latin-500-normal.woff2
+│   │       │   ├── ibm-plex-mono-latin-600-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-400-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-500-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-600-normal.woff2
+│   │       │   ├── ibm-plex-sans-latin-700-normal.woff2
+│   │       │   ├── inter-latin-400-normal.woff2
+│   │       │   ├── inter-latin-500-normal.woff2
+│   │       │   ├── inter-latin-600-normal.woff2
+│   │       │   ├── inter-latin-700-normal.woff2
+│   │       │   ├── Inter-LICENSE.txt
+│   │       │   ├── newsreader-latin-400-italic.woff2
+│   │       │   ├── newsreader-latin-400-normal.woff2
+│   │       │   ├── newsreader-latin-500-normal.woff2
+│   │       │   ├── newsreader-latin-600-normal.woff2
+│   │       │   └── Newsreader-LICENSE.txt
+│   │       ├── hstat-theme.css
+│   │       └── Sortable.min.js
+│   └── CITATION
+├── man
+│   └── run_hstat.Rd
 ├── NAMESPACE
-├── R/
-│   └── run_hstat.R
-├── inst/
-│   └── app/
-│       ├── HStat.R
-│       ├── app_server.R
-│       ├── UX.R
-│       ├── Utils.R
-│       ├── mod_clean.R
-│       ├── mod_descriptive.R
-│       ├── mod_design.R
-│       ├── mod_explore.R
-│       ├── mod_filter.R
-│       ├── mod_qualitative.R
-│       ├── mod_tests.R
-│       ├── mod_threshold.R
-│       ├── mod_viz.R
-│       └── www/
-│           ├── fonts/
-│           ├── hstat-theme.css
-│           └── Sortable.min.js
-├── tests/
-│   ├── testthat.R
-│   └── testthat/
-│       └── test-hstat.R
-└── README.md
+├── R
+│   ├── run_hstat.R
+│   └── zzz.R
+├── README.md
+└── tests
+    ├── test-hstat.R
+    ├── testthat
+    │   └── test-hstat.R
+    └── testthat.R
 ```
 ---
 
@@ -157,7 +142,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.5.3. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.6.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -165,7 +150,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.5.3},
+  note   = {Version 0.6.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

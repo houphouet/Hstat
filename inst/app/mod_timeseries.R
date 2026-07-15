@@ -90,6 +90,7 @@ mod_timeseries_ui <- function(id) {
       box(title = tagList(icon("chart-line"), " Prévisions du modèle sélectionné"),
           status = "primary", width = 8, solidHeader = TRUE,
           selectInput(ns("tsShow"), "Modèle affiché", choices = NULL),
+          uiOutput(ns("tsDoc")),
           shinycssloaders::withSpinner(plotOutput(ns("tsPlot"), height = "430px")),
           tabsetPanel(
             tabPanel("Téléchargement", div(style = "padding-top:10px;",
@@ -110,7 +111,15 @@ mod_timeseries_ui <- function(id) {
       box(title = tagList(icon("layer-group"), " Décomposition (STL)"),
           status = "warning", width = 6, solidHeader = TRUE,
           plotOutput(ns("tsDecomp"), height = "330px"),
-          hstat_export_plot_ui(ns, "tsDe", width = 9, height = 6))),
+          hstat_export_plot_ui(ns, "tsDe", width = 9, height = 6),
+          tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
+            strong("Conditions : "), "la décomposition STL porte sur la série ",
+            "elle-même (quel que soit le modèle affiché) et n'est disponible que si ",
+            "la fréquence saisonnière est > 1 avec au moins 2 saisons complètes ",
+            "(ex. 24 points en mensuel). Elle éclaire directement les modèles ",
+            "saisonniers : naïf saisonnier, Holt-Winters, SARIMA, TBATS et STL+ETS ",
+            "(qui l'utilise en interne). Pour une série de fréquence 1 (naïf, ",
+            "dérive, SES, Holt, Thêta, DLM sans saison, DLNM...), elle est sans objet."))),
     fluidRow(
       box(title = tagList(icon("magic"), " Simulateur de prévisions"),
           status = "success", width = 12, solidHeader = TRUE,
@@ -118,9 +127,17 @@ mod_timeseries_ui <- function(id) {
             column(4,
               numericInput(ns("simH"), "Horizon à simuler (périodes futures)",
                            value = 12, min = 1, step = 1),
+              textAreaInput(ns("simManual"),
+                "Saisir de nouvelles valeurs (séparées par des virgules, espaces ou retours à la ligne)",
+                placeholder = "ex. : 152,3  148,9  151,2  ou  152.3 148.9 151.2",
+                rows = 2),
               fileInput(ns("simFile"),
-                        "Ou importer de nouvelles observations (CSV/Excel) pour ré-entraîner",
+                        "Ou importer un fichier (CSV/Excel)",
                         accept = c(".csv", ".xlsx")),
+              tags$small(style = "color:#6b7280; display:block;",
+                "Pour les modèles classiques, ces valeurs sont ajoutées à la fin de ",
+                "la série avant ré-entraînement. Pour le DLNM, elles sont interprétées ",
+                "comme les expositions futures. La saisie manuelle prime sur le fichier."),
               tags$small(style = "color:#6b7280;",
                 "Le fichier doit contenir une colonne portant le même nom que la ",
                 "variable prévue ; ses valeurs sont ajoutées à la fin de la série ",
@@ -425,6 +442,22 @@ mod_timeseries_server <- function(id, values) {
                         selected = if (length(ok)) ok[1] else NULL)
     })
 
+    output$tsDoc <- renderUI({
+      req(nzchar(input$tsShow %||% ""))
+      hstat_model_doc_ui(input$tsShow)
+    })
+
+    # Valeurs saisies a la main dans le simulateur ("152,3 148,9" ou "152.3 148.9")
+    parse_manual <- function(txt) {
+      if (is.null(txt) || !nzchar(trimws(txt))) return(numeric(0))
+      t <- gsub("[;\n\t]", " ", txt)
+      # virgule decimale francaise : 152,3 -> 152.3 (si pas deja un separateur)
+      t <- gsub("(?<=[0-9]),(?=[0-9])", ".", t, perl = TRUE)
+      t <- gsub(",", " ", t)
+      v <- suppressWarnings(as.numeric(strsplit(trimws(t), "[[:space:]]+")[[1]]))
+      v[is.finite(v)]
+    }
+
     cur <- reactive({
       f <- fits(); req(f, nzchar(input$tsShow %||% ""))
       r <- f$res[[input$tsShow]]
@@ -576,7 +609,12 @@ mod_timeseries_server <- function(id, values) {
                       "DLNM : relancez l'entraînement avec une exposition."))
         L <- as.integer(max(1, hstat_finite(input$dlnmLag, 14)))
         note <- NULL
-        if (!is.null(input$simFile$datapath)) {
+        manual <- parse_manual(input$simManual)
+        if (length(manual) > 0) {
+          if (length(manual) < h) h <- length(manual)
+          ef <- manual[seq_len(h)]
+          note <- sprintf("Expositions futures saisies manuellement (%d valeur(s)).", h)
+        } else if (!is.null(input$simFile$datapath)) {
           nd <- tryCatch({
             if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
               as.data.frame(readxl::read_excel(input$simFile$datapath))
@@ -603,9 +641,13 @@ mod_timeseries_server <- function(id, values) {
         return(list(fc = r$fc, y = y, h = h, appended = 0L,
                     label = c0$label, note = note))
       }
-      # --- Cas général : le fichier importé AJOUTE des observations ----------
+      # --- Cas général : saisie manuelle ou fichier AJOUTENT des observations --
       appended <- 0L
-      if (!is.null(input$simFile$datapath)) {
+      manual <- parse_manual(input$simManual)
+      if (length(manual) > 0) {
+        y <- stats::ts(c(as.numeric(y), manual), frequency = stats::frequency(y))
+        appended <- length(manual)
+      } else if (!is.null(input$simFile$datapath)) {
         nd <- tryCatch({
           if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
             as.data.frame(readxl::read_excel(input$simFile$datapath))

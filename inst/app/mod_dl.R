@@ -22,6 +22,7 @@ mod_dl_ui <- function(id) {
                 choices = c("neuralnet (R natif, toujours disponible)" = "neuralnet",
                             "torch (profond, si installé)" = "torch")),
               uiOutput(ns("dlEngineNote")),
+              uiOutput(ns("dlDoc")),
               selectInput(ns("dlTarget"), "Variable cible (à prédire)", choices = NULL),
               uiOutput(ns("dlTaskInfo")),
               selectizeInput(ns("dlPreds"), "Variables explicatives", choices = NULL,
@@ -98,6 +99,7 @@ mod_dl_ui <- function(id) {
           box(title = tagList(icon("sliders"), " Configuration"), status = "primary",
               width = 4, solidHeader = TRUE,
               uiOutput(ns("lstmAvail")),
+              uiOutput(ns("lstmDoc")),
               selectInput(ns("lstmVar"), "Série à prévoir (numérique)", choices = NULL),
               fluidRow(
                 column(6, numericInput(ns("lstmLook"), "Fenêtre (pas passés)",
@@ -222,6 +224,10 @@ mod_dl_server <- function(id, values) {
       torch_tick()
       torch_install_ui("torchInstall2")
     })
+    output$dlDoc <- renderUI(
+      hstat_model_doc_ui(if (identical(input$dlEngine, "torch")) "dl_torch"
+                         else "dl_neuralnet"))
+    output$lstmDoc <- renderUI(hstat_model_doc_ui("lstm"))
 
     task_of <- function(x)
       if (is.numeric(x) && length(unique(x[!is.na(x)])) > 10) "regression" else "classification"
@@ -419,23 +425,42 @@ mod_dl_server <- function(id, values) {
     dl_gg <- reactive({
       f <- dlfit(); req(f)
       col <- hstat_plot_opt(input, "dlO", "Col", "#8e44ad")
-      g <- if (f$p$task == "regression") {
+      if (f$p$task == "regression") {
         d <- data.frame(obs = f$p$y_test, pred = as.numeric(f$pred))
-        ggplot2::ggplot(d, ggplot2::aes(obs, pred)) +
+        g1 <- ggplot2::ggplot(d, ggplot2::aes(obs, pred)) +
           ggplot2::geom_point(color = col, alpha = 0.55, size = 1.6) +
           ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
                                color = "#e74c3c") +
           ggplot2::labs(title = sprintf("MLP (%s) — observé vs prédit (test)", f$fit$engine),
                         x = "Valeur observée", y = "Valeur prédite")
+        # Courbe de prédiction : valeurs observées et prédites le long du test
+        dc <- rbind(data.frame(i = seq_len(nrow(d)), v = d$obs, quoi = "Observé"),
+                    data.frame(i = seq_len(nrow(d)), v = d$pred, quoi = "Prédit"))
+        g2 <- ggplot2::ggplot(dc, ggplot2::aes(i, v, color = quoi)) +
+          ggplot2::geom_line(linewidth = 0.6, alpha = 0.9) +
+          ggplot2::scale_color_manual(values = c("Observé" = "#37474f",
+                                                 "Prédit" = col)) +
+          ggplot2::labs(title = "Courbe de prédiction (jeu de test)",
+                        x = "Observation (ordre du jeu de test)", y = "Valeur",
+                        color = NULL) +
+          ggplot2::theme(legend.position = "bottom")
+        g1 <- hstat_apply_plot_opts(g1, input, "dlO")
+        g2 <- hstat_apply_plot_opts(g2, input, "dlO") +
+          ggplot2::theme(legend.position = "bottom")
+        patchwork::wrap_plots(g1, g2, ncol = 2)
       } else {
         d <- as.data.frame(table(Observe = f$p$y_test, Predit = f$pred))
-        ggplot2::ggplot(d, ggplot2::aes(Predit, Observe, fill = Freq)) +
+        tot <- stats::ave(d$Freq, d$Observe, FUN = sum)
+        d$Pct <- ifelse(tot > 0, 100 * d$Freq / tot, 0)
+        g <- ggplot2::ggplot(d, ggplot2::aes(Predit, Observe, fill = Freq)) +
           ggplot2::geom_tile() +
-          ggplot2::geom_text(ggplot2::aes(label = Freq), color = "white") +
+          ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%.0f %%)", Freq, Pct)),
+                             color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
-          ggplot2::labs(title = sprintf("MLP (%s) — matrice de confusion (test)", f$fit$engine))
+          ggplot2::labs(title = sprintf("MLP (%s) — matrice de confusion (test)", f$fit$engine),
+                        caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
+        hstat_apply_plot_opts(g, input, "dlO")
       }
-      hstat_apply_plot_opts(g, input, "dlO")
     })
     output$dlPlot <- renderPlot(dl_gg())
     output$dlPlDl <- hstat_export_plot_handler(input, "dlPl",
